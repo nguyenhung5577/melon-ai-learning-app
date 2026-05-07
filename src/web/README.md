@@ -18,7 +18,7 @@
 | RAG | OpenAI Embeddings + Pinecone |
 | State | TanStack Query v5, localStorage (mock Phase 1) |
 | Charts | Recharts |
-| Deployment | Docker, AWS (Phase 2) |
+| Deployment | Vercel (one-click deploy) |
 
 ---
 
@@ -162,7 +162,7 @@ npm run lint     # ESLint
 - **Adding lessons**: Edit `MOCK_LESSONS` array in `lib/lessons/mock-lessons.ts`
 - **Design system**: All tokens defined in `app/globals.css` under `@theme inline` — see `design-system/melon-app/MASTER.md` for guidelines
 - **API routes**: All backend logic lives under `app/api/v1/` as Next.js Route Handlers
-- **Phase 2**: Real NestJS backend (see SAD), AWS infra stub in `infra/`
+- **Phase 2**: Real backend integration, deploy via Vercel (`infra/vercel.json`)
 
 ---
 

@@ -1,0 +1,161 @@
+"use client";
+
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  GoogleAuthProvider,
+  signInWithPopup,
+  updateProfile,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import { auth } from "./firebase";
+import type { AuthState, MelonUser, UserRole } from "./types";
+import { bus } from "@/lib/core/event-bus";
+
+const PROFILE_KEY = "melon:profile";
+
+function toMelonUser(fbUser: FirebaseUser, role: UserRole = "kid"): MelonUser {
+  return {
+    uid: fbUser.uid,
+    email: fbUser.email,
+    displayName: fbUser.displayName,
+    photoURL: fbUser.photoURL,
+    role,
+    coppaConsented: true,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function loadProfile(uid: string): Partial<MelonUser> | null {
+  try {
+    const raw = localStorage.getItem(`${PROFILE_KEY}:${uid}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveProfile(user: MelonUser): void {
+  try {
+    localStorage.setItem(`${PROFILE_KEY}:${user.uid}`, JSON.stringify(user));
+  } catch {
+    /* noop */
+  }
+}
+
+interface AuthContextValue extends AuthState {
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    role: UserRole,
+    displayName?: string
+  ) => Promise<void>;
+  signInWithGoogle: (role?: UserRole) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<AuthState>({
+    user: null,
+    loading: true,
+    error: null,
+  });
+
+  useEffect(() => {
+    if (!auth) {
+      // Firebase not configured — run in demo/mock mode
+      setState({ user: null, loading: false, error: null });
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        const saved = loadProfile(fbUser.uid);
+        const user = toMelonUser(fbUser, saved?.role ?? "kid");
+        const merged: MelonUser = { ...user, ...saved, uid: fbUser.uid };
+        setState({ user: merged, loading: false, error: null });
+        bus.emit("auth:signedIn", { uid: fbUser.uid, role: merged.role });
+      } else {
+        setState({ user: null, loading: false, error: null });
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  async function signIn(email: string, password: string) {
+    if (!auth) throw new Error("Firebase not configured. Add keys to .env.local");
+    setState((s) => ({ ...s, error: null }));
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const saved = loadProfile(cred.user.uid);
+    const user = toMelonUser(cred.user, saved?.role ?? "kid");
+    const merged = { ...user, ...saved, uid: cred.user.uid } as MelonUser;
+    setState({ user: merged, loading: false, error: null });
+  }
+
+  async function signUp(
+    email: string,
+    password: string,
+    role: UserRole,
+    displayName?: string
+  ) {
+    if (!auth) throw new Error("Firebase not configured. Add keys to .env.local");
+    setState((s) => ({ ...s, error: null }));
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    if (displayName) {
+      await updateProfile(cred.user, { displayName });
+    }
+    const user: MelonUser = {
+      uid: cred.user.uid,
+      email: cred.user.email,
+      displayName: displayName ?? null,
+      photoURL: null,
+      role,
+      coppaConsented: true,
+      createdAt: new Date().toISOString(),
+    };
+    saveProfile(user);
+    setState({ user, loading: false, error: null });
+  }
+
+  async function signInWithGoogle(role: UserRole = "kid") {
+    if (!auth) throw new Error("Firebase not configured. Add keys to .env.local");
+    const provider = new GoogleAuthProvider();
+    const cred = await signInWithPopup(auth, provider);
+    const saved = loadProfile(cred.user.uid);
+    const user = toMelonUser(cred.user, saved?.role ?? role);
+    const merged = { ...user, ...saved, uid: cred.user.uid } as MelonUser;
+    if (!saved) saveProfile(merged);
+    setState({ user: merged, loading: false, error: null });
+  }
+
+  async function logout() {
+    if (auth) await signOut(auth);
+    setState({ user: null, loading: false, error: null });
+    bus.emit("auth:signedOut", {});
+  }
+
+  return (
+    <AuthContext.Provider value={{ ...state, signIn, signUp, signInWithGoogle, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuthContext() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuthContext must be used within AuthProvider");
+  return ctx;
+}
