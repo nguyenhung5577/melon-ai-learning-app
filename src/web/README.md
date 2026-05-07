@@ -13,6 +13,7 @@
 | Styling | Tailwind CSS v4, Neobrutalism design system (AISE palette) |
 | UI Components | shadcn/ui (Radix UI), Framer Motion |
 | Auth | Firebase Authentication |
+| Storage | Firebase Storage (PDF + avatar uploads) |
 | AI / Chat | OpenAI GPT-4o-mini (SSE streaming) |
 | TTS | ElevenLabs |
 | RAG | OpenAI Embeddings + Pinecone |
@@ -25,7 +26,7 @@
 ## Project Structure
 
 ```
-melon-web/
+src/web/
 ├── app/                    # Next.js App Router pages
 │   ├── page.tsx            # Landing page
 │   ├── lessons/            # Lesson grid + player
@@ -49,11 +50,10 @@ melon-web/
 │   ├── core/               # config, query-client, event-bus, error-handler, providers
 │   ├── gamification/       # XP / badge store (localStorage)
 │   ├── lessons/            # Mock lesson data
+│   ├── storage/            # Firebase Storage upload utilities
 │   └── user/               # User profile store (localStorage)
-├── design-system/
-│   └── melon-app/MASTER.md # Design system source of truth
-├── plans/                  # Architecture decision records + project plan
-├── infra/main.tf           # Terraform stub (Phase 2)
+├── infra/
+│   └── vercel.json         # Vercel deployment config
 └── Dockerfile
 ```
 
@@ -65,7 +65,7 @@ melon-web/
 
 ```bash
 git clone <repo-url>
-cd melon-web
+cd <repo>/src/web
 npm install
 ```
 
@@ -95,7 +95,7 @@ Copy `.env.example` → `.env.local`:
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Auth only | Firebase project API key |
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Auth only | Firebase auth domain |
 | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Auth only | Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | Auth only | Firebase storage bucket |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | File uploads | Firebase Storage bucket (PDFs, avatars) |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Auth only | Firebase sender ID |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Auth only | Firebase app ID |
 | `OPENAI_API_KEY` | AI features | OpenAI API key (chat, RAG, moderation) |
@@ -130,6 +130,7 @@ Copy `.env.example` → `.env.local`:
 |---|---|
 | Login / Signup modal | Email/password + Google SSO |
 | `/family` | Link parent → child accounts |
+| PDF + avatar upload | Firebase Storage (`NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`) |
 
 ### Requires OpenAI key
 | Feature | Description |
@@ -148,10 +149,11 @@ Copy `.env.example` → `.env.local`:
 ## Scripts
 
 ```bash
-npm run dev      # Start dev server (Turbopack)
-npm run build    # Production build
-npm run start    # Start production server
-npm run lint     # ESLint
+npm run dev        # Start dev server (Turbopack)
+npm run build      # Production build
+npm run start      # Start production server
+npm run lint       # ESLint
+npm run type-check # TypeScript check (no emit)
 ```
 
 ---
@@ -160,9 +162,10 @@ npm run lint     # ESLint
 
 - **Mock data**: All lessons, XP, badges, and leaderboard data are in `lib/lessons/mock-lessons.ts` and `lib/gamification/gamification-store.ts`
 - **Adding lessons**: Edit `MOCK_LESSONS` array in `lib/lessons/mock-lessons.ts`
-- **Design system**: All tokens defined in `app/globals.css` under `@theme inline` — see `design-system/melon-app/MASTER.md` for guidelines
+- **Design system**: All tokens defined in `app/globals.css` under `@theme inline` (Neobrutalism palette, Lexend Mega + Space Grotesk)
+- **File uploads**: Use `lib/storage/upload.ts` — `uploadFile(file, path)` returns a Firebase Storage URL
 - **API routes**: All backend logic lives under `app/api/v1/` as Next.js Route Handlers
-- **Phase 2**: Real backend integration, deploy via Vercel (`infra/vercel.json`)
+- **Deploy**: Connect repo to [Vercel](https://vercel.com) → set env vars → auto-deploy on push (`infra/vercel.json`)
 
 ---
 
