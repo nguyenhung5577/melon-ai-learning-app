@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { AdminGuard } from "@/components/shared/AdminGuard";
+import { Subject } from "@/lib/lessons/lesson-store";
 
 const ingestSchema = z.object({
   lessonId: z.string()
@@ -38,7 +39,7 @@ export default function PdfUploadPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [lessonId, setLessonId] = useState("");
-  const [subject, setSubject] = useState("science");
+  const [subject, setSubject] = useState<Subject>("science");
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [result, setResult] = useState<UploadResult | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -114,7 +115,7 @@ export default function PdfUploadPage() {
         pdfUrl: storageUrl,
         isRAG: true,
         updatedAt: new Date().toISOString(),
-      });
+      } as any);
 
       setResult({
         success: true,
@@ -176,7 +177,7 @@ export default function PdfUploadPage() {
                     <select
                       className="nb-input text-sm cursor-pointer"
                       value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
+                      onChange={(e) => setSubject(e.target.value as Subject)}
                       disabled={status !== "idle"}
                     >
                       <option value="science">Science</option>

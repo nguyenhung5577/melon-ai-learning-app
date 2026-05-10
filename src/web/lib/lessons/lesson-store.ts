@@ -31,6 +31,9 @@ export interface Lesson {
   audioEnabled: boolean;
   thumbnailBg: string;
   cloudinaryUrl?: string; // Phase 4
+  pdfUrl?: string; // RAG PDF URL
+  isRAG?: boolean; // If this lesson was generated via RAG
+  updatedAt?: string;
   createdAt: string;
 }
 
