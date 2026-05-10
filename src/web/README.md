@@ -12,12 +12,13 @@
 | Frontend | Next.js 16 (App Router), React 18, TypeScript |
 | Styling | Tailwind CSS v4, Neobrutalism design system (AISE palette) |
 | UI Components | shadcn/ui (Radix UI), Framer Motion |
+| Database | **Firestore** (Real-time data persistence) |
 | Auth | Firebase Authentication |
-| Storage | Firebase Storage (PDF + avatar uploads) |
+| Storage | **Cloudinary** (Optimized PDF & Avatar hosting) |
 | AI / Chat | OpenAI GPT-4o-mini (SSE streaming) |
 | TTS | ElevenLabs |
 | RAG | OpenAI Embeddings + Pinecone |
-| State | TanStack Query v5, localStorage (mock Phase 1) |
+| State | TanStack Query v5, Firestore + userStore |
 | Charts | Recharts |
 | Deployment | Vercel (one-click deploy) |
 
@@ -31,30 +32,22 @@ src/web/
 │   ├── page.tsx            # Landing page
 │   ├── lessons/            # Lesson grid + player
 │   ├── progress/           # Kid progress dashboard
-│   ├── parent/             # Parent dashboard (charts)
-│   ├── badges/             # Badge cabinet
-│   ├── leaderboard/        # Leaderboard
-│   ├── profile/            # Kid profile editor
+│   ├── parent/             # Parent dashboard (real-time charts)
 │   ├── family/             # Parent → child link management
-│   ├── admin/              # Admin dashboard + content moderation
-│   └── api/v1/             # Route Handlers (AI, RAG)
+│   ├── admin/              # Admin panel (PDF Upload, User Mgmt)
+│   └── api/v1/             # Route Handlers (AI, RAG, Cloudinary)
 ├── components/
 │   ├── ai/                 # AITutorWidget (Cosmo)
-│   ├── auth/               # AuthModal (2-step login/signup)
-│   ├── layout/             # NavHeader, KidShell, ParentShell, AdminShell
-│   ├── lessons/            # LessonCard
-│   ├── shared/             # NbButton, NbPill, SectionHeader, StatCard, XPBar …
-│   └── ui/                 # shadcn/ui primitives
+│   ├── auth/               # AuthModal (Role-based login)
+│   ├── layout/             # NavHeader, Shells (Kid/Parent/Admin)
+│   └── shared/             # Neobrutalism UI components
 ├── lib/
-│   ├── auth/               # Firebase auth context + hooks
-│   ├── core/               # config, query-client, event-bus, error-handler, providers
-│   ├── gamification/       # XP / badge store (localStorage)
-│   ├── lessons/            # Mock lesson data
-│   ├── storage/            # Firebase Storage upload utilities
-│   └── user/               # User profile store (localStorage)
-├── infra/
-│   └── vercel.json         # Vercel deployment config
-└── Dockerfile
+│   ├── auth/               # Firebase auth context
+│   ├── db/                 # Firestore configuration & helpers
+│   ├── gamification/       # XP / badge logic
+│   ├── lessons/            # Firestore-linked lesson store
+│   ├── storage/            # Cloudinary upload utilities
+│   └── user/               # Firestore user profile management
 ```
 
 ---
@@ -73,8 +66,7 @@ npm install
 
 ```bash
 cp .env.example .env.local
-# Fill in at minimum NEXT_PUBLIC_FIREBASE_* to enable login
-# All other keys are optional for local dev (AI features will be disabled)
+# Fill in Firebase, Cloudinary, and OpenAI keys
 ```
 
 ### 3. Run dev server
@@ -88,61 +80,47 @@ npm run dev
 
 ## Environment Variables
 
-Copy `.env.example` → `.env.local`:
-
-| Variable | Required | Description |
-|---|---|---|
-| `NEXT_PUBLIC_FIREBASE_API_KEY` | Auth only | Firebase project API key |
-| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Auth only | Firebase auth domain |
-| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Auth only | Firebase project ID |
-| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | File uploads | Firebase Storage bucket (PDFs, avatars) |
-| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Auth only | Firebase sender ID |
-| `NEXT_PUBLIC_FIREBASE_APP_ID` | Auth only | Firebase app ID |
-| `OPENAI_API_KEY` | AI features | OpenAI API key (chat, RAG, moderation) |
-| `PINECONE_API_KEY` | RAG only | Pinecone vector DB key |
-| `PINECONE_INDEX` | RAG only | Pinecone index name (default: `melon-lessons`) |
-| `ELEVENLABS_API_KEY` | TTS only | ElevenLabs API key |
-| `ELEVENLABS_VOICE_ID` | TTS only | Voice ID (default: Rachel) |
-
-> **Without any keys:** The app runs in demo mode — all pages work with mock data via localStorage.
+| Variable | Description |
+|---|---|
+| `NEXT_PUBLIC_FIREBASE_*` | All Firebase Client keys for Auth and Firestore |
+| `FIREBASE_ADMIN_PROJECT_ID` | Firebase Admin SDK Project ID |
+| `FIREBASE_ADMIN_CLIENT_EMAIL` | Firebase Admin SDK Email |
+| `FIREBASE_ADMIN_PRIVATE_KEY` | Firebase Admin SDK Private Key |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | Cloudinary Cloud Name |
+| `NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET` | Cloudinary Upload Preset (unsigned) |
+| `CLOUDINARY_API_KEY` | Cloudinary API Key |
+| `CLOUDINARY_API_SECRET` | Cloudinary API Secret |
+| `OPENAI_API_KEY` | OpenAI API key (chat, RAG, moderation) |
+| `PINECONE_API_KEY` | Pinecone vector DB key |
+| `PINECONE_INDEX` | Pinecone index name |
 
 ---
 
-## Pages & Features
+## Features
 
-### No keys needed (demo mode)
-| Route | Description |
-|---|---|
-| `/` | Landing page |
-| `/lessons` | Lesson grid with subject filter |
-| `/lessons/[id]` | Lesson player (slides + quiz, Framer Motion) |
-| `/progress` | XP bar, badges, activity history |
-| `/badges` | Badge cabinet |
-| `/leaderboard` | Leaderboard with podium |
-| `/profile` | Kid profile editor (name, grade, avatar) |
-| `/parent` | Parent dashboard with Recharts |
-| `/admin` | Admin overview + content moderation |
-| `/admin/lessons` | Lesson management |
-| `/admin/flagged` | Flagged content review |
+### 👦 Student Experience
+- **Lesson Player**: Neobrutalism design with Framer Motion animations.
+- **AI Tutor (Cosmo)**: Real-time GPT-4o powered tutor with RAG support.
+- **Gamification**: XP points, levels, and badges stored in Firestore.
+- **Leaderboard**: Real-time ranking based on XP.
 
-### Requires Firebase keys
-| Route | Description |
-|---|---|
-| Login / Signup modal | Email/password + Google SSO |
-| `/family` | Link parent → child accounts |
-| PDF + avatar upload | Firebase Storage (`NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`) |
+### 👨‍👩‍👧 Parent Experience
+- **Dashboard**: Track time learned, lessons done, and XP growth via Recharts.
+- **Family Link**: Link child accounts using their unique UID to monitor progress.
 
-### Requires OpenAI key
-| Feature | Description |
-|---|---|
-| AI Tutor (Cosmo) | Streaming chat widget on lesson pages |
-| RAG quiz | Generate questions from uploaded PDFs |
-| Content moderation | Auto-flag inappropriate content |
+### 🛡️ Admin Experience
+- **PDF Upload**: Upload textbooks/worksheets to Cloudinary.
+- **RAG Ingestion**: Automatic chunking and embedding of PDFs into Pinecone.
+- **User Promotion**: Promote regular users to Admin/Parent roles via the dashboard.
 
-### Requires Pinecone + OpenAI
-| Route | Description |
-|---|---|
-| `/admin/pdf-upload` | Upload PDFs for vector ingestion |
+---
+
+## Development Notes
+
+- **Database**: We moved from `localStorage` to **Firestore**. All user progress is now persistent across devices.
+- **Storage**: We use **Cloudinary** for PDFs to ensure they are served with correct headers for in-browser viewing.
+- **Validation**: Forms are validated using **Zod** to prevent data entry errors.
+- **Security**: Page routes are protected based on Firebase user roles (`kid`, `parent`, `admin`).
 
 ---
 
@@ -151,21 +129,9 @@ Copy `.env.example` → `.env.local`:
 ```bash
 npm run dev        # Start dev server (Turbopack)
 npm run build      # Production build
-npm run start      # Start production server
 npm run lint       # ESLint
-npm run type-check # TypeScript check (no emit)
+npm run type-check # TypeScript check
 ```
-
----
-
-## Development Notes
-
-- **Mock data**: All lessons, XP, badges, and leaderboard data are in `lib/lessons/mock-lessons.ts` and `lib/gamification/gamification-store.ts`
-- **Adding lessons**: Edit `MOCK_LESSONS` array in `lib/lessons/mock-lessons.ts`
-- **Design system**: All tokens defined in `app/globals.css` under `@theme inline` (Neobrutalism palette, Lexend Mega + Space Grotesk)
-- **File uploads**: Use `lib/storage/upload.ts` — `uploadFile(file, path)` returns a Firebase Storage URL
-- **API routes**: All backend logic lives under `app/api/v1/` as Next.js Route Handlers
-- **Deploy**: Connect repo to [Vercel](https://vercel.com) → set env vars → auto-deploy on push (`infra/vercel.json`)
 
 ---
 
