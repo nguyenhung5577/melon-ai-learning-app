@@ -7,18 +7,24 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import { MOCK_LESSONS } from "@/lib/lessons/mock-lessons";
+import { getAllLessons, type Lesson } from "@/lib/lessons/lesson-store";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export default function AdminLessonsPage() {
   const { user, logout } = useAuthContext();
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+
+  useEffect(() => {
+    getAllLessons().then(setLessons);
+  }, []);
 
   return (
     <AdminShell userName={user?.displayName ?? "Admin"} onLogout={logout}>
       <SectionHeader
         title="Lessons"
         subtitle="Manage lesson content and curriculum"
-        badge={<NbPill color="green">{MOCK_LESSONS.length} lessons</NbPill>}
+        badge={<NbPill color="green">{lessons.length} lessons</NbPill>}
         action={
           <NbButton variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />}>
             Add Lesson
@@ -39,12 +45,12 @@ export default function AdminLessonsPage() {
             </tr>
           </thead>
           <tbody>
-            {MOCK_LESSONS.map((lesson, i) => (
+            {lessons.map((lesson, i) => (
               <tr
                 key={lesson.id}
                 className={cn(
                   "transition-colors hover:bg-nb-bg",
-                  i < MOCK_LESSONS.length - 1 && "[border-bottom:2px_solid_#eee]"
+                  i < lessons.length - 1 && "[border-bottom:2px_solid_#eee]"
                 )}
               >
                 <td className="px-5 py-4">

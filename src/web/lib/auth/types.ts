@@ -6,6 +6,7 @@ export interface MelonUser {
   displayName: string | null;
   role: UserRole;
   photoURL: string | null;
+  avatarUrl?: string;
   coppaConsented: boolean;
   createdAt: string;
 }

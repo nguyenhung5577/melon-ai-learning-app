@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BookOpen, Filter } from "lucide-react";
 import { KidShell } from "@/components/layout/KidShell";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -9,7 +9,7 @@ import { SectionContainer, SectionHeader } from "@/components/shared/SectionHead
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import { MOCK_LESSONS, type Subject } from "@/lib/lessons/mock-lessons";
+import { getAllLessons, type Subject, type Lesson } from "@/lib/lessons/lesson-store";
 import { cn } from "@/lib/utils";
 
 const subjects: Array<{ id: Subject | "all"; label: string; emoji: string }> = [
@@ -26,10 +26,16 @@ export default function LessonsPage() {
   const [authOpen, setAuthOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Subject | "all">("all");
 
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+
+  useEffect(() => {
+    getAllLessons().then(setLessons);
+  }, []);
+
   const filtered =
     activeSubject === "all"
-      ? MOCK_LESSONS
-      : MOCK_LESSONS.filter((l) => l.subject === activeSubject);
+      ? lessons
+      : lessons.filter((l) => l.subject === activeSubject);
 
   return (
     <KidShell
@@ -43,7 +49,7 @@ export default function LessonsPage() {
           subtitle="Pick a subject and start learning"
           badge={
             <NbPill color="orange" icon={<BookOpen className="w-3 h-3" />}>
-              {MOCK_LESSONS.length} lessons
+              {lessons.length} lessons
             </NbPill>
           }
           action={

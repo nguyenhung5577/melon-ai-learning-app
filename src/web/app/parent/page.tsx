@@ -30,7 +30,10 @@ import {
   getConceptsToReinforce,
   getActivityEvents,
 } from "@/lib/activity";
+import { userStore, type ChildProfile } from "@/lib/user/user-store";
+import { gamificationStore } from "@/lib/gamification/gamification-store";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 const PIE_COLORS = ["#b497ff", "#38b6ff", "#ff914d", "#22c55e", "#ffde59"];
 
@@ -53,17 +56,55 @@ const DEMO_SUBJECTS = [
 
 export default function ParentDashboard() {
   const { user, logout } = useAuthContext();
+  const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [children, setChildren] = useState<ChildProfile[]>([]);
+  const [selectedChildIdx, setSelectedChildIdx] = useState(0);
+  const [events, setEvents] = useState<any[]>([]);
+  const [gamification, setGamification] = useState({ level: 1, totalXp: 0 });
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
 
   useEffect(() => {
-    seedDemoData();
-  }, []);
+    if (!user || user.role !== "parent") {
+      setLoading(false);
+      return;
+    }
 
-  const events = getActivityEvents();
+    userStore.getChildrenForParent(user.uid).then(async (kids) => {
+      setChildren(kids);
+      
+      const child = kids[selectedChildIdx];
+      const targetUid = child?.uid || "demo-child";
+      
+      if (!child) {
+        // No real kids, seed demo for "demo-child" so charts aren't empty
+        await seedDemoData("demo-child");
+      }
+
+      const [evs, data] = await Promise.all([
+        getActivityEvents(targetUid),
+        gamificationStore.getData(targetUid)
+      ]);
+      
+      setEvents(evs);
+      setGamification(data);
+      setLoading(false);
+    });
+  }, [user, selectedChildIdx]);
+
+  const selectedChild = children[selectedChildIdx];
+  
   const metrics = {
     totalWatchMinutes: Math.round(getTodayWatchTimeSeconds(events) / 60),
     completedExperiences: getExperiencesCompletedCount(events),
     conceptsToReinforce: getConceptsToReinforce(events).map((c) => c.concept),
+    level: selectedChild ? gamification.level : 3,
+    xp: selectedChild ? gamification.totalXp : 500,
   };
 
   if (!user || user.role !== "parent") {
@@ -83,21 +124,53 @@ export default function ParentDashboard() {
   }
 
   return (
-    <ParentShell userName={user.displayName ?? undefined} onLogout={logout}>
+    <ParentShell userName={user.displayName ?? undefined} onLogout={handleLogout}>
       <SectionContainer>
         <SectionHeader
           title="Parent Dashboard"
-          subtitle={`Tracking ${user.displayName ?? "your child"}'s progress`}
-          badge={<NbPill color="blue">Week Overview</NbPill>}
+          subtitle={selectedChild ? `Tracking ${selectedChild.displayName}'s progress` : "Tracking your child's progress (Demo Data)"}
+          badge={<NbPill color={selectedChild ? "green" : "blue"}>{selectedChild ? "Real-time" : "Demo Mode"}</NbPill>}
         />
+
+        {/* Child selector if multiple */}
+        {children.length > 1 && (
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            {children.map((child, idx) => (
+              <button
+                key={child.uid}
+                onClick={() => setSelectedChildIdx(idx)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all",
+                  "[border:var(--nb-border)]",
+                  selectedChildIdx === idx 
+                    ? "bg-nb-yellow [box-shadow:var(--nb-shadow-sm)] -translate-y-0.5" 
+                    : "bg-white opacity-60 hover:opacity-100"
+                )}
+              >
+                <span className="text-lg">{child.avatarEmoji}</span>
+                {child.displayName}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!selectedChild && (
+          <div className="nb-card rounded-2xl p-4 mb-8 bg-nb-purple/10 border-nb-purple flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">👋</div>
+              <p className="text-sm font-bold">You haven&apos;t linked any real children yet. Showing demo data below.</p>
+            </div>
+            <NbButton href="/family" variant="secondary" size="sm">Link a Child</NbButton>
+          </div>
+        )}
 
         {/* Stat row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           {[
             { icon: <Clock className="w-5 h-5" />, value: `${metrics.totalWatchMinutes}m`, label: "Time Learned", color: "text-nb-blue" },
             { icon: <BookOpen className="w-5 h-5" />, value: metrics.completedExperiences, label: "Lessons Done", color: "text-nb-green" },
-            { icon: <Trophy className="w-5 h-5" />, value: "Lv.3", label: "Current Level", color: "text-nb-orange" },
-            { icon: <TrendingUp className="w-5 h-5" />, value: "500", label: "Total XP", color: "text-nb-purple" },
+            { icon: <Trophy className="w-5 h-5" />, value: `Lv.${metrics.level}`, label: "Current Level", color: "text-nb-orange" },
+            { icon: <TrendingUp className="w-5 h-5" />, value: metrics.xp, label: "Total XP", color: "text-nb-purple" },
           ].map((s) => (
             <div key={s.label} className="nb-card rounded-2xl p-5 flex flex-col gap-1">
               <div className={cn("w-5 h-5", s.color)}>{s.icon}</div>

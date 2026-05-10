@@ -10,25 +10,33 @@ import { SectionContainer, SectionHeader } from "@/components/shared/SectionHead
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { userStore, type ChildProfile } from "@/lib/user/user-store";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export default function FamilyPage() {
   const { user, logout } = useAuthContext();
+  const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [linkCode, setLinkCode] = useState("");
   const [linking, setLinking] = useState(false);
 
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
+
   useEffect(() => {
     if (!user || user.role !== "parent") return;
-    setChildren(userStore.getChildrenForParent(user.uid));
+    userStore.getChildrenForParent(user.uid).then(setChildren);
   }, [user]);
 
   async function handleLink() {
     if (!user || !linkCode.trim()) return;
     setLinking(true);
     await new Promise((r) => setTimeout(r, 500));
-    userStore.linkChildToParent(user.uid, linkCode.trim());
-    setChildren(userStore.getChildrenForParent(user.uid));
+    await userStore.linkChildToParent(user.uid, linkCode.trim());
+    const newChildren = await userStore.getChildrenForParent(user.uid);
+    setChildren(newChildren);
     setLinkCode("");
     setLinking(false);
   }
@@ -48,7 +56,7 @@ export default function FamilyPage() {
   }
 
   return (
-    <ParentShell userName={user.displayName ?? undefined} onLogout={logout}>
+    <ParentShell userName={user.displayName ?? undefined} onLogout={handleLogout}>
       <SectionContainer>
         <SectionHeader
           title="Family"

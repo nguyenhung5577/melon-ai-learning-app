@@ -4,7 +4,10 @@ import { useState, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Zap, Brain, Volume2, Check, X, ChevronRight } from "lucide-react";
-import { getLessonById, type LessonSlide } from "@/lib/lessons/mock-lessons";
+import { getLessonById, type LessonSlide, type Lesson } from "@/lib/lessons/lesson-store";
+import { useEffect } from "react";
+import { gamificationStore } from "@/lib/gamification/gamification-store";
+import { logActivityEvent } from "@/lib/activity";
 import { KidShell } from "@/components/layout/KidShell";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
@@ -155,8 +158,11 @@ export default function LessonPlayerPage({
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuthContext();
+  const [lesson, setLesson] = useState<Lesson | null>(null);
 
-  const lesson = getLessonById(id);
+  useEffect(() => {
+    getLessonById(id).then((l) => setLesson(l ?? null));
+  }, [id]);
   const [currentSlideIdx, setCurrentSlideIdx] = useState(0);
   const [totalXp, setTotalXp] = useState(0);
   const [completed, setCompleted] = useState(false);
@@ -174,13 +180,28 @@ export default function LessonPlayerPage({
         setCurrentSlideIdx((i) => i + 1);
       } else {
         setCompleted(true);
-        bus.emit("lesson:completed", {
-          lessonId: id,
-          score: Math.round((newXp / (lesson?.xpReward ?? 1)) * 100),
-        });
+        const score = Math.round((newXp / (lesson?.xpReward ?? 1)) * 100);
+        bus.emit("lesson:completed", { lessonId: id, score });
+
+        // Persist XP & activity to Firestore
+        if (user) {
+          gamificationStore.addXp(
+            user.uid,
+            newXp,
+            `Completed: ${lesson?.title ?? id}`,
+            id
+          );
+          logActivityEvent(user.uid, {
+            type: "lesson_completed",
+            lessonId: id,
+            subject: lesson?.subject ?? "unknown",
+            score,
+            xpEarned: newXp,
+          });
+        }
       }
     },
-    [currentSlideIdx, lesson, totalXp, id]
+    [currentSlideIdx, lesson, totalXp, id, user]
   );
 
   function handleHint() {
@@ -188,14 +209,15 @@ export default function LessonPlayerPage({
     setHintText("Think about what the question is really asking. Break it down step by step! You've got this! 🌟");
   }
 
-  if (!lesson) {
+  if (!lesson || !lesson.slides || lesson.slides.length === 0) {
     return (
       <KidShell>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="text-6xl">🔍</div>
-          <p className="font-display text-lg">Lesson not found</p>
+          <div className="text-6xl">🚧</div>
+          <p className="font-display text-lg">This lesson is still being prepared by AI.</p>
+          <p className="text-sm text-[#666] max-w-xs text-center">It doesn't have any content slides yet. Check back soon!</p>
           <NbButton variant="secondary" onClick={() => router.push("/lessons")}>
-            Browse Lessons
+            Back to Lessons
           </NbButton>
         </div>
       </KidShell>

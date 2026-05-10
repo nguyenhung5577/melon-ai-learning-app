@@ -17,38 +17,41 @@ import {
   updateProfile,
   type User as FirebaseUser,
 } from "firebase/auth";
-import { auth } from "./firebase";
+import { auth, db } from "./firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import type { AuthState, MelonUser, UserRole } from "./types";
 import { bus } from "@/lib/core/event-bus";
 
-const PROFILE_KEY = "melon:profile";
-
-function toMelonUser(fbUser: FirebaseUser, role: UserRole = "kid"): MelonUser {
+function toMelonUser(fbUser: FirebaseUser, dbUser?: Partial<MelonUser>): MelonUser {
   return {
     uid: fbUser.uid,
     email: fbUser.email,
     displayName: fbUser.displayName,
     photoURL: fbUser.photoURL,
-    role,
-    coppaConsented: true,
-    createdAt: new Date().toISOString(),
+    role: dbUser?.role ?? "kid",
+    avatarUrl: dbUser?.avatarUrl,
+    coppaConsented: dbUser?.coppaConsented ?? true,
+    createdAt: dbUser?.createdAt ?? new Date().toISOString(),
   };
 }
 
-function loadProfile(uid: string): Partial<MelonUser> | null {
+async function fetchUserDoc(uid: string): Promise<Partial<MelonUser> | null> {
+  if (!db) return null;
   try {
-    const raw = localStorage.getItem(`${PROFILE_KEY}:${uid}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+    const d = await getDoc(doc(db, "users", uid));
+    if (d.exists()) return d.data() as Partial<MelonUser>;
+  } catch (e) {
+    console.error("Error fetching user doc", e);
   }
+  return null;
 }
 
-function saveProfile(user: MelonUser): void {
+async function saveUserDoc(user: MelonUser): Promise<void> {
+  if (!db) return;
   try {
-    localStorage.setItem(`${PROFILE_KEY}:${user.uid}`, JSON.stringify(user));
-  } catch {
-    /* noop */
+    await setDoc(doc(db, "users", user.uid), user, { merge: true });
+  } catch (e) {
+    console.error("Error saving user doc", e);
   }
 }
 
@@ -80,10 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
-        const saved = loadProfile(fbUser.uid);
-        const user = toMelonUser(fbUser, saved?.role ?? "kid");
+        const saved = await fetchUserDoc(fbUser.uid);
+        const user = toMelonUser(fbUser, saved || undefined);
         const merged: MelonUser = { ...user, ...saved, uid: fbUser.uid };
         setState({ user: merged, loading: false, error: null });
         bus.emit("auth:signedIn", { uid: fbUser.uid, role: merged.role });
@@ -99,8 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth) throw new Error("Firebase not configured. Add keys to .env.local");
     setState((s) => ({ ...s, error: null }));
     const cred = await signInWithEmailAndPassword(auth, email, password);
-    const saved = loadProfile(cred.user.uid);
-    const user = toMelonUser(cred.user, saved?.role ?? "kid");
+    const saved = await fetchUserDoc(cred.user.uid);
+    const user = toMelonUser(cred.user, saved || undefined);
     const merged = { ...user, ...saved, uid: cred.user.uid } as MelonUser;
     setState({ user: merged, loading: false, error: null });
   }
@@ -126,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       coppaConsented: true,
       createdAt: new Date().toISOString(),
     };
-    saveProfile(user);
+    await saveUserDoc(user);
     setState({ user, loading: false, error: null });
   }
 
@@ -134,10 +137,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!auth) throw new Error("Firebase not configured. Add keys to .env.local");
     const provider = new GoogleAuthProvider();
     const cred = await signInWithPopup(auth, provider);
-    const saved = loadProfile(cred.user.uid);
-    const user = toMelonUser(cred.user, saved?.role ?? role);
+    const saved = await fetchUserDoc(cred.user.uid);
+    const user = toMelonUser(cred.user, saved || { role });
     const merged = { ...user, ...saved, uid: cred.user.uid } as MelonUser;
-    if (!saved) saveProfile(merged);
+    if (!saved) {
+      await saveUserDoc(merged);
+    }
     setState({ user: merged, loading: false, error: null });
   }
 

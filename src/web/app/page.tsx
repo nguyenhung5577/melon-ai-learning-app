@@ -65,6 +65,7 @@ export default function HomePage() {
   return (
     <KidShell
       userName={user?.displayName ?? undefined}
+      photoURL={user?.avatarUrl ?? user?.photoURL}
       onLogin={() => setAuthOpen(true)}
       onLogout={logout}
     >

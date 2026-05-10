@@ -20,8 +20,10 @@ export default function BadgesPage() {
 
   useEffect(() => {
     if (!user) return;
-    gamificationStore.seedDemoData(user.uid);
-    setBadges(gamificationStore.getBadges(user.uid));
+    gamificationStore.seedDemoData(user.uid).then(async () => {
+      const bs = await gamificationStore.getBadges(user.uid);
+      setBadges(bs);
+    });
   }, [user]);
 
   const earned = badges.filter((b) => !b.locked);

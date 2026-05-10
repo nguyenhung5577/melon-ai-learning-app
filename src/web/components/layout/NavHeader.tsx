@@ -11,6 +11,9 @@ import {
   LogOut,
   Menu,
   X,
+  User,
+  Shield,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NbButton } from "@/components/shared/NbButton";
@@ -28,6 +31,7 @@ const kidLinks: NavLink[] = [
   { href: "/lessons", label: "Learn", icon: <BookOpen className="w-4 h-4" /> },
   { href: "/leaderboard", label: "Ranks", icon: <Trophy className="w-4 h-4" /> },
   { href: "/progress", label: "Progress", icon: <LayoutDashboard className="w-4 h-4" /> },
+  { href: "/profile", label: "Profile", icon: <User className="w-4 h-4" /> },
 ];
 
 const parentLinks: NavLink[] = [
@@ -36,8 +40,9 @@ const parentLinks: NavLink[] = [
 ];
 
 const adminLinks: NavLink[] = [
-  { href: "/admin", label: "Admin", icon: <Settings className="w-4 h-4" /> },
+  { href: "/admin", label: "Admin Home", icon: <Settings className="w-4 h-4" /> },
   { href: "/admin/lessons", label: "Lessons", icon: <BookOpen className="w-4 h-4" /> },
+  { href: "/admin/pdf-upload", label: "PDF Upload", icon: <Shield className="w-4 h-4" /> },
 ];
 
 const linksMap: Record<Exclude<Role, "guest">, NavLink[]> = {
@@ -49,6 +54,7 @@ const linksMap: Record<Exclude<Role, "guest">, NavLink[]> = {
 interface NavHeaderProps {
   role?: Role;
   userName?: string;
+  photoURL?: string | null;
   onLoginClick?: () => void;
   onLogoutClick?: () => void;
 }
@@ -56,11 +62,13 @@ interface NavHeaderProps {
 export function NavHeader({
   role = "guest",
   userName,
+  photoURL,
   onLoginClick,
   onLogoutClick,
 }: NavHeaderProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const links = role !== "guest" ? linksMap[role] : [];
 
@@ -119,21 +127,58 @@ export function NavHeader({
             Login
           </NbButton>
         ) : (
-          <div
-            className={cn(
-              "hidden md:flex items-center gap-2 px-4 py-2",
-              "[border:var(--nb-border)] [box-shadow:4px_4px_0_var(--nb-black)]",
-              "bg-nb-purple cursor-pointer",
-              "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:[box-shadow:6px_6px_0_var(--nb-black)]",
-              "transition-all duration-150"
+          <div className="relative hidden md:block">
+            <button
+              className={cn(
+                "flex items-center gap-2 px-4 py-2",
+                "[border:var(--nb-border)] [box-shadow:4px_4px_0_var(--nb-black)]",
+                "bg-nb-purple cursor-pointer",
+                "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:[box-shadow:6px_6px_0_var(--nb-black)]",
+                "transition-all duration-150"
+              )}
+              onClick={() => setUserMenuOpen((v) => !v)}
+            >
+              <div className="w-7 h-7 rounded-full bg-nb-yellow [border:2px_solid_var(--nb-black)] flex items-center justify-center font-display text-xs overflow-hidden">
+                {photoURL ? (
+                  <img src={photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  userName?.[0]?.toUpperCase() ?? "?"
+                )}
+              </div>
+              <span className="font-bold text-sm text-nb-black">{userName ?? "User"}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-nb-black opacity-60" />
+            </button>
+
+            {/* Dropdown */}
+            {userMenuOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 w-44 bg-white [border:var(--nb-border)] [box-shadow:6px_6px_0_var(--nb-black)] z-50 flex flex-col"
+                onMouseLeave={() => setUserMenuOpen(false)}
+              >
+                <Link
+                  href="/profile"
+                  onClick={() => setUserMenuOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-3 font-bold text-sm text-nb-black no-underline hover:bg-nb-yellow transition-colors"
+                >
+                  <User className="w-4 h-4" /> My Profile
+                </Link>
+                {role === "admin" && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 font-bold text-sm text-nb-black no-underline hover:bg-nb-orange transition-colors"
+                  >
+                    <Shield className="w-4 h-4" /> Admin Panel
+                  </Link>
+                )}
+                <button
+                  onClick={() => { setUserMenuOpen(false); onLogoutClick?.(); }}
+                  className="flex items-center gap-2.5 px-4 py-3 font-bold text-sm text-nb-black hover:bg-nb-pink/30 transition-colors cursor-pointer bg-transparent border-none border-t-2 border-nb-black/10 text-left"
+                >
+                  <LogOut className="w-4 h-4" /> Logout
+                </button>
+              </div>
             )}
-            onClick={onLogoutClick}
-          >
-            <div className="w-7 h-7 rounded-full bg-nb-yellow [border:2px_solid_var(--nb-black)] flex items-center justify-center font-display text-xs">
-              {userName?.[0]?.toUpperCase() ?? "?"}
-            </div>
-            <span className="font-bold text-sm text-nb-black">{userName ?? "User"}</span>
-            <LogOut className="w-3.5 h-3.5 text-nb-black opacity-60" />
           </div>
         )}
 

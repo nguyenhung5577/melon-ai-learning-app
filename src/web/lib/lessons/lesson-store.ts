@@ -1,3 +1,7 @@
+import { collections } from "@/lib/db/firestore";
+import { getDocument, queryDocuments, setDocument } from "@/lib/db/firestore-helpers";
+import { where } from "firebase/firestore";
+
 export type LessonType = "video" | "interactive" | "quiz" | "reading";
 export type Subject = "math" | "science" | "english" | "history" | "coding";
 
@@ -26,6 +30,7 @@ export interface Lesson {
   aiEnabled: boolean;
   audioEnabled: boolean;
   thumbnailBg: string;
+  cloudinaryUrl?: string; // Phase 4
   createdAt: string;
 }
 
@@ -274,10 +279,52 @@ export const MOCK_LESSONS: Lesson[] = [
   },
 ];
 
-export function getLessonById(id: string): Lesson | undefined {
-  return MOCK_LESSONS.find((l) => l.id === id);
+export async function seedLessons() {
+  const existing = await queryDocuments(collections.lessons);
+  if (existing.length === 0) {
+    for (const lesson of MOCK_LESSONS) {
+      await setDocument(collections.lessons, lesson.id, lesson, true);
+    }
+  }
 }
 
-export function getLessonsBySubject(subject: Subject): Lesson[] {
-  return MOCK_LESSONS.filter((l) => l.subject === subject);
+export async function getAllLessons(): Promise<Lesson[]> {
+  try {
+    const docs = await queryDocuments(collections.lessons);
+    // Combine Firestore lessons with MOCK_LESSONS, avoiding duplicates by ID
+    const combined = [...docs];
+    for (const mock of MOCK_LESSONS) {
+      if (!combined.some(l => l.id === mock.id)) {
+        combined.push(mock);
+      }
+    }
+    return combined;
+  } catch {
+    return MOCK_LESSONS;
+  }
+}
+
+export async function getLessonById(id: string): Promise<Lesson | undefined> {
+  try {
+    const doc = await getDocument(collections.lessons, id);
+    if (doc) return doc;
+    return MOCK_LESSONS.find((l) => l.id === id);
+  } catch {
+    return MOCK_LESSONS.find((l) => l.id === id);
+  }
+}
+
+export async function getLessonsBySubject(subject: Subject): Promise<Lesson[]> {
+  try {
+    const docs = await queryDocuments(collections.lessons, where("subject", "==", subject));
+    const combined = [...docs];
+    for (const mock of MOCK_LESSONS) {
+      if (mock.subject === subject && !combined.some(l => l.id === mock.id)) {
+        combined.push(mock);
+      }
+    }
+    return combined;
+  } catch {
+    return MOCK_LESSONS.filter((l) => l.subject === subject);
+  }
 }

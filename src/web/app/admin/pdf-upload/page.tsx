@@ -7,8 +7,19 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import { uploadFile, pdfPath, type UploadProgress } from "@/lib/storage/upload";
+import { uploadPdf } from "@/lib/storage/upload";
+import { setDocument } from "@/lib/db/firestore-helpers";
+import { collections } from "@/lib/db/firestore";
 import { cn } from "@/lib/utils";
+import { z } from "zod";
+import { useRouter } from "next/navigation";
+
+const ingestSchema = z.object({
+  lessonId: z.string()
+    .min(3, "Lesson ID is too short")
+    .max(20, "Lesson ID is too long")
+    .regex(/^[a-zA-Z0-9-]+$/, "Lesson ID must be alphanumeric or hyphens"),
+});
 
 type UploadStatus = "idle" | "storing" | "ingesting" | "success" | "error";
 
@@ -23,14 +34,21 @@ interface UploadResult {
 
 export default function PdfUploadPage() {
   const { user, logout } = useAuthContext();
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [lessonId, setLessonId] = useState("");
   const [subject, setSubject] = useState("science");
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [result, setResult] = useState<UploadResult | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
 
   function handleDrop(e: DragEvent) {
     e.preventDefault();
@@ -44,29 +62,39 @@ export default function PdfUploadPage() {
     if (f) setFile(f);
   }
 
-  async function handleUpload() {
+   async function handleUpload() {
     if (!file || !lessonId.trim()) return;
+    
+    const valid = ingestSchema.safeParse({ lessonId: lessonId.trim() });
+    if (!valid.success) {
+      setFieldError(valid.error.issues[0].message);
+      return;
+    }
+
+    setFieldError(null);
     setResult(null);
-    setUploadProgress(null);
-
     let storageUrl: string | undefined;
-
     try {
-      // Step 1 — upload to Firebase Storage
       setStatus("storing");
-      storageUrl = await uploadFile(
-        file,
-        pdfPath(lessonId.trim(), file.name),
-        setUploadProgress
-      );
+      setUploadProgress(0);
+      storageUrl = await uploadPdf(file, setUploadProgress);
+      
+      // Create or update Firestore lesson with the Cloudinary URL
+      try {
+        await setDocument(collections.lessons, lessonId.trim(), {
+          title: lessonId.trim(),
+          subject: subject as any,
+          cloudinaryUrl: storageUrl
+        } as any, true);
+      } catch (e) {
+        console.warn("Failed to update lesson with cloudinaryUrl", e);
+      }
     } catch {
-      // Firebase Storage not configured — proceed without persistent storage
       storageUrl = undefined;
     }
 
     // Step 2 — RAG ingest (Pinecone embedding)
     setStatus("ingesting");
-    setUploadProgress(null);
     const form = new FormData();
     form.append("file", file);
     form.append("lessonId", lessonId.trim());
@@ -83,13 +111,13 @@ export default function PdfUploadPage() {
       setFile(null);
       setLessonId("");
     } catch (err) {
-      setResult({ success: false, lessonId, error: err instanceof Error ? err.message : "Failed" });
+      setResult({ success: false, lessonId, error: err instanceof Error ? err.message : "Failed", storageUrl });
       setStatus("error");
     }
   }
 
   return (
-    <AdminShell userName={user?.displayName ?? "Admin"} onLogout={logout}>
+    <AdminShell userName={user?.displayName ?? "Admin"} onLogout={handleLogout}>
       <SectionHeader
         title="PDF Upload / RAG Ingest"
         subtitle="Upload lesson PDFs to build the AI quiz knowledge base"
@@ -137,17 +165,24 @@ export default function PdfUploadPage() {
             )}
           </div>
 
-          {/* Lesson ID */}
-          <div>
+           <div>
             <label className="block font-bold text-[0.8rem] uppercase mb-2">
               Lesson ID *
             </label>
             <input
               value={lessonId}
-              onChange={(e) => setLessonId(e.target.value)}
+              onChange={(e) => {
+                setLessonId(e.target.value);
+                if (fieldError) setFieldError(null);
+              }}
               placeholder="e.g. lesson-006"
-              className="nb-input"
+              className={cn("nb-input", fieldError && "border-nb-red focus:ring-nb-red")}
             />
+            {fieldError && (
+              <div className="mt-2 flex items-center gap-1 text-nb-red text-xs font-bold">
+                <AlertCircle className="w-3 h-3" /> {fieldError}
+              </div>
+            )}
           </div>
 
           {/* Subject */}
@@ -175,17 +210,16 @@ export default function PdfUploadPage() {
             {status === "storing" ? "Uploading to Storage…" : status === "ingesting" ? "Building Index…" : "Ingest PDF"}
           </NbButton>
 
-          {/* Firebase Storage upload progress */}
-          {status === "storing" && uploadProgress && (
+          {status === "storing" && (
             <div className="flex flex-col gap-1">
               <div className="flex justify-between text-xs font-semibold text-[#666]">
-                <span className="flex items-center gap-1"><Cloud className="w-3 h-3" /> Firebase Storage</span>
-                <span>{uploadProgress.percent}%</span>
+                <span className="flex items-center gap-1"><Cloud className="w-3 h-3" /> Cloudinary</span>
+                <span>{uploadProgress}%</span>
               </div>
               <div className="h-2 rounded-full bg-nb-black/10 overflow-hidden [border:1px_solid_#0e0e0e]">
                 <div
                   className="h-full bg-nb-orange transition-all duration-150"
-                  style={{ width: `${uploadProgress.percent}%` }}
+                  style={{ width: `${uploadProgress}%` }}
                 />
               </div>
             </div>
@@ -221,14 +255,24 @@ export default function PdfUploadPage() {
                         rel="noopener noreferrer"
                         className="mt-1 flex items-center gap-1 text-xs font-semibold text-nb-blue underline underline-offset-2"
                       >
-                        <Cloud className="w-3 h-3" /> View in Firebase Storage
+                        <Cloud className="w-3 h-3" /> View in Cloudinary
                       </a>
                     )}
                   </>
                 ) : (
                   <>
                     <div className="font-display text-sm text-nb-red mb-1">Error</div>
-                    <div className="text-sm font-medium">{result.error}</div>
+                    <div className="text-sm font-medium mb-1">{result.error}</div>
+                    {result.storageUrl && (
+                      <a
+                        href={result.storageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1 flex items-center gap-1 text-xs font-semibold text-nb-blue underline underline-offset-2"
+                      >
+                        <Cloud className="w-3 h-3" /> View in Cloudinary
+                      </a>
+                    )}
                   </>
                 )}
               </div>
