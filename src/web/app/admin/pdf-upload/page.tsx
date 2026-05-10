@@ -13,6 +13,7 @@ import { collections } from "@/lib/db/firestore";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
+import { AdminGuard } from "@/components/shared/AdminGuard";
 
 const ingestSchema = z.object({
   lessonId: z.string()
@@ -53,253 +54,302 @@ export default function PdfUploadPage() {
   function handleDrop(e: DragEvent) {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f?.type === "application/pdf") setFile(f);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile && droppedFile.type === "application/pdf") {
+      setFile(droppedFile);
+      setFieldError(null);
+    }
   }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f) setFile(f);
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setFieldError(null);
+    }
   }
 
-   async function handleUpload() {
-    if (!file || !lessonId.trim()) return;
+  async function handleUpload() {
+    if (!file || !lessonId) return;
     
-    const valid = ingestSchema.safeParse({ lessonId: lessonId.trim() });
-    if (!valid.success) {
-      setFieldError(valid.error.issues[0].message);
+    const validation = ingestSchema.safeParse({ lessonId });
+    if (!validation.success) {
+      setFieldError(validation.error.issues[0].message);
       return;
     }
-
     setFieldError(null);
-    setResult(null);
-    let storageUrl: string | undefined;
+
+    setStatus("storing");
+    setUploadProgress(0);
+    
     try {
-      setStatus("storing");
-      setUploadProgress(0);
-      storageUrl = await uploadPdf(file, setUploadProgress);
-      
-      // Create or update Firestore lesson with the Cloudinary URL
-      try {
-        await setDocument(collections.lessons, lessonId.trim(), {
-          title: lessonId.trim(),
-          subject: subject as any,
-          cloudinaryUrl: storageUrl
-        } as any, true);
-      } catch (e) {
-        console.warn("Failed to update lesson with cloudinaryUrl", e);
+      // 1. Upload to Cloudinary
+      const storageUrl = await uploadPdf(file, (progress) => {
+        setUploadProgress(progress);
+      });
+
+      // 2. Ingest to RAG API
+      setStatus("ingesting");
+      const response = await fetch("/api/v1/rag/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lessonId,
+          subject,
+          pdfUrl: storageUrl,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Ingestion failed");
       }
-    } catch {
-      storageUrl = undefined;
-    }
 
-    // Step 2 — RAG ingest (Pinecone embedding)
-    setStatus("ingesting");
-    const form = new FormData();
-    form.append("file", file);
-    form.append("lessonId", lessonId.trim());
-    form.append("subject", subject);
+      // 3. Update Lesson metadata in Firestore
+      await setDocument(collections.lessons, lessonId, {
+        id: lessonId,
+        title: file.name.replace(".pdf", ""),
+        subject,
+        pdfUrl: storageUrl,
+        isRAG: true,
+        updatedAt: new Date().toISOString(),
+      });
 
-    try {
-      const res = await fetch("/api/v1/rag/ingest", { method: "POST", body: form });
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error ?? "Ingest failed");
-
-      setResult({ ...data, success: true, storageUrl });
+      setResult({
+        success: true,
+        lessonId,
+        storageUrl,
+        chunkCount: data.chunks,
+        charCount: data.chars,
+      });
       setStatus("success");
-      setFile(null);
-      setLessonId("");
-    } catch (err) {
-      setResult({ success: false, lessonId, error: err instanceof Error ? err.message : "Failed", storageUrl });
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setResult({
+        success: false,
+        lessonId,
+        error: err.message,
+      });
       setStatus("error");
     }
   }
 
   return (
-    <AdminShell userName={user?.displayName ?? "Admin"} onLogout={handleLogout}>
-      <SectionHeader
-        title="PDF Upload / RAG Ingest"
-        subtitle="Upload lesson PDFs to build the AI quiz knowledge base"
-        badge={<NbPill color="purple">RAG Module</NbPill>}
-      />
+    <AdminGuard>
+      <AdminShell userName={user?.displayName ?? "Admin"} onLogout={handleLogout}>
+        <SectionHeader
+          title="PDF & RAG Upload"
+          subtitle="Add new learning materials to the AI database"
+          badge={<NbPill color="orange">Admin Only</NbPill>}
+        />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-        {/* Upload form */}
-        <div className="flex flex-col gap-6">
-          {/* Drop zone */}
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => inputRef.current?.click()}
-            className={cn(
-              "h-48 [border:var(--nb-border)] rounded-2xl flex flex-col items-center justify-center",
-              "gap-3 cursor-pointer transition-all duration-150",
-              dragging
-                ? "bg-nb-purple [box-shadow:var(--nb-shadow)] -translate-x-0.5 -translate-y-0.5"
-                : "bg-white hover:bg-nb-bg [box-shadow:var(--nb-shadow-sm)]"
-            )}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            {file ? (
-              <>
-                <FileText className="w-10 h-10 text-nb-orange" />
-                <div className="font-display text-sm text-nb-black">{file.name}</div>
-                <div className="text-xs font-semibold text-[#666]">
-                  {(file.size / 1024).toFixed(1)} KB
+        <div className="max-w-4xl mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Left: Form */}
+            <div className="flex flex-col gap-6">
+              <div className="nb-card rounded-2xl p-6 bg-white">
+                <h3 className="font-display text-sm mb-6 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-nb-purple" />
+                  Lesson Metadata
+                </h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block font-bold text-[0.7rem] uppercase mb-1.5">Lesson ID (e.g. math-101)</label>
+                    <input
+                      type="text"
+                      placeholder="Enter a unique ID..."
+                      className={cn("nb-input text-sm", fieldError && "border-nb-red focus:ring-nb-red")}
+                      value={lessonId}
+                      onChange={(e) => {
+                        setLessonId(e.target.value);
+                        if (fieldError) setFieldError(null);
+                      }}
+                      disabled={status !== "idle"}
+                    />
+                    {fieldError && <p className="mt-1 text-[0.65rem] font-bold text-nb-red">{fieldError}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-[0.7rem] uppercase mb-1.5">Subject</label>
+                    <select
+                      className="nb-input text-sm cursor-pointer"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      disabled={status !== "idle"}
+                    >
+                      <option value="science">Science</option>
+                      <option value="math">Math</option>
+                      <option value="english">English</option>
+                      <option value="coding">Coding</option>
+                    </select>
+                  </div>
                 </div>
-              </>
-            ) : (
-              <>
-                <Upload className="w-10 h-10 text-[#888]" />
-                <div className="font-display text-sm text-[#888]">Drop PDF here</div>
-                <div className="text-xs font-semibold text-[#aaa]">or click to browse</div>
-              </>
-            )}
-          </div>
-
-           <div>
-            <label className="block font-bold text-[0.8rem] uppercase mb-2">
-              Lesson ID *
-            </label>
-            <input
-              value={lessonId}
-              onChange={(e) => {
-                setLessonId(e.target.value);
-                if (fieldError) setFieldError(null);
-              }}
-              placeholder="e.g. lesson-006"
-              className={cn("nb-input", fieldError && "border-nb-red focus:ring-nb-red")}
-            />
-            {fieldError && (
-              <div className="mt-2 flex items-center gap-1 text-nb-red text-xs font-bold">
-                <AlertCircle className="w-3 h-3" /> {fieldError}
               </div>
-            )}
-          </div>
 
-          {/* Subject */}
-          <div>
-            <label className="block font-bold text-[0.8rem] uppercase mb-2">Subject</label>
-            <select
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              className="nb-input cursor-pointer"
-            >
-              {["math", "science", "english", "history", "coding"].map((s) => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-              ))}
-            </select>
-          </div>
-
-          <NbButton
-            variant="primary"
-            size="lg"
-            loading={status === "storing" || status === "ingesting"}
-            disabled={!file || !lessonId.trim()}
-            onClick={handleUpload}
-            icon={<Upload className="w-4 h-4" />}
-          >
-            {status === "storing" ? "Uploading to Storage…" : status === "ingesting" ? "Building Index…" : "Ingest PDF"}
-          </NbButton>
-
-          {status === "storing" && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-xs font-semibold text-[#666]">
-                <span className="flex items-center gap-1"><Cloud className="w-3 h-3" /> Cloudinary</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <div className="h-2 rounded-full bg-nb-black/10 overflow-hidden [border:1px_solid_#0e0e0e]">
-                <div
-                  className="h-full bg-nb-orange transition-all duration-150"
-                  style={{ width: `${uploadProgress}%` }}
+              {/* Upload Dropzone */}
+              <div
+                className={cn(
+                  "nb-card rounded-2xl p-8 border-dashed border-2 flex flex-col items-center justify-center text-center transition-all cursor-pointer",
+                  dragging ? "border-nb-purple bg-nb-purple/5 scale-[1.02]" : "border-[#ccc] hover:border-nb-purple",
+                  file ? "bg-nb-green/5 border-nb-green border-solid" : "",
+                  status !== "idle" ? "opacity-50 pointer-events-none" : ""
+                )}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                onClick={() => inputRef.current?.click()}
+              >
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="application/pdf"
+                  ref={inputRef}
+                  onChange={handleFileChange}
                 />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Status + instructions */}
-        <div className="flex flex-col gap-4">
-          {/* Result */}
-          {result && (
-            <div
-              className={cn(
-                "nb-card rounded-2xl p-5 flex items-start gap-3",
-                result.success ? "bg-nb-green/10" : "bg-nb-red/10"
-              )}
-            >
-              {result.success ? (
-                <CheckCircle className="w-5 h-5 text-nb-green flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-5 h-5 text-nb-red flex-shrink-0 mt-0.5" />
-              )}
-              <div>
-                {result.success ? (
-                  <>
-                    <div className="font-display text-sm text-nb-green mb-1">Ingested!</div>
-                    <div className="text-sm font-medium">
-                      <b>{result.chunkCount}</b> chunks · <b>{result.charCount?.toLocaleString()}</b> chars → Pinecone
+                
+                {file ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 rounded-xl bg-nb-green flex items-center justify-center text-white [box-shadow:var(--nb-shadow-sm)]">
+                      <FileText className="w-6 h-6" />
                     </div>
-                    {result.storageUrl && (
-                      <a
-                        href={result.storageUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1 flex items-center gap-1 text-xs font-semibold text-nb-blue underline underline-offset-2"
-                      >
-                        <Cloud className="w-3 h-3" /> View in Cloudinary
-                      </a>
-                    )}
-                  </>
+                    <div className="font-bold text-sm mt-2">{file.name}</div>
+                    <div className="text-[0.65rem] text-[#666]">{(file.size / (1024 * 1024)).toFixed(2)} MB</div>
+                    <NbButton variant="secondary" size="sm" className="mt-2 text-[0.65rem] h-8">Change File</NbButton>
+                  </div>
                 ) : (
-                  <>
-                    <div className="font-display text-sm text-nb-red mb-1">Error</div>
-                    <div className="text-sm font-medium mb-1">{result.error}</div>
-                    {result.storageUrl && (
-                      <a
-                        href={result.storageUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1 flex items-center gap-1 text-xs font-semibold text-nb-blue underline underline-offset-2"
-                      >
-                        <Cloud className="w-3 h-3" /> View in Cloudinary
-                      </a>
-                    )}
-                  </>
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 rounded-xl bg-nb-bg flex items-center justify-center text-[#999]">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div className="font-bold text-sm mt-2">Drop your PDF here</div>
+                    <div className="text-[0.65rem] text-[#666]">or click to browse from files</div>
+                  </div>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* Processing indicator */}
-          {status === "ingesting" && (
-            <div className="nb-card rounded-2xl p-5 flex items-center gap-3">
-              <Loader2 className="w-5 h-5 animate-spin text-nb-orange" />
-              <div className="font-bold text-sm">Chunking → OpenAI embedding → Pinecone…</div>
+              <NbButton
+                variant="primary"
+                size="lg"
+                fullWidth
+                disabled={!file || !lessonId || status !== "idle"}
+                loading={status !== "idle"}
+                onClick={handleUpload}
+              >
+                {status === "idle" ? "Ingest to Melon AI" : "Processing..."}
+              </NbButton>
             </div>
-          )}
 
-          {/* Instructions */}
-          <div className="nb-card rounded-2xl p-5 bg-nb-bg">
-            <h3 className="font-display text-sm mb-3">How it works</h3>
-            <ol className="flex flex-col gap-2 text-sm font-medium text-[#555]">
-              <li>1. Upload a PDF lesson (textbook, worksheet, notes)</li>
-              <li>2. Text is chunked into ~500 char segments with overlap</li>
-              <li>3. OpenAI embeds each chunk (text-embedding-3-small)</li>
-              <li>4. Vectors stored in Pinecone under the lesson ID</li>
-              <li>5. Students can then take AI-generated quizzes from this content</li>
-            </ol>
+            {/* Right: Status / Progress */}
+            <div className="flex flex-col gap-6">
+              {status !== "idle" && (
+                <div className="nb-card rounded-2xl p-6 bg-white animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <h3 className="font-display text-sm mb-6">Upload Progress</h3>
+                  
+                  <div className="space-y-6">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between text-[0.65rem] font-bold uppercase">
+                        <span>1. Cloudinary Storage</span>
+                        {status === "storing" ? (
+                          <span className="text-nb-purple">{uploadProgress}%</span>
+                        ) : (
+                          <CheckCircle className="w-4 h-4 text-nb-green" />
+                        )}
+                      </div>
+                      <div className="h-2 bg-nb-bg rounded-full overflow-hidden">
+                        <div 
+                          className={cn("h-full transition-all duration-300", status === "storing" ? "bg-nb-purple" : "bg-nb-green")}
+                          style={{ width: status === "storing" ? `${uploadProgress}%` : "100%" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between text-[0.65rem] font-bold uppercase">
+                        <span>2. RAG Ingestion (Pinecone)</span>
+                        {status === "storing" ? (
+                          <span className="text-[#ccc]">Waiting...</span>
+                        ) : status === "ingesting" ? (
+                          <Loader2 className="w-4 h-4 text-nb-purple animate-spin" />
+                        ) : status === "success" ? (
+                          <CheckCircle className="w-4 h-4 text-nb-green" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-nb-red" />
+                        )}
+                      </div>
+                      <div className="h-2 bg-nb-bg rounded-full overflow-hidden">
+                        <div 
+                          className={cn(
+                            "h-full transition-all duration-1000",
+                            status === "ingesting" ? "bg-nb-purple animate-pulse w-full" : 
+                            status === "success" ? "bg-nb-green w-full" : 
+                            status === "error" ? "bg-nb-red w-full" : "w-0"
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {status === "success" && result && (
+                    <div className="mt-8 p-4 bg-nb-green/10 border-2 border-nb-green rounded-xl flex flex-col gap-3">
+                      <div className="flex items-center gap-2 text-nb-green font-bold text-xs">
+                        <CheckCircle className="w-4 h-4" />
+                        Success! Lesson {result.lessonId} is ready.
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[0.65rem] font-bold">
+                        <div className="bg-white p-2 rounded-lg border border-nb-green/30">
+                          <div className="text-[#666] mb-1">CHUNKS</div>
+                          <div>{result.chunkCount}</div>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-nb-green/30">
+                          <div className="text-[#666] mb-1">CHARACTERS</div>
+                          <div>{result.charCount}</div>
+                        </div>
+                      </div>
+                      <NbButton variant="secondary" size="sm" onClick={() => window.location.reload()}>
+                        Upload Another
+                      </NbButton>
+                    </div>
+                  )}
+
+                  {status === "error" && result && (
+                    <div className="mt-8 p-4 bg-nb-red/10 border-2 border-nb-red rounded-xl flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-nb-red font-bold text-xs">
+                        <AlertCircle className="w-4 h-4" />
+                        Error occurred
+                      </div>
+                      <p className="text-[0.65rem] text-nb-red font-bold">{result.error}</p>
+                      <NbButton variant="secondary" size="sm" onClick={() => setStatus("idle")}>
+                        Try Again
+                      </NbButton>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tips card */}
+              <div className="nb-card rounded-2xl p-6 bg-nb-purple/5 border-nb-purple">
+                <h3 className="font-display text-xs mb-3">Ingestion Guide</h3>
+                <ul className="text-[0.7rem] space-y-2 text-[#555] font-semibold">
+                  <li className="flex gap-2">
+                    <span className="text-nb-purple">•</span>
+                    Only use high-quality PDFs with selectable text.
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-nb-purple">•</span>
+                    Lesson ID must be unique (overwrites existing).
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-nb-purple">•</span>
+                    Large files (&gt;10MB) may take 30-60 seconds to process.
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </AdminShell>
+      </AdminShell>
+    </AdminGuard>
   );
 }

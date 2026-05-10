@@ -11,6 +11,7 @@ interface NbButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: Size;
   asChild?: boolean;
   loading?: boolean;
+  fullWidth?: boolean;
   icon?: React.ReactNode;
   iconPosition?: "left" | "right";
 }
@@ -40,6 +41,7 @@ export const NbButton = forwardRef<HTMLButtonElement, NbButtonProps>(
       variant = "primary",
       size = "md",
       loading = false,
+      fullWidth = false,
       icon,
       iconPosition = "left",
       children,
@@ -61,6 +63,7 @@ export const NbButton = forwardRef<HTMLButtonElement, NbButtonProps>(
           "active:translate-x-0.5 active:translate-y-0.5",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nb-orange",
           "disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none",
+          fullWidth && "w-full",
           variantClasses[variant],
           sizeClasses[size],
           className

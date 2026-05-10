@@ -1,9 +1,8 @@
 /**
- * POST /api/v1/rag/ingest — Upload a PDF, chunk it, embed with OpenAI,
- * and upsert vectors into Pinecone.
+ * POST /api/v1/rag/ingest — Chunk a PDF, embed with OpenAI, and upsert vectors into Pinecone.
  *
- * Accepts multipart/form-data with:
- *   - file: PDF file
+ * Accepts JSON with:
+ *   - pdfUrl: string (Public URL of the PDF)
  *   - lessonId: string (metadata tag)
  *   - subject: string (metadata tag)
  */
@@ -32,22 +31,25 @@ function chunkText(text: string): string[] {
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const file     = formData.get("file") as File | null;
-    const lessonId = (formData.get("lessonId") as string) ?? "unknown";
-    const subject  = (formData.get("subject")  as string) ?? "general";
+    const body = await req.json();
+    const { pdfUrl, lessonId, subject } = body;
 
-    if (!file) {
-      return NextResponse.json({ error: "file required" }, { status: 400 });
+    if (!pdfUrl) {
+      return NextResponse.json({ error: "pdfUrl required" }, { status: 400 });
     }
 
     if (!process.env.OPENAI_API_KEY || !process.env.PINECONE_API_KEY) {
       throw new Error("Missing AI API keys (OpenAI or Pinecone) in .env.local");
     }
 
+    // 1. Download PDF from URL
+    const pdfRes = await fetch(pdfUrl);
+    if (!pdfRes.ok) throw new Error(`Failed to fetch PDF from ${pdfUrl}`);
+    const buffer = Buffer.from(await pdfRes.arrayBuffer());
+
+    // 2. Parse PDF
     const openai   = getOpenAI();
     const pinecone = getPinecone();
-    const buffer = Buffer.from(await file.arrayBuffer());
     const parsed = await pdfParse(buffer);
     const text   = parsed.text;
 
@@ -57,7 +59,7 @@ export async function POST(req: NextRequest) {
 
     const chunks = chunkText(text);
 
-    // Embed all chunks
+    // 3. Embed all chunks
     const embedRes = await openai.embeddings.create({
       model:  "text-embedding-3-small",
       input:  chunks,
@@ -68,23 +70,23 @@ export async function POST(req: NextRequest) {
       values:   e.embedding,
       metadata: {
         lessonId,
-        subject,
+        subject: subject || "general",
         chunkIndex: i,
         text:       chunks[i],
       },
     }));
 
-    // Upsert into Pinecone
+    // 4. Upsert into Pinecone
     const index = pinecone.index(process.env.PINECONE_INDEX ?? "melon-lessons");
     const namespace = index.namespace(process.env.PINECONE_NAMESPACE ?? "default");
     
     await namespace.upsert(vectors as any);
 
     return NextResponse.json({
-      success:    true,
+      success: true,
       lessonId,
-      chunkCount: chunks.length,
-      charCount:  text.length,
+      chunks: chunks.length,
+      chars:  text.length,
     });
   } catch (error: any) {
     console.error("Ingest error:", error);
