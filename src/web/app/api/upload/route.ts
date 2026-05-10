@@ -20,19 +20,19 @@ export async function POST(req: NextRequest) {
     const buffer = await file.arrayBuffer();
     const bytes = Buffer.from(buffer);
 
-    // Detect if file is PDF to use 'raw' resource type (fixes 404 for docs in some Cloudinary setups)
-    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-    const resourceType = isPdf ? "raw" : "auto";
+    // Use 'auto' instead of forcing 'raw' for PDFs. 
+    // Cloudinary detects PDFs as 'image' which enables previews and format detection.
+    const resourceType = "auto";
 
     return new Promise<NextResponse>((resolve) => {
       cloudinary.uploader.upload_stream(
         { 
           folder, 
           resource_type: resourceType,
-          // For raw files, Cloudinary doesn't always add the extension to public_id, 
-          // but keeping the original filename can help.
           use_filename: true,
-          unique_filename: true
+          unique_filename: true,
+          // If it's a PDF, we can specify the format to ensure it's recognized
+          format: file.name.toLowerCase().endsWith(".pdf") ? "pdf" : undefined
         },
         (error, result) => {
           if (error) {
