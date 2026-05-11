@@ -2,16 +2,23 @@ import os
 from elevenlabs.client import ElevenLabs
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-client = ElevenLabs(
-    api_key=os.getenv("ELEVENLABS_API_KEY"),
-)
+def _get_client() -> ElevenLabs:
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Missing ELEVENLABS_API_KEY. Add it to melon-ai-backend/.env "
+            "or export it in the current shell environment."
+        )
+    return ElevenLabs(api_key=api_key)
 
 def text_to_speech(text: str, filename: str = "output.mp3") -> str:
     """
     Converts text to speech using ElevenLabs API
     """
+    client = _get_client()
     audio_generator = client.generate(
         text=text,
         model="eleven_multilingual_v2"
@@ -26,5 +33,3 @@ def text_to_speech(text: str, filename: str = "output.mp3") -> str:
             f.write(chunk)
 
     return f"/static/audio/{filename}"
-
-text_to_speech("Hello, this is a test of the ElevenLabs text-to-speech API!", "test_output.mp3")

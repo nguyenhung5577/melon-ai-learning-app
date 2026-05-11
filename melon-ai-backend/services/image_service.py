@@ -12,7 +12,7 @@ def get_pipe():
     if pipe is None:
         pipe = StableDiffusionPipeline.from_pretrained(
             model_id,
-            torch_dtype=torch.float16
+            torch_dtype=torch.float32
         )
         if torch.cuda.is_available():
             pipe = pipe.to("cuda")

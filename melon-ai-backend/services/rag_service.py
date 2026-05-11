@@ -4,8 +4,13 @@ import chromadb
 import torch
 from transformers import AutoTokenizer, AutoModel
 from dotenv import load_dotenv
+from chromadb.config import Settings
 
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+# Avoid noisy telemetry warning from Chroma in local dev.
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 
 # Setup Local Contriever
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -27,7 +32,10 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
     return embeddings.cpu().tolist()
 
 # Local Vector DB
-chroma_client = chromadb.PersistentClient(path="./chroma_db")
+chroma_client = chromadb.PersistentClient(
+    path="./chroma_db",
+    settings=Settings(anonymized_telemetry=False)
+)
 try:
     collection = chroma_client.create_collection(name="melon_documents")
 except Exception:

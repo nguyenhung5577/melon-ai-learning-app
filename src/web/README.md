@@ -103,6 +103,7 @@ Copy `.env.example` → `.env.local`:
 | `PINECONE_INDEX` | RAG only | Pinecone index name (default: `melon-lessons`) |
 | `ELEVENLABS_API_KEY` | TTS only | ElevenLabs API key |
 | `ELEVENLABS_VOICE_ID` | TTS only | Voice ID (default: Rachel) |
+| `MELON_AI_BACKEND_URL` | Backend integration | FastAPI base URL (default: `http://localhost:8000`) |
 
 > **Without any keys:** The app runs in demo mode — all pages work with mock data via localStorage.
 
@@ -164,7 +165,7 @@ npm run type-check # TypeScript check (no emit)
 - **Adding lessons**: Edit `MOCK_LESSONS` array in `lib/lessons/mock-lessons.ts`
 - **Design system**: All tokens defined in `app/globals.css` under `@theme inline` (Neobrutalism palette, Lexend Mega + Space Grotesk)
 - **File uploads**: Use `lib/storage/upload.ts` — `uploadFile(file, path)` returns a Firebase Storage URL
-- **API routes**: All backend logic lives under `app/api/v1/` as Next.js Route Handlers
+- **API routes**: `app/api/v1/` now proxies to `melon-ai-backend` for ingest/generate/tts
 - **Deploy**: Connect repo to [Vercel](https://vercel.com) → set env vars → auto-deploy on push (`infra/vercel.json`)
 
 ---

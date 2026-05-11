@@ -1,80 +1,50 @@
 /**
- * POST /api/v1/ai/tts — Text-to-Speech via ElevenLabs.
- * Caches audio in-memory (Map) by text hash.
- * Falls back to browser TTS instruction on ElevenLabs error.
+ * POST /api/v1/ai/tts
+ * Proxy text-to-speech requests to melon-ai-backend /api/v1/tts.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
-
-const TTS_CACHE = new Map<string, ArrayBuffer>();
-
-function hashText(text: string): string {
-  return crypto.createHash("md5").update(text).digest("hex");
-}
+import { getMelonAiBackendUrl, getMelonAiEndpoint } from "@/lib/server/melon-ai-backend";
 
 export async function POST(req: NextRequest) {
-  const { text, voiceId } = await req.json();
+  const { text } = await req.json();
 
   if (!text?.trim()) {
     return NextResponse.json({ error: "Text required" }, { status: 400 });
   }
 
   if (text.length > 1000) {
-    return NextResponse.json({ error: "Text too long (max 1000 chars)" }, { status: 400 });
-  }
-
-  const hash = hashText(text);
-
-  // Cache hit
-  const cached = TTS_CACHE.get(hash);
-  if (cached) {
-    return new Response(cached, {
-      headers: { "Content-Type": "audio/mpeg", "X-Cache": "HIT" },
-    });
-  }
-
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  const voice  = voiceId ?? process.env.ELEVENLABS_VOICE_ID ?? "21m00Tcm4TlvDq8ikWAM";
-
-  if (!apiKey) {
     return NextResponse.json(
-      { error: "ElevenLabs not configured", fallback: true },
-      { status: 503 }
+      { error: "Text too long (max 1000 chars)" },
+      { status: 400 }
     );
   }
 
   try {
-    const res = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${voice}`,
-      {
-        method: "POST",
-        headers: {
-          "xi-api-key":   apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text,
-          model_id: "eleven_monolingual_v1",
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-        }),
-      }
-    );
+    const res = await fetch(getMelonAiEndpoint("/api/v1/tts"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      cache: "no-store",
+    });
 
+    const data = (await res.json()) as { audio_url?: string; error?: string };
     if (!res.ok) {
-      throw new Error(`ElevenLabs ${res.status}: ${await res.text()}`);
+      return NextResponse.json(data, { status: res.status });
     }
 
-    const buffer = await res.arrayBuffer();
-    TTS_CACHE.set(hash, buffer);
+    // Backend usually returns relative path; convert to absolute URL for frontend audio player.
+    const audioUrl = data.audio_url?.startsWith("http")
+      ? data.audio_url
+      : `${getMelonAiBackendUrl()}${data.audio_url ?? ""}`;
 
-    return new Response(buffer, {
-      headers: { "Content-Type": "audio/mpeg", "X-Cache": "MISS" },
-    });
-  } catch (err) {
-    console.error("TTS error:", err);
+    return NextResponse.json({ audioUrl });
+  } catch (error) {
     return NextResponse.json(
-      { error: "TTS failed", fallback: true },
+      {
+        error: "Cannot connect to melon-ai-backend tts endpoint",
+        detail: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 502 }
     );
   }

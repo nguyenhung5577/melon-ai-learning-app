@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils";
 type UploadStatus = "idle" | "storing" | "ingesting" | "success" | "error";
 
 interface UploadResult {
-  success: boolean;
-  lessonId: string;
+  success?: boolean;
+  message?: string;
+  file_id?: string;
+  chunks?: number;
   storageUrl?: string;
-  chunkCount?: number;
-  charCount?: number;
   error?: string;
 }
 
@@ -74,7 +74,7 @@ export default function PdfUploadPage() {
 
     try {
       const res = await fetch("/api/v1/rag/ingest", { method: "POST", body: form });
-      const data = await res.json();
+      const data = (await res.json()) as UploadResult;
 
       if (!res.ok) throw new Error(data.error ?? "Ingest failed");
 
@@ -83,7 +83,7 @@ export default function PdfUploadPage() {
       setFile(null);
       setLessonId("");
     } catch (err) {
-      setResult({ success: false, lessonId, error: err instanceof Error ? err.message : "Failed" });
+      setResult({ success: false, error: err instanceof Error ? err.message : "Failed" });
       setStatus("error");
     }
   }
@@ -212,8 +212,13 @@ export default function PdfUploadPage() {
                   <>
                     <div className="font-display text-sm text-nb-green mb-1">Ingested!</div>
                     <div className="text-sm font-medium">
-                      <b>{result.chunkCount}</b> chunks · <b>{result.charCount?.toLocaleString()}</b> chars → Pinecone
+                      <b>{result.chunks ?? 0}</b> chunks indexed in melon-ai-backend
                     </div>
+                    {result.file_id && (
+                      <div className="text-xs font-semibold text-[#666] mt-1">
+                        File ID: <span className="font-mono">{result.file_id}</span>
+                      </div>
+                    )}
                     {result.storageUrl && (
                       <a
                         href={result.storageUrl}
@@ -248,10 +253,10 @@ export default function PdfUploadPage() {
             <h3 className="font-display text-sm mb-3">How it works</h3>
             <ol className="flex flex-col gap-2 text-sm font-medium text-[#555]">
               <li>1. Upload a PDF lesson (textbook, worksheet, notes)</li>
-              <li>2. Text is chunked into ~500 char segments with overlap</li>
-              <li>3. OpenAI embeds each chunk (text-embedding-3-small)</li>
-              <li>4. Vectors stored in Pinecone under the lesson ID</li>
-              <li>5. Students can then take AI-generated quizzes from this content</li>
+              <li>2. Frontend sends file to `melon-ai-backend /api/v1/ingest`</li>
+              <li>3. Backend chunks and stores vectors in its RAG store</li>
+              <li>4. Response returns `file_id` for lesson generation context</li>
+              <li>5. Use this `file_id` when calling quiz/content generation APIs</li>
             </ol>
           </div>
         </div>
