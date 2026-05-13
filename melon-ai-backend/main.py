@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from api.endpoints import router
 
 app = FastAPI(title="Melon AI Backend", description="AI API for Melon Education App")
@@ -15,6 +16,12 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+
+# Serve generated media files used by frontend.
+os.makedirs("generations/audio", exist_ok=True)
+os.makedirs("uploads/images", exist_ok=True)
+app.mount("/static/audio", StaticFiles(directory="generations/audio"), name="static-audio")
+app.mount("/static/images", StaticFiles(directory="uploads/images"), name="static-images")
 
 @app.get("/health")
 def health_check():

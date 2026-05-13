@@ -12,7 +12,7 @@ def get_pipe():
     if pipe is None:
         pipe = StableDiffusionPipeline.from_pretrained(
             model_id,
-            torch_dtype=torch.float32
+            torch_dtype=torch.float16
         )
         if torch.cuda.is_available():
             pipe = pipe.to("cuda")
@@ -31,5 +31,3 @@ def generate_image(prompt: str, filename: str) -> str:
     
     # Return a URL path that frontend can use (assuming static files are mounted)
     return f"/static/images/{filename}"
-
-generate_image("A cartoon illustration of kids learning about photosynthesis", "test_image.png")

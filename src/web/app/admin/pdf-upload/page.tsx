@@ -7,10 +7,13 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
+import { buildLessonFromExercises, saveGeneratedLesson } from "@/lib/lessons/generated-lessons-store";
+import type { Subject } from "@/lib/lessons/mock-lessons";
 import { uploadFile, pdfPath, type UploadProgress } from "@/lib/storage/upload";
 import { cn } from "@/lib/utils";
 
 type UploadStatus = "idle" | "storing" | "ingesting" | "success" | "error";
+const ENABLE_FIREBASE_UPLOAD = process.env.NEXT_PUBLIC_ENABLE_FIREBASE_STORAGE_UPLOAD === "true";
 
 interface UploadResult {
   success?: boolean;
@@ -21,16 +24,60 @@ interface UploadResult {
   error?: string;
 }
 
+interface IngestStartResponse {
+  message?: string;
+  job_id?: string;
+  file_id?: string;
+  status?: string;
+  error?: string;
+}
+
+interface IngestStatusResponse {
+  job_id: string;
+  status: "queued" | "processing" | "completed" | "failed" | "not_found";
+  file_id?: string;
+  chunks?: number | null;
+  error?: string | null;
+}
+
+interface GeneratedExercise {
+  question: string;
+  choices?: Record<string, string>;
+  answer?: string;
+  explanation?: string;
+}
+
 export default function PdfUploadPage() {
   const { user, logout } = useAuthContext();
   const [file, setFile] = useState<File | null>(null);
   const [lessonId, setLessonId] = useState("");
-  const [subject, setSubject] = useState("science");
+  const [subject, setSubject] = useState<Subject>("science");
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [result, setResult] = useState<UploadResult | null>(null);
   const [dragging, setDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [exerciseTopic, setExerciseTopic] = useState("");
+  const [exerciseFileId, setExerciseFileId] = useState("");
+  const [exerciseLoading, setExerciseLoading] = useState(false);
+  const [exerciseError, setExerciseError] = useState<string | null>(null);
+  const [generatedExercises, setGeneratedExercises] = useState<GeneratedExercise[]>([]);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  async function pollIngestJob(jobId: string): Promise<IngestStatusResponse> {
+    for (let attempt = 0; attempt < 180; attempt++) {
+      const res = await fetch(`/api/v1/rag/ingest/${jobId}`, { cache: "no-store" });
+      const data = (await res.json()) as IngestStatusResponse;
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to read ingest status");
+      }
+      if (data.status === "completed" || data.status === "failed" || data.status === "not_found") {
+        return data;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    throw new Error("Ingest timeout. Please try again.");
+  }
 
   function handleDrop(e: DragEvent) {
     e.preventDefault();
@@ -51,17 +98,19 @@ export default function PdfUploadPage() {
 
     let storageUrl: string | undefined;
 
-    try {
-      // Step 1 — upload to Firebase Storage
-      setStatus("storing");
-      storageUrl = await uploadFile(
-        file,
-        pdfPath(lessonId.trim(), file.name),
-        setUploadProgress
-      );
-    } catch {
-      // Firebase Storage not configured — proceed without persistent storage
-      storageUrl = undefined;
+    if (ENABLE_FIREBASE_UPLOAD) {
+      try {
+        // Step 1 — optional upload to Firebase Storage
+        setStatus("storing");
+        storageUrl = await uploadFile(
+          file,
+          pdfPath(lessonId.trim(), file.name),
+          setUploadProgress
+        );
+      } catch {
+        // Firebase Storage is optional for this flow.
+        storageUrl = undefined;
+      }
     }
 
     // Step 2 — RAG ingest (Pinecone embedding)
@@ -74,18 +123,75 @@ export default function PdfUploadPage() {
 
     try {
       const res = await fetch("/api/v1/rag/ingest", { method: "POST", body: form });
-      const data = (await res.json()) as UploadResult;
+      const startData = (await res.json()) as IngestStartResponse;
+      if (!res.ok) throw new Error(startData.error ?? "Ingest failed to start");
+      if (!startData.job_id) throw new Error("Ingest job id missing from backend");
 
-      if (!res.ok) throw new Error(data.error ?? "Ingest failed");
+      const finalStatus = await pollIngestJob(startData.job_id);
+      if (finalStatus.status !== "completed") {
+        throw new Error(finalStatus.error ?? "Ingest failed");
+      }
 
-      setResult({ ...data, success: true, storageUrl });
+      const data: UploadResult = {
+        success: true,
+        message: "success",
+        file_id: finalStatus.file_id ?? startData.file_id,
+        chunks: finalStatus.chunks ?? 0,
+        storageUrl,
+      };
+
+      setResult(data);
       setStatus("success");
       setFile(null);
       setLessonId("");
+      if (data.file_id) {
+        setExerciseFileId(data.file_id);
+      }
     } catch (err) {
       setResult({ success: false, error: err instanceof Error ? err.message : "Failed" });
       setStatus("error");
     }
+  }
+
+  async function handleGenerateExercises() {
+    if (!exerciseTopic.trim() || !exerciseFileId.trim()) return;
+    setExerciseLoading(true);
+    setExerciseError(null);
+    setSaveMessage(null);
+    setGeneratedExercises([]);
+    try {
+      const res = await fetch("/api/v1/exercise/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: exerciseTopic.trim(),
+          fileId: exerciseFileId.trim(),
+          count: 5,
+          difficulty: "medium",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to generate exercises");
+      }
+      setGeneratedExercises(data.questions ?? []);
+    } catch (err) {
+      setExerciseError(err instanceof Error ? err.message : "Failed to generate exercises");
+    } finally {
+      setExerciseLoading(false);
+    }
+  }
+
+  function handleSaveLesson() {
+    if (!exerciseTopic.trim() || generatedExercises.length === 0) return;
+    const lesson = buildLessonFromExercises({
+      topic: exerciseTopic.trim(),
+      subject,
+      questions: generatedExercises,
+      sourceFileId: exerciseFileId.trim() || undefined,
+    });
+    saveGeneratedLesson(lesson);
+    setSaveMessage(`Saved lesson "${lesson.title}". You can now learn it in /lessons.`);
   }
 
   return (
@@ -155,7 +261,7 @@ export default function PdfUploadPage() {
             <label className="block font-bold text-[0.8rem] uppercase mb-2">Subject</label>
             <select
               value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              onChange={(e) => setSubject(e.target.value as Subject)}
               className="nb-input cursor-pointer"
             >
               {["math", "science", "english", "history", "coding"].map((s) => (
@@ -176,7 +282,7 @@ export default function PdfUploadPage() {
           </NbButton>
 
           {/* Firebase Storage upload progress */}
-          {status === "storing" && uploadProgress && (
+          {ENABLE_FIREBASE_UPLOAD && status === "storing" && uploadProgress && (
             <div className="flex flex-col gap-1">
               <div className="flex justify-between text-xs font-semibold text-[#666]">
                 <span className="flex items-center gap-1"><Cloud className="w-3 h-3" /> Firebase Storage</span>
@@ -189,6 +295,11 @@ export default function PdfUploadPage() {
                 />
               </div>
             </div>
+          )}
+          {!ENABLE_FIREBASE_UPLOAD && (
+            <p className="text-xs font-semibold text-[#666]">
+              Firebase upload is currently disabled. Set `NEXT_PUBLIC_ENABLE_FIREBASE_STORAGE_UPLOAD=true` to enable.
+            </p>
           )}
         </div>
 
@@ -258,6 +369,57 @@ export default function PdfUploadPage() {
               <li>4. Response returns `file_id` for lesson generation context</li>
               <li>5. Use this `file_id` when calling quiz/content generation APIs</li>
             </ol>
+          </div>
+
+          <div className="nb-card rounded-2xl p-5 bg-white flex flex-col gap-3">
+            <h3 className="font-display text-sm">Generate Exercises (RAG + OpenAI)</h3>
+            <input
+              value={exerciseTopic}
+              onChange={(e) => setExerciseTopic(e.target.value)}
+              placeholder="Topic, e.g. Photosynthesis"
+              className="nb-input"
+            />
+            <input
+              value={exerciseFileId}
+              onChange={(e) => setExerciseFileId(e.target.value)}
+              placeholder="file_id from ingest result"
+              className="nb-input font-mono"
+            />
+            <NbButton
+              variant="primary"
+              size="sm"
+              onClick={handleGenerateExercises}
+              disabled={!exerciseTopic.trim() || !exerciseFileId.trim() || exerciseLoading}
+              loading={exerciseLoading}
+            >
+              Generate 5 Exercises
+            </NbButton>
+            {exerciseError && (
+              <p className="text-sm font-semibold text-nb-red">{exerciseError}</p>
+            )}
+            {generatedExercises.length > 0 && (
+              <div className="flex flex-col gap-3">
+                {generatedExercises.map((item, idx) => (
+                  <div key={idx} className="rounded-xl border-2 border-nb-black/20 p-3 bg-nb-bg">
+                    <p className="font-bold text-sm mb-2">{idx + 1}. {item.question}</p>
+                    <div className="text-xs font-semibold text-[#666] grid grid-cols-1 gap-1">
+                      {Object.entries(item.choices ?? {}).map(([k, v]) => (
+                        <span key={k}>{k}) {v}</span>
+                      ))}
+                    </div>
+                    {item.answer && (
+                      <p className="text-xs font-bold text-nb-green mt-2">Answer: {item.answer}</p>
+                    )}
+                  </div>
+                ))}
+                <NbButton variant="secondary" size="sm" onClick={handleSaveLesson}>
+                  Save as Lesson
+                </NbButton>
+                {saveMessage && (
+                  <p className="text-xs font-semibold text-nb-green">{saveMessage}</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

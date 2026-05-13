@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpen, Filter } from "lucide-react";
 import { KidShell } from "@/components/layout/KidShell";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -9,7 +9,8 @@ import { SectionContainer, SectionHeader } from "@/components/shared/SectionHead
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import { MOCK_LESSONS, type Subject } from "@/lib/lessons/mock-lessons";
+import { MOCK_LESSONS, type Lesson, type Subject } from "@/lib/lessons/mock-lessons";
+import { getGeneratedLessons } from "@/lib/lessons/generated-lessons-store";
 import { cn } from "@/lib/utils";
 
 const subjects: Array<{ id: Subject | "all"; label: string; emoji: string }> = [
@@ -25,11 +26,18 @@ export default function LessonsPage() {
   const { user, logout } = useAuthContext();
   const [authOpen, setAuthOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Subject | "all">("all");
+  const [generatedLessons, setGeneratedLessons] = useState<Lesson[]>([]);
+
+  useEffect(() => {
+    setGeneratedLessons(getGeneratedLessons());
+  }, []);
+
+  const allLessons = [...generatedLessons, ...MOCK_LESSONS];
 
   const filtered =
     activeSubject === "all"
-      ? MOCK_LESSONS
-      : MOCK_LESSONS.filter((l) => l.subject === activeSubject);
+      ? allLessons
+      : allLessons.filter((l) => l.subject === activeSubject);
 
   return (
     <KidShell
@@ -43,7 +51,7 @@ export default function LessonsPage() {
           subtitle="Pick a subject and start learning"
           badge={
             <NbPill color="orange" icon={<BookOpen className="w-3 h-3" />}>
-              {MOCK_LESSONS.length} lessons
+              {allLessons.length} lessons
             </NbPill>
           }
           action={

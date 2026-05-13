@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback, use } from "react";
+import { useState, useCallback, use, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Zap, Brain, Volume2, Check, X, ChevronRight } from "lucide-react";
-import { getLessonById, type LessonSlide } from "@/lib/lessons/mock-lessons";
+import { getLessonById, type Lesson, type LessonSlide } from "@/lib/lessons/mock-lessons";
+import { getGeneratedLessons } from "@/lib/lessons/generated-lessons-store";
 import { KidShell } from "@/components/layout/KidShell";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
@@ -156,12 +157,23 @@ export default function LessonPlayerPage({
   const router = useRouter();
   const { user } = useAuthContext();
 
-  const lesson = getLessonById(id);
+  const [lesson, setLesson] = useState<Lesson | undefined>(() => getLessonById(id));
   const [currentSlideIdx, setCurrentSlideIdx] = useState(0);
   const [totalXp, setTotalXp] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [hintShown, setHintShown] = useState(false);
   const [hintText, setHintText] = useState("Need a hint? Ask me!");
+  const [hintLoading, setHintLoading] = useState(false);
+
+  useEffect(() => {
+    const mockLesson = getLessonById(id);
+    if (mockLesson) {
+      setLesson(mockLesson);
+      return;
+    }
+    const generated = getGeneratedLessons().find((item) => item.id === id);
+    setLesson(generated);
+  }, [id]);
 
   const handleSlideComplete = useCallback(
     (xp: number) => {
@@ -183,9 +195,40 @@ export default function LessonPlayerPage({
     [currentSlideIdx, lesson, totalXp, id]
   );
 
-  function handleHint() {
+  async function handleHint() {
+    if (hintLoading) return;
     setHintShown(true);
-    setHintText("Think about what the question is really asking. Break it down step by step! You've got this! 🌟");
+    setHintLoading(true);
+    setHintText("Cosmo is preparing your step-by-step guidance...");
+    try {
+      const res = await fetch("/api/v1/exercise/guide", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: slide.content,
+          correctAnswer: typeof slide.answer === "string" ? slide.answer : undefined,
+          topic: lesson?.title ?? "Lesson",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to generate guidance");
+      }
+
+      const guidance = (data.guidance as string) || "Let's solve this together!";
+      setHintText(guidance);
+
+      if (lesson?.audioEnabled && data.audioUrl) {
+        const audio = new Audio(data.audioUrl as string);
+        audio.play().catch(() => {
+          /* Ignore autoplay restrictions in browsers */
+        });
+      }
+    } catch {
+      setHintText("Try this: identify key words in the question, remove wrong options, then choose the best match. You can do it! 🌟");
+    } finally {
+      setHintLoading(false);
+    }
   }
 
   if (!lesson) {
@@ -378,11 +421,13 @@ export default function LessonPlayerPage({
                   )}
                   {lesson.audioEnabled && (
                     <button
-                      className="nb-pill bg-nb-blue cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all duration-150"
+                      onClick={handleHint}
+                      disabled={hintLoading}
+                      className="nb-pill bg-nb-blue cursor-pointer hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
                       aria-label="Play audio"
                     >
                       <Volume2 className="w-3 h-3" />
-                      Listen
+                      {hintLoading ? "Loading..." : "Listen"}
                     </button>
                   )}
                 </div>
