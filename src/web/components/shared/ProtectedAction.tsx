@@ -19,8 +19,9 @@ export function ProtectedAction({
   children,
   fallback = null,
 }: ProtectedActionProps) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
+  if (loading) return null;
   if (!user) return <>{fallback}</>;
   if (roles && !roles.includes(user.role as Role)) return <>{fallback}</>;
 

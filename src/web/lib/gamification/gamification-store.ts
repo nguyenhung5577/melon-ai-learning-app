@@ -1,10 +1,6 @@
-/**
- * GamificationModule — Phase 1 mock using localStorage.
- * Mirrors SAD Section 3.6 GamificationModule.
- */
-
-const XP_KEY  = "melon:xp";
-const BADGE_KEY = "melon:badges";
+import { collections } from "@/lib/db/firestore";
+import { getDocument, setDocument, updateDocument } from "@/lib/db/firestore-helpers";
+import { arrayUnion } from "firebase/firestore";
 
 export interface Badge {
   id: string;
@@ -50,52 +46,48 @@ function computeLevel(xp: number): { level: number; xpToNextLevel: number } {
 }
 
 export const gamificationStore = {
-  getData(uid: string): GamificationData {
-    try {
-      const xpRaw    = localStorage.getItem(`${XP_KEY}:${uid}`);
-      const badgeRaw = localStorage.getItem(`${BADGE_KEY}:${uid}`);
-      const entries: XpEntry[] = xpRaw ? JSON.parse(xpRaw) : [];
-      const earnedBadgeIds: string[] = badgeRaw ? JSON.parse(badgeRaw) : [];
-      const totalXp = entries.reduce((s, e) => s + e.amount, 0);
-      const { level, xpToNextLevel } = computeLevel(totalXp);
-      return { totalXp, level, xpToNextLevel, entries, earnedBadgeIds };
-    } catch {
-      return { totalXp: 0, level: 1, xpToNextLevel: 200, entries: [], earnedBadgeIds: [] };
-    }
+  async getData(uid: string): Promise<GamificationData> {
+    const doc = await getDocument(collections.gamification, uid);
+    if (doc) return doc;
+    return { totalXp: 0, level: 1, xpToNextLevel: 200, entries: [], earnedBadgeIds: [] };
   },
 
-  addXp(uid: string, amount: number, reason: string, lessonId?: string): GamificationData {
-    const data = this.getData(uid);
+  async addXp(uid: string, amount: number, reason: string, lessonId?: string): Promise<GamificationData> {
+    const data = await this.getData(uid);
     const newEntry: XpEntry = {
       amount, reason, lessonId,
       timestamp: new Date().toISOString(),
     };
-    data.entries.push(newEntry);
-    localStorage.setItem(`${XP_KEY}:${uid}`, JSON.stringify(data.entries));
-
+    
     const newTotal = data.totalXp + amount;
     const { level, xpToNextLevel } = computeLevel(newTotal);
 
-    // Auto-unlock XP-threshold badges
     const toUnlock = ALL_BADGES.filter(
       (b) => b.xpThreshold && b.xpThreshold <= newTotal && !data.earnedBadgeIds.includes(b.id)
     );
-    toUnlock.forEach((b) => this.unlockBadge(uid, b.id));
+    
+    const newBadges = toUnlock.map(b => b.id);
+    const allBadges = [...data.earnedBadgeIds, ...newBadges];
 
-    return { ...data, totalXp: newTotal, level, xpToNextLevel };
+    await setDocument(collections.gamification, uid, {
+      totalXp: newTotal,
+      level,
+      xpToNextLevel,
+      entries: arrayUnion(newEntry),
+      earnedBadgeIds: arrayUnion(...newBadges)
+    }, true);
+
+    return { ...data, totalXp: newTotal, level, xpToNextLevel, entries: [...data.entries, newEntry], earnedBadgeIds: allBadges };
   },
 
-  unlockBadge(uid: string, badgeId: string): void {
-    const raw = localStorage.getItem(`${BADGE_KEY}:${uid}`);
-    const earned: string[] = raw ? JSON.parse(raw) : [];
-    if (!earned.includes(badgeId)) {
-      earned.push(badgeId);
-      localStorage.setItem(`${BADGE_KEY}:${uid}`, JSON.stringify(earned));
-    }
+  async unlockBadge(uid: string, badgeId: string): Promise<void> {
+    await updateDocument(collections.gamification, uid, {
+      earnedBadgeIds: arrayUnion(badgeId)
+    });
   },
 
-  getBadges(uid: string): Badge[] {
-    const data = this.getData(uid);
+  async getBadges(uid: string): Promise<Badge[]> {
+    const data = await this.getData(uid);
     return ALL_BADGES.map((b) => ({
       ...b,
       locked: !data.earnedBadgeIds.includes(b.id),
@@ -105,15 +97,26 @@ export const gamificationStore = {
     }));
   },
 
-  seedDemoData(uid: string): void {
-    if (this.getData(uid).totalXp > 0) return;
+  async seedDemoData(uid: string): Promise<void> {
+    const data = await this.getData(uid);
+    if (data.totalXp > 0) return;
+    
     const entries: XpEntry[] = [
       { amount: 150, reason: "Completed: What is Photosynthesis?", lessonId: "lesson-001", timestamp: "2026-04-20T09:00:00Z" },
       { amount: 50,  reason: "Quiz bonus",                         timestamp: "2026-04-20T09:15:00Z" },
       { amount: 180, reason: "Completed: Fractions Made Easy",     lessonId: "lesson-002", timestamp: "2026-04-21T10:00:00Z" },
       { amount: 120, reason: "Completed: The Water Cycle",         lessonId: "lesson-003", timestamp: "2026-04-22T08:30:00Z" },
     ];
-    localStorage.setItem(`${XP_KEY}:${uid}`, JSON.stringify(entries));
-    localStorage.setItem(`${BADGE_KEY}:${uid}`, JSON.stringify(["first-lesson", "science"]));
+    
+    const totalXp = entries.reduce((s, e) => s + e.amount, 0);
+    const { level, xpToNextLevel } = computeLevel(totalXp);
+
+    await setDocument(collections.gamification, uid, {
+      totalXp,
+      level,
+      xpToNextLevel,
+      entries,
+      earnedBadgeIds: ["first-lesson", "science"]
+    });
   },
 };

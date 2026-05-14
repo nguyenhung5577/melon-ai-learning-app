@@ -1,6 +1,6 @@
 "use client";
 
-import { MOCK_LESSONS, type Lesson, type Subject } from "@/lib/lessons/mock-lessons";
+import { MOCK_LESSONS, type Lesson, type Subject } from "@/lib/lessons/lesson-store";
 
 const STORAGE_KEY = "melon.generated.lessons.v1";
 
@@ -32,7 +32,7 @@ export function saveGeneratedLesson(lesson: Lesson): void {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify([lesson, ...existing]));
 }
 
-export function getAllLessons(): Lesson[] {
+export function getAllGeneratedAndMockLessons(): Lesson[] {
   return [...getGeneratedLessons(), ...MOCK_LESSONS];
 }
 

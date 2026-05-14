@@ -9,7 +9,7 @@ import { SectionContainer, SectionHeader } from "@/components/shared/SectionHead
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import { MOCK_LESSONS, type Lesson, type Subject } from "@/lib/lessons/mock-lessons";
+import { getAllLessons, type Lesson, type Subject } from "@/lib/lessons/lesson-store";
 import { getGeneratedLessons } from "@/lib/lessons/generated-lessons-store";
 import { cn } from "@/lib/utils";
 
@@ -26,18 +26,33 @@ export default function LessonsPage() {
   const { user, logout } = useAuthContext();
   const [authOpen, setAuthOpen] = useState(false);
   const [activeSubject, setActiveSubject] = useState<Subject | "all">("all");
-  const [generatedLessons, setGeneratedLessons] = useState<Lesson[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
 
   useEffect(() => {
-    setGeneratedLessons(getGeneratedLessons());
-  }, []);
+    let mounted = true;
 
-  const allLessons = [...generatedLessons, ...MOCK_LESSONS];
+    getAllLessons().then((storedLessons) => {
+      if (!mounted) return;
+
+      const generatedLessons = getGeneratedLessons();
+      const combined = [...generatedLessons];
+      for (const lesson of storedLessons) {
+        if (!combined.some((item) => item.id === lesson.id)) {
+          combined.push(lesson);
+        }
+      }
+      setLessons(combined);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const filtered =
     activeSubject === "all"
-      ? allLessons
-      : allLessons.filter((l) => l.subject === activeSubject);
+      ? lessons
+      : lessons.filter((l) => l.subject === activeSubject);
 
   return (
     <KidShell
@@ -51,7 +66,7 @@ export default function LessonsPage() {
           subtitle="Pick a subject and start learning"
           badge={
             <NbPill color="orange" icon={<BookOpen className="w-3 h-3" />}>
-              {allLessons.length} lessons
+              {lessons.length} lessons
             </NbPill>
           }
           action={
@@ -61,7 +76,6 @@ export default function LessonsPage() {
           }
         />
 
-        {/* Subject filter tabs */}
         <div className="flex gap-2 overflow-x-auto nb-scrollbar-hide pb-1 mb-8">
           {subjects.map((s) => (
             <button
@@ -82,7 +96,6 @@ export default function LessonsPage() {
           ))}
         </div>
 
-        {/* Lessons grid — scroll on desktop, wrap on mobile */}
         {filtered.length === 0 ? (
           <div className="text-center py-16 border-2 border-dashed border-nb-black/20 rounded-2xl">
             <div className="text-5xl mb-4">📭</div>

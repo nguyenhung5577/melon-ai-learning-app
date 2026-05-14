@@ -1,9 +1,7 @@
-/**
- * UserModule — localStorage-backed mock store (Phase 1 PA2).
- * Mirrors the shape described in SAD Section 3.2 UserModule.
- */
-
-const KEY = "melon:users";
+import { collections } from "@/lib/db/firestore";
+import { getDocument, setDocument, queryDocuments, updateDocument } from "@/lib/db/firestore-helpers";
+import { where, arrayUnion } from "firebase/firestore";
+import type { MelonUser } from "@/lib/auth/types";
 
 export interface ChildProfile {
   uid: string;
@@ -23,75 +21,39 @@ export interface ParentProfile {
   createdAt: string;
 }
 
-type StoredProfiles = {
-  children: ChildProfile[];
-  parents: ParentProfile[];
-};
-
-function load(): StoredProfiles {
-  try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : { children: [], parents: [] };
-  } catch {
-    return { children: [], parents: [] };
-  }
-}
-
-function save(data: StoredProfiles): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(data));
-  } catch {
-    /* noop */
-  }
-}
-
 export const userStore = {
-  getChild(uid: string): ChildProfile | undefined {
-    return load().children.find((c) => c.uid === uid);
+  async getChild(uid: string): Promise<ChildProfile | undefined> {
+    const doc = await getDocument(collections.children, uid);
+    return doc || undefined;
   },
 
-  upsertChild(profile: ChildProfile): void {
-    const data = load();
-    const idx = data.children.findIndex((c) => c.uid === profile.uid);
-    if (idx >= 0) data.children[idx] = profile;
-    else data.children.push(profile);
-    save(data);
+  async upsertChild(profile: ChildProfile): Promise<void> {
+    await setDocument(collections.children, profile.uid, profile, true);
   },
 
-  getParent(uid: string): ParentProfile | undefined {
-    return load().parents.find((p) => p.uid === uid);
-  },
-
-  upsertParent(profile: ParentProfile): void {
-    const data = load();
-    const idx = data.parents.findIndex((p) => p.uid === profile.uid);
-    if (idx >= 0) data.parents[idx] = profile;
-    else data.parents.push(profile);
-    save(data);
-  },
-
-  linkChildToParent(parentUid: string, childUid: string): void {
-    const data = load();
-    const parent = data.parents.find((p) => p.uid === parentUid);
-    if (parent && !parent.childUids.includes(childUid)) {
-      parent.childUids.push(childUid);
+  async getParent(uid: string): Promise<MelonUser | undefined> {
+    const doc = await getDocument(collections.users, uid);
+    if (doc && doc.role === "parent") {
+      return doc;
     }
-    const child = data.children.find((c) => c.uid === childUid);
-    if (child) child.linkedParentUid = parentUid;
-    save(data);
+    return undefined;
   },
 
-  getChildrenForParent(parentUid: string): ChildProfile[] {
-    const data = load();
-    const parent = data.parents.find((p) => p.uid === parentUid);
-    if (!parent) return [];
-    return data.children.filter((c) => parent.childUids.includes(c.uid));
+  async linkChildToParent(parentUid: string, childUid: string): Promise<void> {
+    const childDoc = await getDocument(collections.children, childUid);
+    if (childDoc) {
+      await updateDocument(collections.children, childUid, { linkedParentUid: parentUid });
+    }
+  },
+
+  async getChildrenForParent(parentUid: string): Promise<ChildProfile[]> {
+    return queryDocuments(collections.children, where("linkedParentUid", "==", parentUid));
   },
 };
 
 export const AVATAR_EMOJIS = [
   "🦊", "🐼", "🐸", "🦁", "🐯", "🐧", "🦋", "🐬",
-  "🦄", "🐉", "🦝", "🐨", "🦊", "🐺", "🦀", "🦕",
+  "🦄", "🐉", "🦝", "🐨", "🐺", "🦀", "🦕", "🐝"
 ];
 
 export const GRADE_OPTIONS = [

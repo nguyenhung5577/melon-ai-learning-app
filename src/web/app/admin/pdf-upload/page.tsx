@@ -1,26 +1,38 @@
 "use client";
 
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react";
-import { FileText, Upload, CheckCircle, AlertCircle, Loader2, Cloud } from "lucide-react";
+import { FileText, Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { z } from "zod";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
+import { AdminGuard } from "@/components/shared/AdminGuard";
 import { useAuthContext } from "@/lib/auth/auth-context";
+import { setDocument } from "@/lib/db/firestore-helpers";
+import { collections } from "@/lib/db/firestore";
 import { buildLessonFromExercises, saveGeneratedLesson } from "@/lib/lessons/generated-lessons-store";
-import type { Subject } from "@/lib/lessons/mock-lessons";
-import { uploadFile, pdfPath, type UploadProgress } from "@/lib/storage/upload";
+import { type Subject } from "@/lib/lessons/lesson-store";
+import { uploadPdf } from "@/lib/storage/upload";
 import { cn } from "@/lib/utils";
 
+const ingestSchema = z.object({
+  lessonId: z.string()
+    .min(3, "Lesson ID is too short")
+    .max(20, "Lesson ID is too long")
+    .regex(/^[a-zA-Z0-9-]+$/, "Lesson ID must be alphanumeric or hyphens"),
+});
+
 type UploadStatus = "idle" | "storing" | "ingesting" | "success" | "error";
-const ENABLE_FIREBASE_UPLOAD = process.env.NEXT_PUBLIC_ENABLE_FIREBASE_STORAGE_UPLOAD === "true";
 
 interface UploadResult {
-  success?: boolean;
-  message?: string;
-  file_id?: string;
-  chunks?: number;
+  success: boolean;
+  lessonId: string;
   storageUrl?: string;
+  fileId?: string;
+  chunkCount?: number;
+  charCount?: number;
   error?: string;
 }
 
@@ -29,6 +41,8 @@ interface IngestStartResponse {
   job_id?: string;
   file_id?: string;
   status?: string;
+  chunks?: number;
+  chars?: number;
   error?: string;
 }
 
@@ -49,13 +63,15 @@ interface GeneratedExercise {
 
 export default function PdfUploadPage() {
   const { user, logout } = useAuthContext();
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [lessonId, setLessonId] = useState("");
   const [subject, setSubject] = useState<Subject>("science");
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [result, setResult] = useState<UploadResult | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [fieldError, setFieldError] = useState<string | null>(null);
   const [exerciseTopic, setExerciseTopic] = useState("");
   const [exerciseFileId, setExerciseFileId] = useState("");
   const [exerciseLoading, setExerciseLoading] = useState(false);
@@ -63,6 +79,11 @@ export default function PdfUploadPage() {
   const [generatedExercises, setGeneratedExercises] = useState<GeneratedExercise[]>([]);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
 
   async function pollIngestJob(jobId: string): Promise<IngestStatusResponse> {
     for (let attempt = 0; attempt < 180; attempt++) {
@@ -82,73 +103,93 @@ export default function PdfUploadPage() {
   function handleDrop(e: DragEvent) {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f?.type === "application/pdf") setFile(f);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile && droppedFile.type === "application/pdf") {
+      setFile(droppedFile);
+      setFieldError(null);
+    }
   }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0];
-    if (f) setFile(f);
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setFieldError(null);
+    }
   }
 
   async function handleUpload() {
-    if (!file || !lessonId.trim()) return;
-    setResult(null);
-    setUploadProgress(null);
+    if (!file || !lessonId) return;
 
-    let storageUrl: string | undefined;
-
-    if (ENABLE_FIREBASE_UPLOAD) {
-      try {
-        // Step 1 — optional upload to Firebase Storage
-        setStatus("storing");
-        storageUrl = await uploadFile(
-          file,
-          pdfPath(lessonId.trim(), file.name),
-          setUploadProgress
-        );
-      } catch {
-        // Firebase Storage is optional for this flow.
-        storageUrl = undefined;
-      }
+    const validation = ingestSchema.safeParse({ lessonId });
+    if (!validation.success) {
+      setFieldError(validation.error.issues[0].message);
+      return;
     }
-
-    // Step 2 — RAG ingest (Pinecone embedding)
-    setStatus("ingesting");
-    setUploadProgress(null);
-    const form = new FormData();
-    form.append("file", file);
-    form.append("lessonId", lessonId.trim());
-    form.append("subject", subject);
+    setFieldError(null);
+    setResult(null);
+    setUploadProgress(0);
 
     try {
-      const res = await fetch("/api/v1/rag/ingest", { method: "POST", body: form });
-      const startData = (await res.json()) as IngestStartResponse;
-      if (!res.ok) throw new Error(startData.error ?? "Ingest failed to start");
-      if (!startData.job_id) throw new Error("Ingest job id missing from backend");
+      setStatus("storing");
+      const storageUrl = await uploadPdf(file, (progress) => {
+        setUploadProgress(progress);
+      });
 
-      const finalStatus = await pollIngestJob(startData.job_id);
-      if (finalStatus.status !== "completed") {
-        throw new Error(finalStatus.error ?? "Ingest failed");
+      setStatus("ingesting");
+      const response = await fetch("/api/v1/rag/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lessonId,
+          subject,
+          pdfUrl: storageUrl,
+        }),
+      });
+
+      const startData = (await response.json()) as IngestStartResponse;
+      if (!response.ok) {
+        throw new Error(startData.error || "Ingestion failed");
       }
 
-      const data: UploadResult = {
+      let fileId = startData.file_id;
+      let chunkCount = startData.chunks;
+
+      if (startData.job_id) {
+        const finalStatus = await pollIngestJob(startData.job_id);
+        if (finalStatus.status !== "completed") {
+          throw new Error(finalStatus.error ?? "Ingest failed");
+        }
+        fileId = finalStatus.file_id ?? fileId;
+        chunkCount = finalStatus.chunks ?? chunkCount;
+      }
+
+      await setDocument(collections.lessons, lessonId, {
+        id: lessonId,
+        title: file.name.replace(/\.pdf$/i, ""),
+        subject,
+        pdfUrl: storageUrl,
+        isRAG: true,
+        updatedAt: new Date().toISOString(),
+      } as any);
+
+      setResult({
         success: true,
-        message: "success",
-        file_id: finalStatus.file_id ?? startData.file_id,
-        chunks: finalStatus.chunks ?? 0,
+        lessonId,
         storageUrl,
-      };
-
-      setResult(data);
+        fileId,
+        chunkCount,
+        charCount: startData.chars,
+      });
+      setExerciseFileId(fileId ?? "");
+      setExerciseTopic(file.name.replace(/\.pdf$/i, ""));
       setStatus("success");
-      setFile(null);
-      setLessonId("");
-      if (data.file_id) {
-        setExerciseFileId(data.file_id);
-      }
     } catch (err) {
-      setResult({ success: false, error: err instanceof Error ? err.message : "Failed" });
+      setResult({
+        success: false,
+        lessonId,
+        error: err instanceof Error ? err.message : "Upload failed",
+      });
       setStatus("error");
     }
   }
@@ -195,234 +236,245 @@ export default function PdfUploadPage() {
   }
 
   return (
-    <AdminShell userName={user?.displayName ?? "Admin"} onLogout={logout}>
-      <SectionHeader
-        title="PDF Upload / RAG Ingest"
-        subtitle="Upload lesson PDFs to build the AI quiz knowledge base"
-        badge={<NbPill color="purple">RAG Module</NbPill>}
-      />
+    <AdminGuard>
+      <AdminShell userName={user?.displayName ?? "Admin"} onLogout={handleLogout}>
+        <SectionHeader
+          title="PDF & RAG Upload"
+          subtitle="Add new learning materials to the AI database"
+          badge={<NbPill color="orange">Admin Only</NbPill>}
+        />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-        {/* Upload form */}
-        <div className="flex flex-col gap-6">
-          {/* Drop zone */}
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => inputRef.current?.click()}
-            className={cn(
-              "h-48 [border:var(--nb-border)] rounded-2xl flex flex-col items-center justify-center",
-              "gap-3 cursor-pointer transition-all duration-150",
-              dragging
-                ? "bg-nb-purple [box-shadow:var(--nb-shadow)] -translate-x-0.5 -translate-y-0.5"
-                : "bg-white hover:bg-nb-bg [box-shadow:var(--nb-shadow-sm)]"
-            )}
-          >
-            <input
-              ref={inputRef}
-              type="file"
-              accept="application/pdf"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            {file ? (
-              <>
-                <FileText className="w-10 h-10 text-nb-orange" />
-                <div className="font-display text-sm text-nb-black">{file.name}</div>
-                <div className="text-xs font-semibold text-[#666]">
-                  {(file.size / 1024).toFixed(1)} KB
-                </div>
-              </>
-            ) : (
-              <>
-                <Upload className="w-10 h-10 text-[#888]" />
-                <div className="font-display text-sm text-[#888]">Drop PDF here</div>
-                <div className="text-xs font-semibold text-[#aaa]">or click to browse</div>
-              </>
-            )}
-          </div>
+        <div className="max-w-5xl mt-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="flex flex-col gap-6">
+              <div className="nb-card rounded-2xl p-6 bg-white">
+                <h3 className="font-display text-sm mb-6 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-nb-purple" />
+                  Lesson Metadata
+                </h3>
 
-          {/* Lesson ID */}
-          <div>
-            <label className="block font-bold text-[0.8rem] uppercase mb-2">
-              Lesson ID *
-            </label>
-            <input
-              value={lessonId}
-              onChange={(e) => setLessonId(e.target.value)}
-              placeholder="e.g. lesson-006"
-              className="nb-input"
-            />
-          </div>
-
-          {/* Subject */}
-          <div>
-            <label className="block font-bold text-[0.8rem] uppercase mb-2">Subject</label>
-            <select
-              value={subject}
-              onChange={(e) => setSubject(e.target.value as Subject)}
-              className="nb-input cursor-pointer"
-            >
-              {["math", "science", "english", "history", "coding"].map((s) => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-              ))}
-            </select>
-          </div>
-
-          <NbButton
-            variant="primary"
-            size="lg"
-            loading={status === "storing" || status === "ingesting"}
-            disabled={!file || !lessonId.trim()}
-            onClick={handleUpload}
-            icon={<Upload className="w-4 h-4" />}
-          >
-            {status === "storing" ? "Uploading to Storage…" : status === "ingesting" ? "Building Index…" : "Ingest PDF"}
-          </NbButton>
-
-          {/* Firebase Storage upload progress */}
-          {ENABLE_FIREBASE_UPLOAD && status === "storing" && uploadProgress && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-xs font-semibold text-[#666]">
-                <span className="flex items-center gap-1"><Cloud className="w-3 h-3" /> Firebase Storage</span>
-                <span>{uploadProgress.percent}%</span>
-              </div>
-              <div className="h-2 rounded-full bg-nb-black/10 overflow-hidden [border:1px_solid_#0e0e0e]">
-                <div
-                  className="h-full bg-nb-orange transition-all duration-150"
-                  style={{ width: `${uploadProgress.percent}%` }}
-                />
-              </div>
-            </div>
-          )}
-          {!ENABLE_FIREBASE_UPLOAD && (
-            <p className="text-xs font-semibold text-[#666]">
-              Firebase upload is currently disabled. Set `NEXT_PUBLIC_ENABLE_FIREBASE_STORAGE_UPLOAD=true` to enable.
-            </p>
-          )}
-        </div>
-
-        {/* Status + instructions */}
-        <div className="flex flex-col gap-4">
-          {/* Result */}
-          {result && (
-            <div
-              className={cn(
-                "nb-card rounded-2xl p-5 flex items-start gap-3",
-                result.success ? "bg-nb-green/10" : "bg-nb-red/10"
-              )}
-            >
-              {result.success ? (
-                <CheckCircle className="w-5 h-5 text-nb-green flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-5 h-5 text-nb-red flex-shrink-0 mt-0.5" />
-              )}
-              <div>
-                {result.success ? (
-                  <>
-                    <div className="font-display text-sm text-nb-green mb-1">Ingested!</div>
-                    <div className="text-sm font-medium">
-                      <b>{result.chunks ?? 0}</b> chunks indexed in melon-ai-backend
-                    </div>
-                    {result.file_id && (
-                      <div className="text-xs font-semibold text-[#666] mt-1">
-                        File ID: <span className="font-mono">{result.file_id}</span>
-                      </div>
-                    )}
-                    {result.storageUrl && (
-                      <a
-                        href={result.storageUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-1 flex items-center gap-1 text-xs font-semibold text-nb-blue underline underline-offset-2"
-                      >
-                        <Cloud className="w-3 h-3" /> View in Firebase Storage
-                      </a>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="font-display text-sm text-nb-red mb-1">Error</div>
-                    <div className="text-sm font-medium">{result.error}</div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Processing indicator */}
-          {status === "ingesting" && (
-            <div className="nb-card rounded-2xl p-5 flex items-center gap-3">
-              <Loader2 className="w-5 h-5 animate-spin text-nb-orange" />
-              <div className="font-bold text-sm">Chunking → OpenAI embedding → Pinecone…</div>
-            </div>
-          )}
-
-          {/* Instructions */}
-          <div className="nb-card rounded-2xl p-5 bg-nb-bg">
-            <h3 className="font-display text-sm mb-3">How it works</h3>
-            <ol className="flex flex-col gap-2 text-sm font-medium text-[#555]">
-              <li>1. Upload a PDF lesson (textbook, worksheet, notes)</li>
-              <li>2. Frontend sends file to `melon-ai-backend /api/v1/ingest`</li>
-              <li>3. Backend chunks and stores vectors in its RAG store</li>
-              <li>4. Response returns `file_id` for lesson generation context</li>
-              <li>5. Use this `file_id` when calling quiz/content generation APIs</li>
-            </ol>
-          </div>
-
-          <div className="nb-card rounded-2xl p-5 bg-white flex flex-col gap-3">
-            <h3 className="font-display text-sm">Generate Exercises (RAG + OpenAI)</h3>
-            <input
-              value={exerciseTopic}
-              onChange={(e) => setExerciseTopic(e.target.value)}
-              placeholder="Topic, e.g. Photosynthesis"
-              className="nb-input"
-            />
-            <input
-              value={exerciseFileId}
-              onChange={(e) => setExerciseFileId(e.target.value)}
-              placeholder="file_id from ingest result"
-              className="nb-input font-mono"
-            />
-            <NbButton
-              variant="primary"
-              size="sm"
-              onClick={handleGenerateExercises}
-              disabled={!exerciseTopic.trim() || !exerciseFileId.trim() || exerciseLoading}
-              loading={exerciseLoading}
-            >
-              Generate 5 Exercises
-            </NbButton>
-            {exerciseError && (
-              <p className="text-sm font-semibold text-nb-red">{exerciseError}</p>
-            )}
-            {generatedExercises.length > 0 && (
-              <div className="flex flex-col gap-3">
-                {generatedExercises.map((item, idx) => (
-                  <div key={idx} className="rounded-xl border-2 border-nb-black/20 p-3 bg-nb-bg">
-                    <p className="font-bold text-sm mb-2">{idx + 1}. {item.question}</p>
-                    <div className="text-xs font-semibold text-[#666] grid grid-cols-1 gap-1">
-                      {Object.entries(item.choices ?? {}).map(([k, v]) => (
-                        <span key={k}>{k}) {v}</span>
-                      ))}
-                    </div>
-                    {item.answer && (
-                      <p className="text-xs font-bold text-nb-green mt-2">Answer: {item.answer}</p>
-                    )}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block font-bold text-[0.7rem] uppercase mb-1.5">Lesson ID (e.g. math-101)</label>
+                    <input
+                      type="text"
+                      placeholder="Enter a unique ID..."
+                      className={cn("nb-input text-sm", fieldError && "border-nb-red focus:ring-nb-red")}
+                      value={lessonId}
+                      onChange={(e) => {
+                        setLessonId(e.target.value);
+                        if (fieldError) setFieldError(null);
+                      }}
+                      disabled={status !== "idle"}
+                    />
+                    {fieldError && <p className="mt-1 text-[0.65rem] font-bold text-nb-red">{fieldError}</p>}
                   </div>
-                ))}
-                <NbButton variant="secondary" size="sm" onClick={handleSaveLesson}>
-                  Save as Lesson
-                </NbButton>
-                {saveMessage && (
-                  <p className="text-xs font-semibold text-nb-green">{saveMessage}</p>
+
+                  <div>
+                    <label className="block font-bold text-[0.7rem] uppercase mb-1.5">Subject</label>
+                    <select
+                      className="nb-input text-sm cursor-pointer"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value as Subject)}
+                      disabled={status !== "idle"}
+                    >
+                      <option value="science">Science</option>
+                      <option value="math">Math</option>
+                      <option value="english">English</option>
+                      <option value="history">History</option>
+                      <option value="coding">Coding</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className={cn(
+                  "nb-card rounded-2xl p-8 border-dashed border-2 flex flex-col items-center justify-center text-center transition-all cursor-pointer",
+                  dragging ? "border-nb-purple bg-nb-purple/5 scale-[1.02]" : "border-[#ccc] hover:border-nb-purple",
+                  file ? "bg-nb-green/5 border-nb-green border-solid" : "",
+                  status !== "idle" ? "opacity-50 pointer-events-none" : ""
+                )}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
+                onClick={() => inputRef.current?.click()}
+              >
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="application/pdf"
+                  ref={inputRef}
+                  onChange={handleFileChange}
+                />
+
+                {file ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 rounded-xl bg-nb-green flex items-center justify-center text-white [box-shadow:var(--nb-shadow-sm)]">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div className="font-bold text-sm mt-2">{file.name}</div>
+                    <div className="text-[0.65rem] text-[#666]">{(file.size / (1024 * 1024)).toFixed(2)} MB</div>
+                    <NbButton variant="secondary" size="sm" className="mt-2 text-[0.65rem] h-8">Change File</NbButton>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 rounded-xl bg-nb-bg flex items-center justify-center text-[#999]">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div className="font-bold text-sm mt-2">Drop your PDF here</div>
+                    <div className="text-[0.65rem] text-[#666]">or click to browse from files</div>
+                  </div>
                 )}
               </div>
-            )}
+
+              <NbButton
+                variant="primary"
+                size="lg"
+                fullWidth
+                disabled={!file || !lessonId || status !== "idle"}
+                loading={status !== "idle" && status !== "success" && status !== "error"}
+                onClick={handleUpload}
+              >
+                {status === "idle" ? "Ingest to Melon AI" : "Processing..."}
+              </NbButton>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              {status !== "idle" && (
+                <div className="nb-card rounded-2xl p-6 bg-white animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <h3 className="font-display text-sm mb-6">Upload Progress</h3>
+
+                  <div className="space-y-6">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between text-[0.65rem] font-bold uppercase">
+                        <span>1. Cloudinary Storage</span>
+                        {status === "storing" ? (
+                          <span className="text-nb-purple">{uploadProgress}%</span>
+                        ) : (
+                          <CheckCircle className="w-4 h-4 text-nb-green" />
+                        )}
+                      </div>
+                      <div className="h-2 bg-nb-bg rounded-full overflow-hidden">
+                        <div
+                          className={cn("h-full transition-all duration-300", status === "storing" ? "bg-nb-purple" : "bg-nb-green")}
+                          style={{ width: status === "storing" ? `${uploadProgress}%` : "100%" }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between text-[0.65rem] font-bold uppercase">
+                        <span>2. Melon AI Ingestion</span>
+                        {status === "storing" ? (
+                          <span className="text-[#ccc]">Waiting...</span>
+                        ) : status === "ingesting" ? (
+                          <Loader2 className="w-4 h-4 text-nb-purple animate-spin" />
+                        ) : status === "success" ? (
+                          <CheckCircle className="w-4 h-4 text-nb-green" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-nb-red" />
+                        )}
+                      </div>
+                      <div className="h-2 bg-nb-bg rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full transition-all duration-1000",
+                            status === "ingesting" ? "bg-nb-purple animate-pulse w-full" :
+                            status === "success" ? "bg-nb-green w-full" :
+                            status === "error" ? "bg-nb-red w-full" : "w-0"
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {status === "success" && result && (
+                    <div className="mt-8 p-4 bg-nb-green/10 border-2 border-nb-green rounded-xl flex flex-col gap-3">
+                      <div className="flex items-center gap-2 text-nb-green font-bold text-xs">
+                        <CheckCircle className="w-4 h-4" />
+                        Success! Lesson {result.lessonId} is ready.
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[0.65rem] font-bold">
+                        <div className="bg-white p-2 rounded-lg border border-nb-green/30">
+                          <div className="text-[#666] mb-1">CHUNKS</div>
+                          <div>{result.chunkCount ?? 0}</div>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-nb-green/30">
+                          <div className="text-[#666] mb-1">FILE ID</div>
+                          <div className="truncate">{result.fileId ?? "n/a"}</div>
+                        </div>
+                      </div>
+                      <NbButton variant="secondary" size="sm" onClick={() => setStatus("idle")}>
+                        Upload Another
+                      </NbButton>
+                    </div>
+                  )}
+
+                  {status === "error" && result && (
+                    <div className="mt-8 p-4 bg-nb-red/10 border-2 border-nb-red rounded-xl flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-nb-red font-bold text-xs">
+                        <AlertCircle className="w-4 h-4" />
+                        Error occurred
+                      </div>
+                      <p className="text-[0.65rem] text-nb-red font-bold">{result.error}</p>
+                      <NbButton variant="secondary" size="sm" onClick={() => setStatus("idle")}>
+                        Try Again
+                      </NbButton>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="nb-card rounded-2xl p-6 bg-nb-purple/5 border-nb-purple">
+                <h3 className="font-display text-xs mb-3">Generate Exercises</h3>
+                <div className="flex flex-col gap-3">
+                  <input
+                    value={exerciseTopic}
+                    onChange={(e) => setExerciseTopic(e.target.value)}
+                    placeholder="Topic"
+                    className="nb-input text-sm"
+                  />
+                  <input
+                    value={exerciseFileId}
+                    onChange={(e) => setExerciseFileId(e.target.value)}
+                    placeholder="Melon AI file_id"
+                    className="nb-input text-sm"
+                  />
+                  <NbButton
+                    variant="secondary"
+                    size="sm"
+                    disabled={!exerciseTopic.trim() || !exerciseFileId.trim()}
+                    loading={exerciseLoading}
+                    onClick={handleGenerateExercises}
+                  >
+                    Generate Quiz
+                  </NbButton>
+                </div>
+
+                {exerciseError && (
+                  <p className="mt-3 text-[0.7rem] text-nb-red font-bold">{exerciseError}</p>
+                )}
+
+                {generatedExercises.length > 0 && (
+                  <div className="mt-4 flex flex-col gap-3">
+                    <div className="text-[0.7rem] font-bold text-[#555]">
+                      {generatedExercises.length} questions generated.
+                    </div>
+                    <NbButton variant="primary" size="sm" onClick={handleSaveLesson}>
+                      Save as Local Lesson
+                    </NbButton>
+                  </div>
+                )}
+
+                {saveMessage && (
+                  <p className="mt-3 text-[0.7rem] text-nb-green font-bold">{saveMessage}</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </AdminShell>
+      </AdminShell>
+    </AdminGuard>
   );
 }

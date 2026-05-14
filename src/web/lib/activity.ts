@@ -1,71 +1,60 @@
-/**
- * Kid activity types and localStorage-backed store for parental dashboard.
- * Events can be pushed from VideoCard, ExperiencePlayer, etc. when we wire them.
- */
+import { subcollections } from "@/lib/db/firestore";
+import { addDocument, queryDocuments } from "@/lib/db/firestore-helpers";
+import { orderBy } from "firebase/firestore";
 
-export type ActivityType = "video_view" | "experience_start" | "experience_complete" | "experience_checkpoint"
+export type ActivityType = "video_view" | "experience_start" | "experience_complete" | "experience_checkpoint";
 
 export type ActivityEvent = {
-  id: string
-  type: ActivityType
-  at: string // ISO date
-  /** Video or experience title */
-  title: string
-  /** For videos: duration in seconds; for experiences: optional */
-  durationSeconds?: number
-  /** Watch time in seconds (how long they actually watched) */
-  watchTimeSeconds?: number
-  /** Category or channel */
-  category?: string
-  /** Episode id for experiences */
-  episodeId?: string
-  /** Skills/concepts practised (from interactive experiences) */
-  skills?: string[]
+  id: string;
+  type: ActivityType;
+  at: string; // ISO date
+  title: string;
+  durationSeconds?: number;
+  watchTimeSeconds?: number;
+  category?: string;
+  episodeId?: string;
+  skills?: string[];
+};
+
+export async function pushActivity(uid: string, event: Omit<ActivityEvent, "id" | "at">): Promise<void> {
+  const newEvent = {
+    ...event,
+    at: new Date().toISOString(),
+  };
+  await addDocument(subcollections.activityEvents(uid), newEvent);
 }
 
-const STORAGE_KEY = "coco-activity"
+/**
+ * Log a lesson completion event (maps lesson data to ActivityEvent shape).
+ */
+export async function logActivityEvent(
+  uid: string,
+  payload: { type: string; lessonId: string; subject: string; score: number; xpEarned: number }
+): Promise<void> {
+  await pushActivity(uid, {
+    type: "experience_complete",
+    title: payload.lessonId,
+    category: payload.subject,
+    skills: [payload.subject],
+    episodeId: payload.lessonId,
+    watchTimeSeconds: 0,
+  });
+}
 
-function getEvents(): ActivityEvent[] {
-  if (typeof window === "undefined") return []
+export async function getActivityEvents(uid: string): Promise<ActivityEvent[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    return JSON.parse(raw)
+    return await queryDocuments(subcollections.activityEvents(uid), orderBy("at", "desc"));
   } catch {
-    return []
+    return [];
   }
 }
 
-function setEvents(events: ActivityEvent[]) {
-  if (typeof window === "undefined") return
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(events))
-  } catch {}
-}
-
-/** Append an activity event (call from player/cards when we add tracking). */
-export function pushActivity(event: Omit<ActivityEvent, "id" | "at">) {
-  const events = getEvents()
-  events.unshift({
-    ...event,
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    at: new Date().toISOString(),
-  })
-  setEvents(events.slice(0, 500))
-}
-
-export function getActivityEvents(): ActivityEvent[] {
-  return getEvents()
-}
-
-/** Seed demo data if storage is empty. */
-export function seedDemoActivityIfEmpty() {
-  const events = getEvents()
-  if (events.length > 0) return
-  const now = new Date()
-  const demo: ActivityEvent[] = [
+export async function seedDemoActivityIfEmpty(uid: string): Promise<void> {
+  const events = await getActivityEvents(uid);
+  if (events.length > 0) return;
+  const now = new Date();
+  const demo: Omit<ActivityEvent, "id">[] = [
     {
-      id: "1",
       type: "experience_complete",
       at: new Date(now.getTime() - 1000 * 60 * 15).toISOString(),
       title: "Teddy's Garden: Fruit Quest",
@@ -75,7 +64,6 @@ export function seedDemoActivityIfEmpty() {
       skills: ["Counting", "Fruits", "Nature"],
     },
     {
-      id: "2",
       type: "video_view",
       at: new Date(now.getTime() - 1000 * 60 * 45).toISOString(),
       title: "Amazing Space Facts for Kids - Journey Through the Solar System",
@@ -84,7 +72,6 @@ export function seedDemoActivityIfEmpty() {
       category: "Space",
     },
     {
-      id: "3",
       type: "video_view",
       at: new Date(now.getTime() - 1000 * 60 * 90).toISOString(),
       title: "Learn to Draw Cute Animals - Easy Step by Step Tutorial",
@@ -93,7 +80,6 @@ export function seedDemoActivityIfEmpty() {
       category: "Art",
     },
     {
-      id: "4",
       type: "experience_start",
       at: new Date(now.getTime() - 1000 * 60 * 120).toISOString(),
       title: "Lumi's Nature Lab: How Plants Make Food!",
@@ -102,7 +88,6 @@ export function seedDemoActivityIfEmpty() {
       skills: ["Plants", "Science"],
     },
     {
-      id: "5",
       type: "video_view",
       at: new Date(now.getTime() - 1000 * 60 * 60 * 2).toISOString(),
       title: "Dinosaur Documentary - T-Rex and Friends",
@@ -110,76 +95,66 @@ export function seedDemoActivityIfEmpty() {
       watchTimeSeconds: 900,
       category: "Dinosaurs",
     },
-  ]
-  setEvents(demo)
+  ];
+  for (const event of demo) {
+    await addDocument(subcollections.activityEvents(uid), event);
+  }
 }
 
-/** Aggregate watch time in seconds for a given day (ISO date string YYYY-MM-DD). */
 export function getWatchTimeByDay(events: ActivityEvent[], days: number): { date: string; minutes: number }[] {
-  const byDay: Record<string, number> = {}
-  const today = new Date().toISOString().slice(0, 10)
+  const byDay: Record<string, number> = {};
   for (let i = 0; i < days; i++) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    byDay[d.toISOString().slice(0, 10)] = 0
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    byDay[d.toISOString().slice(0, 10)] = 0;
   }
   for (const e of events) {
-    const day = e.at.slice(0, 10)
-    if (!(day in byDay)) continue
-    const sec = e.watchTimeSeconds ?? e.durationSeconds ?? 0
-    byDay[day] += sec
+    const day = e.at.slice(0, 10);
+    if (!(day in byDay)) continue;
+    const sec = e.watchTimeSeconds ?? e.durationSeconds ?? 0;
+    byDay[day] += sec;
   }
   return Object.entries(byDay)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, sec]) => ({ date, minutes: Math.round(sec / 60) }))
+    .map(([date, sec]) => ({ date, minutes: Math.round(sec / 60) }));
 }
 
-/** Total watch time today (seconds). */
 export function getTodayWatchTimeSeconds(events: ActivityEvent[]): number {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toISOString().slice(0, 10);
   return events
     .filter((e) => e.at.startsWith(today))
-    .reduce((sum, e) => sum + (e.watchTimeSeconds ?? e.durationSeconds ?? 0), 0)
+    .reduce((sum, e) => sum + (e.watchTimeSeconds ?? e.durationSeconds ?? 0), 0);
 }
 
-/** Count experiences completed (any day). */
 export function getExperiencesCompletedCount(events: ActivityEvent[]): number {
-  return events.filter((e) => e.type === "experience_complete").length
+  return events.filter((e) => e.type === "experience_complete").length;
 }
 
-/** Concept/skill with episodes that practised it, for parent recall. */
 export type ConceptToReinforce = {
-  /** Skill or category name */
-  concept: string
-  /** Episode titles that practised this concept (most recent first) */
-  titles: string[]
-  /** When they last did something with this concept (ISO) */
-  lastAt: string
-}
+  concept: string;
+  titles: string[];
+  lastAt: string;
+};
 
-/**
- * From completed experiences, derive concepts/skills to reinforce.
- * Parents can use this to help kids recall and solidify what they learnt.
- */
 export function getConceptsToReinforce(events: ActivityEvent[]): ConceptToReinforce[] {
-  const completed = events.filter((e) => e.type === "experience_complete")
-  const byConcept = new Map<string, { titles: string[]; lastAt: string }>()
+  const completed = events.filter((e) => e.type === "experience_complete");
+  const byConcept = new Map<string, { titles: string[]; lastAt: string }>();
   for (const e of completed) {
-    const concepts = e.skills?.length ? e.skills : e.category ? [e.category] : []
-    if (concepts.length === 0) continue
+    const concepts = e.skills?.length ? e.skills : e.category ? [e.category] : [];
+    if (concepts.length === 0) continue;
     for (const c of concepts) {
-      const key = c.trim()
-      if (!key) continue
-      const existing = byConcept.get(key)
+      const key = c.trim();
+      if (!key) continue;
+      const existing = byConcept.get(key);
       if (!existing) {
-        byConcept.set(key, { titles: [e.title], lastAt: e.at })
+        byConcept.set(key, { titles: [e.title], lastAt: e.at });
       } else {
-        if (!existing.titles.includes(e.title)) existing.titles.unshift(e.title)
-        if (e.at > existing.lastAt) existing.lastAt = e.at
+        if (!existing.titles.includes(e.title)) existing.titles.unshift(e.title);
+        if (e.at > existing.lastAt) existing.lastAt = e.at;
       }
     }
   }
   return Array.from(byConcept.entries())
     .map(([concept, { titles, lastAt }]) => ({ concept, titles, lastAt }))
-    .sort((a, b) => (b.lastAt > a.lastAt ? 1 : -1))
+    .sort((a, b) => (b.lastAt > a.lastAt ? 1 : -1));
 }

@@ -3,13 +3,15 @@
 import { useState, useCallback, use, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Zap, Brain, Volume2, Check, X, ChevronRight } from "lucide-react";
-import { getLessonById, type Lesson, type LessonSlide } from "@/lib/lessons/mock-lessons";
+import { ArrowLeft, Zap, Volume2, Check, X, ChevronRight } from "lucide-react";
+import { getLessonById, type Lesson, type LessonSlide } from "@/lib/lessons/lesson-store";
 import { getGeneratedLessons } from "@/lib/lessons/generated-lessons-store";
 import { KidShell } from "@/components/layout/KidShell";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
+import { gamificationStore } from "@/lib/gamification/gamification-store";
+import { logActivityEvent } from "@/lib/activity";
 import { bus } from "@/lib/core/event-bus";
 import { cn } from "@/lib/utils";
 
@@ -156,8 +158,7 @@ export default function LessonPlayerPage({
   const { id } = use(params);
   const router = useRouter();
   const { user } = useAuthContext();
-
-  const [lesson, setLesson] = useState<Lesson | undefined>(() => getLessonById(id));
+  const [lesson, setLesson] = useState<Lesson | null>(null);
   const [currentSlideIdx, setCurrentSlideIdx] = useState(0);
   const [totalXp, setTotalXp] = useState(0);
   const [completed, setCompleted] = useState(false);
@@ -166,14 +167,20 @@ export default function LessonPlayerPage({
   const [hintLoading, setHintLoading] = useState(false);
 
   useEffect(() => {
-    const mockLesson = getLessonById(id);
-    if (mockLesson) {
-      setLesson(mockLesson);
-      return;
-    }
-    const generated = getGeneratedLessons().find((item) => item.id === id);
-    setLesson(generated);
+    let mounted = true;
+
+    getLessonById(id).then((storedLesson) => {
+      if (!mounted) return;
+      const generated = getGeneratedLessons().find((item) => item.id === id);
+      setLesson(storedLesson ?? generated ?? null);
+    });
+
+    return () => {
+      mounted = false;
+    };
   }, [id]);
+
+  const slide = lesson?.slides[currentSlideIdx];
 
   const handleSlideComplete = useCallback(
     (xp: number) => {
@@ -186,17 +193,31 @@ export default function LessonPlayerPage({
         setCurrentSlideIdx((i) => i + 1);
       } else {
         setCompleted(true);
-        bus.emit("lesson:completed", {
-          lessonId: id,
-          score: Math.round((newXp / (lesson?.xpReward ?? 1)) * 100),
-        });
+        const score = Math.round((newXp / (lesson?.xpReward ?? 1)) * 100);
+        bus.emit("lesson:completed", { lessonId: id, score });
+
+        if (user) {
+          gamificationStore.addXp(
+            user.uid,
+            newXp,
+            `Completed: ${lesson?.title ?? id}`,
+            id
+          );
+          logActivityEvent(user.uid, {
+            type: "lesson_completed",
+            lessonId: id,
+            subject: lesson?.subject ?? "unknown",
+            score,
+            xpEarned: newXp,
+          });
+        }
       }
     },
-    [currentSlideIdx, lesson, totalXp, id]
+    [currentSlideIdx, lesson, totalXp, id, user]
   );
 
   async function handleHint() {
-    if (hintLoading) return;
+    if (hintLoading || !slide) return;
     setHintShown(true);
     setHintLoading(true);
     setHintText("Cosmo is preparing your step-by-step guidance...");
@@ -231,22 +252,22 @@ export default function LessonPlayerPage({
     }
   }
 
-  if (!lesson) {
+  if (!lesson || !lesson.slides || lesson.slides.length === 0 || !slide) {
     return (
       <KidShell>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="text-6xl">🔍</div>
-          <p className="font-display text-lg">Lesson not found</p>
+          <div className="text-6xl">🚧</div>
+          <p className="font-display text-lg">This lesson is still being prepared by AI.</p>
+          <p className="text-sm text-[#666] max-w-xs text-center">It doesn't have any content slides yet. Check back soon!</p>
           <NbButton variant="secondary" onClick={() => router.push("/lessons")}>
-            Browse Lessons
+            Back to Lessons
           </NbButton>
         </div>
       </KidShell>
     );
   }
 
-  const slide = lesson.slides[currentSlideIdx];
-  const progress = Math.round(((currentSlideIdx) / lesson.slides.length) * 100);
+  const progress = Math.round((currentSlideIdx / lesson.slides.length) * 100);
 
   if (completed) {
     const pct = Math.round((totalXp / lesson.xpReward) * 100);
@@ -294,7 +315,6 @@ export default function LessonPlayerPage({
   return (
     <div className="min-h-dvh bg-nb-bg flex flex-col">
       <div className="app-container flex flex-col flex-1">
-        {/* Top bar */}
         <div className="flex items-center gap-4 px-6 py-4 bg-white [border-bottom:var(--nb-border)] flex-wrap">
           <NbButton
             variant="danger"
@@ -305,7 +325,6 @@ export default function LessonPlayerPage({
             Quit
           </NbButton>
 
-          {/* Progress */}
           <div className="flex-1 flex flex-col gap-1.5 min-w-[160px]">
             <div className="flex justify-between items-center">
               <span className="font-display text-[0.75rem] text-nb-black">
@@ -328,13 +347,11 @@ export default function LessonPlayerPage({
             </div>
           </div>
 
-          {/* XP chip */}
           <NbPill color="yellow" icon={<Zap className="w-3 h-3" />}>
             {totalXp} xp
           </NbPill>
         </div>
 
-        {/* Slide content */}
         <div className="flex-1 px-6 py-8 flex flex-col gap-8">
           <AnimatePresence mode="wait">
             <motion.div
@@ -357,11 +374,9 @@ export default function LessonPlayerPage({
           </AnimatePresence>
         </div>
 
-        {/* Cosmo AI assistant */}
         {lesson.aiEnabled && (
           <div className="px-6 pb-8">
             <div className="flex items-end gap-4">
-              {/* Cosmo avatar */}
               <div className="flex flex-col items-center gap-1 flex-shrink-0">
                 <div
                   className={cn(
@@ -380,7 +395,6 @@ export default function LessonPlayerPage({
                 </span>
               </div>
 
-              {/* Chat bubble */}
               <div
                 className={cn(
                   "flex-1 [border:var(--nb-border)] rounded-[20px_20px_20px_4px]",

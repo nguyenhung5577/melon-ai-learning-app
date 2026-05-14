@@ -25,9 +25,12 @@ export default function ProgressPage() {
 
   useEffect(() => {
     if (!user) return;
-    gamificationStore.seedDemoData(user.uid);
-    setData(gamificationStore.getData(user.uid));
-    setBadges(gamificationStore.getBadges(user.uid));
+    gamificationStore.seedDemoData(user.uid).then(async () => {
+      const gData = await gamificationStore.getData(user.uid);
+      const gBadges = await gamificationStore.getBadges(user.uid);
+      setData(gData);
+      setBadges(gBadges);
+    });
   }, [user]);
 
   if (!user) {

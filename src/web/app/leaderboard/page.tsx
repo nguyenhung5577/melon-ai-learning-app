@@ -9,6 +9,7 @@ import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { gamificationStore } from "@/lib/gamification/gamification-store";
 import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 interface LeaderEntry {
   rank: number;
@@ -33,37 +34,52 @@ const DEMO_BOARD: Omit<LeaderEntry, "isYou">[] = [
 
 export default function LeaderboardPage() {
   const { user, logout } = useAuthContext();
+  const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
   const [board, setBoard] = useState<LeaderEntry[]>([]);
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/");
+  };
 
   useEffect(() => {
     if (!user) {
       setBoard(DEMO_BOARD.map((e) => ({ ...e, isYou: false })));
       return;
     }
-    gamificationStore.seedDemoData(user.uid);
-    const data = gamificationStore.getData(user.uid);
+    gamificationStore.seedDemoData(user.uid).then(async () => {
+      const data = await gamificationStore.getData(user.uid);
 
-    const myEntry: Omit<LeaderEntry, "isYou"> = {
-      rank: 4,
-      uid: user.uid,
-      name: user.displayName ?? "You",
-      emoji: "⭐",
-      level: data.level,
-      xp: data.totalXp,
-    };
+      const myEntry: Omit<LeaderEntry, "isYou"> = {
+        rank: 0, // Will be calculated
+        uid: user.uid,
+        name: user.displayName ?? "You",
+        // Prefer custom avatarUrl, then photoURL, then star emoji
+        emoji: user.avatarUrl || user.photoURL || "⭐",
+        level: data.level,
+        xp: data.totalXp,
+      };
 
-    const entries = [...DEMO_BOARD.slice(0, 3), myEntry, ...DEMO_BOARD.slice(4)]
-      .map((e, i) => ({ ...e, rank: i + 1, isYou: e.uid === user.uid }));
+      // Combine real user with demo bots and sort by XP descending
+      const allEntries = [...DEMO_BOARD, myEntry]
+        .sort((a, b) => b.xp - a.xp)
+        .map((e, i) => ({ 
+          ...e, 
+          rank: i + 1, 
+          isYou: e.uid === user.uid 
+        }));
 
-    setBoard(entries);
+      setBoard(allEntries);
+    });
   }, [user]);
 
   return (
     <KidShell
       userName={user?.displayName ?? undefined}
+      photoURL={user?.avatarUrl ?? user?.photoURL}
       onLogin={() => setAuthOpen(true)}
-      onLogout={logout}
+      onLogout={handleLogout}
     >
       {/* Dark header */}
       <section className="px-6 py-8 bg-nb-black [border-bottom:var(--nb-border)]">
@@ -116,10 +132,14 @@ function PodiumItem({
     <div className="flex flex-col items-center gap-2">
       {crown && <div className="text-2xl">👑</div>}
       <div
-        className="w-14 h-14 rounded-full flex items-center justify-center text-3xl [border:3px_solid_rgba(255,255,255,0.4)] [box-shadow:0_0_0_0]"
+        className="w-14 h-14 rounded-full flex items-center justify-center text-3xl [border:3px_solid_rgba(255,255,255,0.4)] [box-shadow:0_0_0_0] overflow-hidden"
         style={{ background: entry.isYou ? "#ffde59" : "rgba(255,255,255,0.1)" }}
       >
-        {entry.emoji}
+        {entry.emoji.startsWith("http") ? (
+          <img src={entry.emoji} alt="" className="w-full h-full object-cover" />
+        ) : (
+          entry.emoji
+        )}
       </div>
       <div className="text-xs font-black text-white text-center max-w-[70px] truncate">
         {entry.name.split(" ")[0]}
@@ -143,7 +163,7 @@ function LeaderRow({ entry }: { entry: LeaderEntry }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-4 px-5 py-4 rounded-2xl [border:3px_solid_rgba(255,255,255,0.15)]",
+        "relative flex items-center gap-4 px-5 py-4 rounded-2xl [border:3px_solid_rgba(255,255,255,0.15)]",
         "transition-all duration-150",
         entry.isYou
           ? "bg-[rgba(255,222,89,0.15)] [border-color:var(--nb-yellow)] pulse-you"
@@ -164,12 +184,16 @@ function LeaderRow({ entry }: { entry: LeaderEntry }) {
       {/* Avatar */}
       <div
         className={cn(
-          "w-11 h-11 rounded-full flex items-center justify-center text-2xl flex-shrink-0",
+          "w-11 h-11 rounded-full flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden",
           "[border:3px_solid_rgba(255,255,255,0.4)]",
           entry.isYou && "[border-color:var(--nb-yellow)] [box-shadow:0_0_0_3px_rgba(255,222,89,0.4)]"
         )}
       >
-        {entry.emoji}
+        {entry.emoji.startsWith("http") ? (
+          <img src={entry.emoji} alt="" className="w-full h-full object-cover" />
+        ) : (
+          entry.emoji
+        )}
       </div>
 
       {/* Info */}

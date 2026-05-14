@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "**.fal.ai" },
       { protocol: "https", hostname: "oaidalleapiprodscus.blob.core.windows.net" },
       { protocol: "https", hostname: "firebasestorage.googleapis.com" },
+      { protocol: "https", hostname: "res.cloudinary.com" },
     ],
   },
   experimental: {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Clock, Zap, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NbPill } from "@/components/shared/NbPill";
-import type { Lesson } from "@/lib/lessons/mock-lessons";
+import type { Lesson } from "@/lib/lessons/lesson-store";
 
 const subjectColors: Record<string, string> = {
   math:    "text-nb-orange",
