@@ -95,7 +95,7 @@ Copy `.env.example` → `.env.local`:
 | `PINECONE_INDEX` | RAG only | Pinecone index name (default: `melon-lessons`) |
 | `ELEVENLABS_API_KEY` | TTS only | ElevenLabs API key |
 | `ELEVENLABS_VOICE_ID` | TTS only | Voice ID (default: Rachel) |
-| `MELON_AI_BACKEND_URL` | Backend integration | FastAPI base URL (default: `http://localhost:8000`) |
+| `MELON_AI_BACKEND_URL` | Backend integration | FastAPI base URL (local dev example: `http://127.0.0.1:8001`) |
 | `FIREBASE_ADMIN_PROJECT_ID` | Server admin features | Firebase Admin SDK project ID |
 | `FIREBASE_ADMIN_CLIENT_EMAIL` | Server admin features | Firebase Admin SDK client email |
 | `FIREBASE_ADMIN_PRIVATE_KEY` | Server admin features | Firebase Admin SDK private key |
