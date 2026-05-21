@@ -24,46 +24,20 @@ import { SectionContainer, SectionHeader } from "@/components/shared/SectionHead
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import {
-  seedDemoActivityIfEmpty as seedDemoData,
-  getExperiencesCompletedCount,
-  getTodayWatchTimeSeconds,
-  getConceptsToReinforce,
-  getActivityEvents,
-} from "@/lib/activity";
 import { userStore, type ChildProfile } from "@/lib/user/user-store";
-import { gamificationStore } from "@/lib/gamification/gamification-store";
+import type { ProgressSummary } from "@/lib/progress/types";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 const PIE_COLORS = ["#b497ff", "#38b6ff", "#ff914d", "#22c55e", "#ffde59"];
 
-const DEMO_WEEKLY = [
-  { day: "Mon", xp: 150, minutes: 18 },
-  { day: "Tue", xp: 220, minutes: 25 },
-  { day: "Wed", xp: 80,  minutes: 10 },
-  { day: "Thu", xp: 300, minutes: 35 },
-  { day: "Fri", xp: 180, minutes: 22 },
-  { day: "Sat", xp: 400, minutes: 48 },
-  { day: "Sun", xp: 120, minutes: 15 },
-];
-
-const DEMO_SUBJECTS = [
-  { name: "Science", value: 3 },
-  { name: "Math",    value: 2 },
-  { name: "English", value: 1 },
-  { name: "Coding",  value: 1 },
-];
-
 export default function ParentDashboard() {
   const { user, logout } = useAuthContext();
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [selectedChildIdx, setSelectedChildIdx] = useState(0);
-  const [events, setEvents] = useState<any[]>([]);
-  const [gamification, setGamification] = useState({ level: 1, totalXp: 0 });
+  const [progressSummary, setProgressSummary] = useState<ProgressSummary | null>(null);
 
   const handleLogout = async () => {
     await logout();
@@ -72,40 +46,36 @@ export default function ParentDashboard() {
 
   useEffect(() => {
     if (!user || user.role !== "parent") {
-      setLoading(false);
       return;
     }
 
-    userStore.getChildrenForParent(user.uid).then(async (kids) => {
-      setChildren(kids);
-      
-      const child = kids[selectedChildIdx];
-      const targetUid = child?.uid || "demo-child";
-      
-      if (!child) {
-        // No real kids, seed demo for "demo-child" so charts aren't empty
-        await seedDemoData("demo-child");
-      }
+    userStore.getChildrenForParent(user.uid)
+      .then(async (kids) => {
+        setChildren(kids);
 
-      const [evs, data] = await Promise.all([
-        getActivityEvents(targetUid),
-        gamificationStore.getData(targetUid)
-      ]);
-      
-      setEvents(evs);
-      setGamification(data);
-      setLoading(false);
-    });
+        const child = kids[selectedChildIdx];
+        const targetUid = child?.uid || "demo-child";
+        const res = await fetch(`/api/v1/progress/${targetUid}`, { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to load progress summary");
+        const data = (await res.json()) as { summary: ProgressSummary };
+
+        setProgressSummary(data.summary);
+      })
+      .catch(() => {
+        setProgressSummary(null);
+      });
   }, [user, selectedChildIdx]);
 
   const selectedChild = children[selectedChildIdx];
+  const weeklyProgress = progressSummary?.daily ?? [];
+  const subjectBreakdown = progressSummary?.subjectBreakdown ?? [];
   
   const metrics = {
-    totalWatchMinutes: Math.round(getTodayWatchTimeSeconds(events) / 60),
-    completedExperiences: getExperiencesCompletedCount(events),
-    conceptsToReinforce: getConceptsToReinforce(events).map((c) => c.concept),
-    level: selectedChild ? gamification.level : 3,
-    xp: selectedChild ? gamification.totalXp : 500,
+    totalWatchMinutes: Math.round((progressSummary?.totalTimeOnTaskSeconds ?? 0) / 60),
+    completedExperiences: progressSummary?.totalLessonsCompleted ?? 0,
+    averageQuizScore: progressSummary?.averageQuizScore ?? 0,
+    conceptsToReinforce: progressSummary?.conceptsToReinforce ?? [],
+    xp: progressSummary?.totalXpEarned ?? 0,
   };
 
   if (!user || user.role !== "parent") {
@@ -130,7 +100,7 @@ export default function ParentDashboard() {
         <SectionHeader
           title="Parent Dashboard"
           subtitle={selectedChild ? `Tracking ${selectedChild.displayName}'s progress` : "Tracking your child's progress (Demo Data)"}
-          badge={<NbPill color={selectedChild ? "green" : "blue"}>{selectedChild ? "Real-time" : "Demo Mode"}</NbPill>}
+          badge={<NbPill color={selectedChild ? "green" : "blue"}>{selectedChild ? "Backend API" : "Demo Mode"}</NbPill>}
         />
 
         {/* Child selector if multiple */}
@@ -172,7 +142,7 @@ export default function ParentDashboard() {
           {[
             { icon: <Clock className="w-5 h-5" />, value: `${metrics.totalWatchMinutes}m`, label: "Time Learned", color: "text-nb-blue" },
             { icon: <BookOpen className="w-5 h-5" />, value: metrics.completedExperiences, label: "Lessons Done", color: "text-nb-green" },
-            { icon: <Trophy className="w-5 h-5" />, value: `Lv.${metrics.level}`, label: "Current Level", color: "text-nb-orange" },
+            { icon: <Trophy className="w-5 h-5" />, value: `${metrics.averageQuizScore}%`, label: "Avg Quiz", color: "text-nb-orange" },
             { icon: <TrendingUp className="w-5 h-5" />, value: metrics.xp, label: "Total XP", color: "text-nb-purple" },
           ].map((s) => (
             <div key={s.label} className="nb-card rounded-2xl p-5 flex flex-col gap-1">
@@ -187,7 +157,7 @@ export default function ParentDashboard() {
         <div className="nb-card rounded-2xl p-5 mb-8">
           <h3 className="font-display text-sm mb-4">Daily XP (This Week)</h3>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={DEMO_WEEKLY} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <AreaChart data={weeklyProgress} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="xpGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#ff914d" stopOpacity={0.6} />
@@ -208,7 +178,7 @@ export default function ParentDashboard() {
               />
               <Area
                 type="monotone"
-                dataKey="xp"
+                dataKey="xpEarned"
                 stroke="#ff914d"
                 strokeWidth={3}
                 fill="url(#xpGrad)"
@@ -223,7 +193,7 @@ export default function ParentDashboard() {
           <div className="nb-card rounded-2xl p-5">
             <h3 className="font-display text-sm mb-4">Study Time (min/day)</h3>
             <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={DEMO_WEEKLY} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <BarChart data={weeklyProgress} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                 <XAxis dataKey="day" tick={{ fontSize: 11, fontWeight: 700 }} />
                 <YAxis tick={{ fontSize: 11 }} />
@@ -236,7 +206,7 @@ export default function ParentDashboard() {
                     fontWeight: 700,
                   }}
                 />
-                <Bar dataKey="minutes" fill="#38b6ff" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="timeOnTaskMinutes" fill="#38b6ff" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -247,17 +217,17 @@ export default function ParentDashboard() {
             <ResponsiveContainer width="100%" height={180}>
               <PieChart>
                 <Pie
-                  data={DEMO_SUBJECTS}
+                  data={subjectBreakdown}
                   cx="50%"
                   cy="50%"
                   innerRadius={45}
                   outerRadius={70}
                   paddingAngle={4}
-                  dataKey="value"
+                  dataKey="lessonsCompleted"
                   stroke="#0e0e0e"
                   strokeWidth={2}
                 >
-                  {DEMO_SUBJECTS.map((_, idx) => (
+                  {subjectBreakdown.map((_, idx) => (
                     <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
                   ))}
                 </Pie>
@@ -289,6 +259,29 @@ export default function ParentDashboard() {
             <div className="flex flex-wrap gap-2">
               {metrics.conceptsToReinforce.map((concept) => (
                 <NbPill key={concept} color="orange">{concept}</NbPill>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {progressSummary && progressSummary.recentCompletions.length > 0 && (
+          <div className="nb-card rounded-2xl p-5 mt-8">
+            <h3 className="font-display text-sm mb-4">Recent Lesson Completions</h3>
+            <div className="flex flex-col gap-3">
+              {progressSummary.recentCompletions.map((item) => (
+                <div
+                  key={item.id}
+                  className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 sm:items-center bg-white [border:var(--nb-border-thin)] rounded-xl px-4 py-3"
+                >
+                  <div>
+                    <div className="font-bold text-sm">{item.lessonTitle}</div>
+                    <div className="text-[0.65rem] font-bold uppercase text-[#666]">
+                      {item.subject} - {new Date(item.completedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <NbPill color="orange">Quiz {item.quizScorePercent}%</NbPill>
+                  <NbPill color="blue">{Math.round(item.timeOnTaskSeconds / 60)}m</NbPill>
+                </div>
               ))}
             </div>
           </div>

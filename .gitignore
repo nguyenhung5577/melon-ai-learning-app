@@ -11,6 +11,7 @@ uploads/
 **/uploads/
 generations/
 **/generations/
+src/web/.melon-progress/
 *.mp3
 *.wav
 *.m4a

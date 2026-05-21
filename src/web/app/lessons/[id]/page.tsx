@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, use, useEffect } from "react";
+import { useState, useCallback, use, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Zap, Volume2, Check, X, ChevronRight } from "lucide-react";
@@ -20,6 +20,7 @@ type AnswerState = "idle" | "correct" | "wrong";
 interface SlideRendererProps {
   slide: LessonSlide;
   onComplete: (xp: number) => void;
+  onQuizAnswer?: (correct: boolean) => void;
 }
 
 function TextSlide({ slide, onComplete }: SlideRendererProps) {
@@ -48,9 +49,10 @@ function TextSlide({ slide, onComplete }: SlideRendererProps) {
   );
 }
 
-function QuizSlide({ slide, onComplete }: SlideRendererProps) {
+function QuizSlide({ slide, onComplete, onQuizAnswer }: SlideRendererProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [state, setState] = useState<AnswerState>("idle");
+  const [recordedAnswer, setRecordedAnswer] = useState(false);
 
   const correctAnswer = slide.answer as string;
 
@@ -58,6 +60,10 @@ function QuizSlide({ slide, onComplete }: SlideRendererProps) {
     if (state !== "idle") return;
     setSelected(opt);
     const isCorrect = opt === correctAnswer;
+    if (!recordedAnswer) {
+      onQuizAnswer?.(isCorrect);
+      setRecordedAnswer(true);
+    }
     setState(isCorrect ? "correct" : "wrong");
 
     if (isCorrect) {
@@ -165,9 +171,15 @@ export default function LessonPlayerPage({
   const [hintShown, setHintShown] = useState(false);
   const [hintText, setHintText] = useState("Need a hint? Ask me!");
   const [hintLoading, setHintLoading] = useState(false);
+  const lessonStartedAtRef = useRef(0);
+  const quizCorrectRef = useRef(0);
+  const quizTotalRef = useRef(0);
 
   useEffect(() => {
     let mounted = true;
+    lessonStartedAtRef.current = Date.now();
+    quizCorrectRef.current = 0;
+    quizTotalRef.current = 0;
 
     getLessonById(id).then((storedLesson) => {
       if (!mounted) return;
@@ -182,6 +194,11 @@ export default function LessonPlayerPage({
 
   const slide = lesson?.slides[currentSlideIdx];
 
+  const handleQuizAnswer = useCallback((correct: boolean) => {
+    quizCorrectRef.current += correct ? 1 : 0;
+    quizTotalRef.current += 1;
+  }, []);
+
   const handleSlideComplete = useCallback(
     (xp: number) => {
       const newXp = totalXp + xp;
@@ -194,6 +211,13 @@ export default function LessonPlayerPage({
       } else {
         setCompleted(true);
         const score = Math.round((newXp / (lesson?.xpReward ?? 1)) * 100);
+        const lessonStartedAt = lessonStartedAtRef.current || Date.now();
+        const timeOnTaskSeconds = Math.max(
+          1,
+          Math.round((Date.now() - lessonStartedAt) / 1000)
+        );
+        const finalQuizCorrect = quizCorrectRef.current;
+        const finalQuizTotal = quizTotalRef.current;
         bus.emit("lesson:completed", { lessonId: id, score });
 
         if (user) {
@@ -209,6 +233,23 @@ export default function LessonPlayerPage({
             subject: lesson?.subject ?? "unknown",
             score,
             xpEarned: newXp,
+          });
+          fetch("/api/v1/progress/lesson-completion", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              childUid: user.uid,
+              lessonId: id,
+              lessonTitle: lesson?.title ?? id,
+              subject: lesson?.subject ?? "unknown",
+              scorePercent: score,
+              quizCorrect: finalQuizCorrect,
+              quizTotal: finalQuizTotal,
+              xpEarned: newXp,
+              timeOnTaskSeconds,
+            }),
+          }).catch(() => {
+            /* Progress tracking should not block lesson completion. */
           });
         }
       }
@@ -258,7 +299,7 @@ export default function LessonPlayerPage({
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <div className="text-6xl">🚧</div>
           <p className="font-display text-lg">This lesson is still being prepared by AI.</p>
-          <p className="text-sm text-[#666] max-w-xs text-center">It doesn't have any content slides yet. Check back soon!</p>
+          <p className="text-sm text-[#666] max-w-xs text-center">It doesn&apos;t have any content slides yet. Check back soon!</p>
           <NbButton variant="secondary" onClick={() => router.push("/lessons")}>
             Back to Lessons
           </NbButton>
@@ -294,7 +335,14 @@ export default function LessonPlayerPage({
               <NbButton
                 variant="primary"
                 size="lg"
-                onClick={() => { setCompleted(false); setCurrentSlideIdx(0); setTotalXp(0); }}
+                onClick={() => {
+                  setCompleted(false);
+                  setCurrentSlideIdx(0);
+                  setTotalXp(0);
+                  quizCorrectRef.current = 0;
+                  quizTotalRef.current = 0;
+                  lessonStartedAtRef.current = Date.now();
+                }}
               >
                 Play Again
               </NbButton>
@@ -365,7 +413,11 @@ export default function LessonPlayerPage({
                 <TextSlide slide={slide} onComplete={handleSlideComplete} />
               )}
               {slide.type === "quiz" && (
-                <QuizSlide slide={slide} onComplete={handleSlideComplete} />
+                <QuizSlide
+                  slide={slide}
+                  onComplete={handleSlideComplete}
+                  onQuizAnswer={handleQuizAnswer}
+                />
               )}
               {(slide.type === "drag-drop" || slide.type === "fill-blank") && (
                 <DragDropSlide slide={slide} onComplete={handleSlideComplete} />
