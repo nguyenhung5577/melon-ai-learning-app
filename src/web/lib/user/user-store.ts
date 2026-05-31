@@ -9,10 +9,53 @@ export interface ChildProfile {
   displayName: string;
   avatarEmoji: string;
   grade: string;
+  learningPreferences?: ChildLearningPreferences;
   birthYear?: number;
   linkedParentUid?: string;
   status?: "active" | "disabled";
   createdAt: string;
+}
+
+export type PrimaryGoal =
+  | "improve_math_score"
+  | "specialized_school_exam"
+  | "strengthen_current_grade";
+
+export type GradeLevel = "grade_4" | "grade_5";
+
+export type WeakTopic =
+  | "arithmetic"
+  | "fractions"
+  | "geometry"
+  | "word_problems"
+  | "logic"
+  | "mixed_exams";
+
+export type PracticeSource = "school_lessons" | "past_exams" | "both";
+
+export type ReminderPreference = "after_school" | "evening" | "weekend" | "none";
+
+export type ParentReportPreference =
+  | "after_each_lesson"
+  | "weekly"
+  | "struggling_only"
+  | "none";
+
+export interface ChildLearningPreferences {
+  primaryGoal: PrimaryGoal;
+  domain: "math";
+  gradeLevel: GradeLevel;
+  currentScore: number;
+  targetScore: number;
+  targetSchool?: string;
+  weakTopics: WeakTopic[];
+  practiceSource: PracticeSource;
+  sessionMinutes: 15 | 30 | 45 | 60;
+  sessionsPerWeek: 2 | 3 | 5 | 7;
+  reminderPreference: ReminderPreference;
+  parentReportPreference: ParentReportPreference;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateChildAccountInput {
@@ -21,6 +64,7 @@ export interface CreateChildAccountInput {
   passwordOrPin: string;
   grade: string;
   avatarEmoji: string;
+  learningPreferences: ChildLearningPreferences;
 }
 
 export interface ParentProfile {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { BookOpen, Clock, Trophy, TrendingUp } from "lucide-react";
+import { BookOpen, Clock, Target, Trophy, TrendingUp } from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -30,6 +30,21 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 const PIE_COLORS = ["#b497ff", "#38b6ff", "#ff914d", "#22c55e", "#ffde59"];
+
+const goalLabels = {
+  improve_math_score: "Cải thiện điểm Toán",
+  specialized_school_exam: "Ôn thi trường chuyên",
+  strengthen_current_grade: "Học chắc kiến thức hiện tại",
+} as const;
+
+const weakTopicLabels = {
+  arithmetic: "Số học",
+  fractions: "Phân số",
+  geometry: "Hình học",
+  word_problems: "Toán lời văn",
+  logic: "Tư duy logic",
+  mixed_exams: "Đề tổng hợp",
+} as const;
 
 export default function ParentDashboard() {
   const { user, logout } = useAuthContext();
@@ -134,6 +149,45 @@ export default function ParentDashboard() {
             <Link href="/family">
               <NbButton variant="secondary" size="sm">Link a Child</NbButton>
             </Link>
+          </div>
+        )}
+
+        {selectedChild?.learningPreferences && (
+          <div className="nb-card rounded-2xl p-5 mb-8 bg-white">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-nb-green [border:var(--nb-border)] rounded-full flex items-center justify-center">
+                <Target className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-display text-sm">Learning Goal</h3>
+                <p className="text-xs font-semibold text-[#666]">Parent-set setup for this child</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-nb-bg rounded-xl [border:var(--nb-border-thin)] p-3">
+                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Goal</div>
+                <div className="text-sm font-bold">
+                  {goalLabels[selectedChild.learningPreferences.primaryGoal]}
+                </div>
+              </div>
+              <div className="bg-nb-bg rounded-xl [border:var(--nb-border-thin)] p-3">
+                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Score Target</div>
+                <div className="text-sm font-bold">
+                  {selectedChild.learningPreferences.currentScore}/10 → {selectedChild.learningPreferences.targetScore}/10
+                </div>
+              </div>
+              <div className="bg-nb-bg rounded-xl [border:var(--nb-border-thin)] p-3">
+                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Commitment</div>
+                <div className="text-sm font-bold">
+                  {selectedChild.learningPreferences.sessionMinutes}m x {selectedChild.learningPreferences.sessionsPerWeek}/week
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {selectedChild.learningPreferences.weakTopics.map((topic) => (
+                <NbPill key={topic} color="orange">{weakTopicLabels[topic]}</NbPill>
+              ))}
+            </div>
           </div>
         )}
 
