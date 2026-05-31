@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trophy, Zap } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { KidShell } from "@/components/layout/KidShell";
 import { AuthModal } from "@/components/auth/AuthModal";
-import { SectionContainer, SectionHeader } from "@/components/shared/SectionHeader";
+import { SectionContainer } from "@/components/shared/SectionHeader";
 import { NbPill } from "@/components/shared/NbPill";
+import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { gamificationStore } from "@/lib/gamification/gamification-store";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,9 @@ export default function LeaderboardPage() {
   const { user, logout } = useAuthContext();
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
-  const [board, setBoard] = useState<LeaderEntry[]>([]);
+  const [board, setBoard] = useState<LeaderEntry[]>(() =>
+    DEMO_BOARD.map((e) => ({ ...e, isYou: false }))
+  );
 
   const handleLogout = async () => {
     await logout();
@@ -45,7 +48,6 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     if (!user) {
-      setBoard(DEMO_BOARD.map((e) => ({ ...e, isYou: false })));
       return;
     }
     gamificationStore.seedDemoData(user.uid).then(async () => {
@@ -81,6 +83,7 @@ export default function LeaderboardPage() {
       onLogin={() => setAuthOpen(true)}
       onLogout={handleLogout}
     >
+      <KidOnlyGuard>
       {/* Dark header */}
       <section className="px-6 py-8 bg-nb-black [border-bottom:var(--nb-border)]">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -98,9 +101,9 @@ export default function LeaderboardPage() {
         {/* Top 3 podium */}
         {board.length >= 3 && (
           <div className="flex items-end justify-center gap-4 mt-8 mb-2">
-            <PodiumItem entry={board[1]} height={80} />
-            <PodiumItem entry={board[0]} height={110} crown />
-            <PodiumItem entry={board[2]} height={60} />
+            <PodiumItem entry={board[1]} />
+            <PodiumItem entry={board[0]} crown />
+            <PodiumItem entry={board[2]} />
           </div>
         )}
       </section>
@@ -113,6 +116,7 @@ export default function LeaderboardPage() {
           ))}
         </div>
       </SectionContainer>
+      </KidOnlyGuard>
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </KidShell>
@@ -121,11 +125,9 @@ export default function LeaderboardPage() {
 
 function PodiumItem({
   entry,
-  height,
   crown,
 }: {
   entry: LeaderEntry;
-  height: number;
   crown?: boolean;
 }) {
   return (

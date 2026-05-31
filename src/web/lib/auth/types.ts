@@ -7,6 +7,8 @@ export interface MelonUser {
   role: UserRole;
   photoURL: string | null;
   avatarUrl?: string;
+  loginId?: string;
+  linkedParentUid?: string;
   coppaConsented: boolean;
   createdAt: string;
 }

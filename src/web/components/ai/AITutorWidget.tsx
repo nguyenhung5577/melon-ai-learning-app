@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Send, Volume2 } from "lucide-react";
+import { X, Send } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAuthContext } from "@/lib/auth/auth-context";
@@ -31,6 +31,7 @@ export function AITutorWidget({ lessonContext, className }: AITutorWidgetProps) 
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const kidName = user?.displayName;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,7 +61,7 @@ export function AITutorWidget({ lessonContext, className }: AITutorWidgetProps) 
         body: JSON.stringify({
           message: text,
           lessonContext,
-          kidName: user?.displayName,
+          kidName,
         }),
       });
 
@@ -114,7 +115,7 @@ export function AITutorWidget({ lessonContext, className }: AITutorWidgetProps) 
     } finally {
       setStreaming(false);
     }
-  }, [input, streaming, lessonContext, user?.displayName]);
+  }, [input, streaming, lessonContext, kidName]);
 
   return (
     <div className={cn("fixed bottom-6 right-6 z-[300] flex flex-col items-end gap-3", className)}>

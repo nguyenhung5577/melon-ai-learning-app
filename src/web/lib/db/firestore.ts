@@ -24,5 +24,5 @@ export const collections = {
 // Subcollections
 export const subcollections = {
   activityEvents: (uid: string) => createCollection<ActivityEvent>(`activity/${uid}/events`),
-  aiContents: (lessonId: string) => createCollection<any>(`lessons/${lessonId}/ai_contents`),
+  aiContents: (lessonId: string) => createCollection<DocumentData>(`lessons/${lessonId}/ai_contents`),
 };

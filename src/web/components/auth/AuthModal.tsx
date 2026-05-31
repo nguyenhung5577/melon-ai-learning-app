@@ -1,108 +1,66 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { X, Eye, EyeOff, Check } from "lucide-react";
+import { Check, Eye, EyeOff, KeyRound, UserRound, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NbButton } from "@/components/shared/NbButton";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import type { UserRole } from "@/lib/auth/types";
 
-type Mode = "login" | "signup";
-type Step = "role" | "form";
+type AuthView = "parent" | "child";
 
 interface AuthModalProps {
   open: boolean;
   onClose: () => void;
-  defaultMode?: Mode;
+  defaultMode?: "login" | "signup";
+  defaultView?: AuthView;
 }
 
-const roleOptions: Array<{
-  id: UserRole;
-  label: string;
-  sub: string;
-  emoji: string;
-  bg: string;
-  selectedBg: string;
-}> = [
-  {
-    id: "kid",
-    label: "Student",
-    sub: "Ages 6–14 · Learning journey",
-    emoji: "🧒",
-    bg: "bg-white",
-    selectedBg: "bg-nb-yellow",
-  },
-  {
-    id: "parent",
-    label: "Parent",
-    sub: "Monitor progress · Manage family",
-    emoji: "👩",
-    bg: "bg-white",
-    selectedBg: "bg-nb-blue",
-  },
-];
-
-export function AuthModal({ open, onClose, defaultMode = "login" }: AuthModalProps) {
-  const { signIn, signUp, signInWithGoogle, loading, error } = useAuthContext();
-
-  const [mode, setMode] = useState<Mode>(defaultMode);
-  const [step, setStep] = useState<Step>(mode === "signup" ? "role" : "form");
-  const [role, setRole] = useState<UserRole>("kid");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [coppa, setCoppa] = useState(false);
-  const [showPass, setShowPass] = useState(false);
+export function AuthModal({
+  open,
+  onClose,
+  defaultView = "parent",
+}: AuthModalProps) {
+  const { signInWithGoogle, signInChild, loading, error } = useAuthContext();
+  const [view, setView] = useState<AuthView>(defaultView);
+  const [loginId, setLoginId] = useState("");
+  const [passwordOrPin, setPasswordOrPin] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
   const [formError, setFormError] = useState("");
 
   if (!open) return null;
 
-  function reset() {
-    setEmail(""); setPassword(""); setName("");
-    setCoppa(false); setShowPass(false); setFormError("");
-    setStep(mode === "signup" ? "role" : "form");
-  }
-
-  function switchMode(m: Mode) {
-    setMode(m);
-    setStep(m === "signup" ? "role" : "form");
+  async function handleParentGoogle() {
     setFormError("");
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setFormError("");
-
-    if (mode === "signup") {
-      if (!name.trim()) { setFormError("Please enter your name."); return; }
-      if (role === "kid" && !coppa) {
-        setFormError("Parent/guardian consent is required for children under 13.");
-        return;
-      }
-      try {
-        await signUp(email, password, role, name.trim());
-        onClose();
-      } catch (err) {
-        setFormError(err instanceof Error ? err.message : "Sign up failed");
-      }
-    } else {
-      try {
-        await signIn(email, password);
-        onClose();
-      } catch (err) {
-        setFormError(err instanceof Error ? err.message : "Login failed");
-      }
-    }
-  }
-
-  async function handleGoogle() {
     try {
-      await signInWithGoogle(role);
+      await signInWithGoogle();
       onClose();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Google sign-in failed");
     }
   }
+
+  async function handleChildLogin(e: FormEvent) {
+    e.preventDefault();
+    setFormError("");
+
+    if (!loginId.trim()) {
+      setFormError("Enter your Child ID.");
+      return;
+    }
+    if (!passwordOrPin.trim()) {
+      setFormError("Enter your PIN or password.");
+      return;
+    }
+
+    try {
+      await signInChild(loginId, passwordOrPin);
+      onClose();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Child login failed");
+    }
+  }
+
+  const errorMessage = formError || error;
 
   return (
     <div
@@ -112,13 +70,12 @@ export function AuthModal({ open, onClose, defaultMode = "login" }: AuthModalPro
       <div
         className={cn(
           "bg-nb-bg [border:var(--nb-border)] [box-shadow:16px_16px_0_var(--nb-black)]",
-          "w-full max-w-[560px] max-h-[90vh] overflow-y-auto relative modal-enter"
+          "w-full max-w-[540px] max-h-[90vh] overflow-y-auto relative modal-enter"
         )}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-8 py-5 bg-white [border-bottom:var(--nb-border)]">
           <span className="font-display text-base flex items-center gap-2">
-            🍈 Melon
+            Melon Account
           </span>
           <button
             onClick={onClose}
@@ -135,198 +92,57 @@ export function AuthModal({ open, onClose, defaultMode = "login" }: AuthModalPro
           </button>
         </div>
 
-        {/* Body */}
         <div className="px-8 py-7">
-          {/* Mode toggle */}
-          <div className="flex [border:var(--nb-border)] mb-7 overflow-hidden">
-            {(["login", "signup"] as Mode[]).map((m) => (
+          <div className="grid grid-cols-2 [border:var(--nb-border)] mb-7 overflow-hidden">
+            {([
+              { id: "parent" as const, label: "Parent" },
+              { id: "child" as const, label: "Child" },
+            ]).map((item) => (
               <button
-                key={m}
-                onClick={() => switchMode(m)}
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setView(item.id);
+                  setFormError("");
+                }}
                 className={cn(
-                  "flex-1 py-3.5 font-display text-[0.75rem] cursor-pointer transition-all duration-150",
+                  "py-3.5 font-display text-[0.75rem] cursor-pointer transition-all duration-150",
                   "bg-transparent border-none",
-                  mode === m
+                  view === item.id
                     ? "bg-nb-black text-white"
-                    : "text-nb-black hover:bg-nb-bg"
+                    : "text-nb-black hover:bg-white"
                 )}
               >
-                {m === "login" ? "Login" : "Sign Up"}
+                {item.label}
               </button>
             ))}
           </div>
 
-          {/* STEP 1: Role picker (signup only) */}
-          {mode === "signup" && step === "role" && (
-            <div>
-              <p className="font-display text-xs text-[#555] mb-4 tracking-widest">
-                I am a...
-              </p>
-              <div className="grid grid-cols-2 gap-3 mb-7">
-                {roleOptions.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setRole(opt.id)}
-                    className={cn(
-                      "relative [border:var(--nb-border)] p-5 flex flex-col items-center gap-2",
-                      "cursor-pointer transition-all duration-150",
-                      "[box-shadow:5px_5px_0_var(--nb-black)]",
-                      "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:[box-shadow:8px_8px_0_var(--nb-black)]",
-                      role === opt.id
-                        ? `${opt.selectedBg} -translate-x-0.5 -translate-y-0.5 [box-shadow:8px_8px_0_var(--nb-black)]`
-                        : opt.bg
-                    )}
-                  >
-                    {role === opt.id && (
-                      <div className="absolute -top-3 -right-3 w-7 h-7 bg-nb-green [border:3px_solid_var(--nb-black)] rounded-full flex items-center justify-center">
-                        <Check className="w-3.5 h-3.5 text-white" />
-                      </div>
-                    )}
-                    <div className="text-4xl">{opt.emoji}</div>
-                    <div className="font-display text-[0.75rem]">{opt.label}</div>
-                    <div className="text-[0.65rem] font-semibold text-[#555] text-center leading-snug">
-                      {opt.sub}
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <NbButton
-                variant="primary"
-                size="lg"
-                className="w-full"
-                onClick={() => setStep("form")}
-              >
-                Continue as {role === "kid" ? "Student" : "Parent"} →
-              </NbButton>
-            </div>
-          )}
-
-          {/* STEP 2: Form */}
-          {(mode === "login" || step === "form") && (
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {mode === "signup" && (
-                <div>
-                  <label className="block font-bold text-[0.8rem] uppercase mb-1.5">
-                    Your Name
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="E.g. Minh Khôi"
-                    required
-                    className="nb-input"
-                  />
+          {view === "parent" ? (
+            <div className="flex flex-col gap-5">
+              <div className="bg-white [border:var(--nb-border)] p-5 [box-shadow:5px_5px_0_var(--nb-black)]">
+                <div className="w-12 h-12 bg-nb-blue [border:var(--nb-border)] rounded-full flex items-center justify-center mb-4">
+                  <UserRound className="w-6 h-6" />
                 </div>
-              )}
-
-              <div>
-                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="hello@example.com"
-                  required
-                  className="nb-input"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPass ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    minLength={6}
-                    className="nb-input pr-12"
-                  />
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() => setShowPass((v) => !v)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#888] cursor-pointer bg-transparent border-none"
-                  >
-                    {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {mode === "login" && (
-                  <div className="text-right mt-1">
-                    <a href="#" className="text-[0.8rem] font-bold text-nb-black underline">
-                      Forgot password?
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              {/* COPPA consent (kid signup only) */}
-              {mode === "signup" && role === "kid" && (
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <div
-                    onClick={() => setCoppa((v) => !v)}
-                    className={cn(
-                      "mt-0.5 w-5 h-5 flex-shrink-0 [border:var(--nb-border-3)] flex items-center justify-center cursor-pointer",
-                      coppa ? "bg-nb-green" : "bg-white"
-                    )}
-                  >
-                    {coppa && <Check className="w-3 h-3 text-white" />}
-                  </div>
-                  <span className="text-[0.8rem] font-semibold text-[#444] leading-snug">
-                    I confirm that I am a parent or guardian providing consent for
-                    a child under 13 to use Melon (COPPA compliance).
-                  </span>
-                </label>
-              )}
-
-              {(formError || error) && (
-                <div className="bg-nb-pink/30 [border:var(--nb-border-3)_solid_var(--nb-red)] px-4 py-3 text-sm font-semibold text-nb-black">
-                  {formError || error}
-                </div>
-              )}
-
-              <NbButton
-                type="submit"
-                variant="primary"
-                size="lg"
-                loading={loading}
-                className="w-full mt-2"
-              >
-                {mode === "login" ? "Login" : "Create Account"}
-              </NbButton>
-            </form>
-          )}
-
-          {/* Divider + social */}
-          {(mode === "login" || step === "form") && (
-            <>
-              <div className="flex items-center gap-4 my-6">
-                <div className="flex-1 h-[3px] bg-nb-black" />
-                <span className="font-bold text-[0.75rem] uppercase whitespace-nowrap">
-                  Or continue with
-                </span>
-                <div className="flex-1 h-[3px] bg-nb-black" />
+                <h2 className="font-display text-base mb-2">Parent Access</h2>
+                <p className="text-sm font-semibold text-[#555] leading-snug">
+                  Parents use Google to create and manage the family account.
+                </p>
               </div>
 
               <button
                 type="button"
-                onClick={handleGoogle}
+                onClick={handleParentGoogle}
+                disabled={loading}
                 className={cn(
                   "w-full flex items-center justify-center gap-3 py-3.5",
                   "[border:var(--nb-border)] bg-white font-body font-bold text-sm",
-                  "[box-shadow:4px_4px_0_var(--nb-black)] cursor-pointer",
+                  "[box-shadow:4px_4px_0_var(--nb-black)] cursor-pointer disabled:opacity-60",
                   "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:[box-shadow:6px_6px_0_var(--nb-black)]",
                   "transition-all duration-150"
                 )}
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -334,20 +150,86 @@ export function AuthModal({ open, onClose, defaultMode = "login" }: AuthModalPro
                 </svg>
                 Continue with Google
               </button>
-            </>
+
+              <button
+                type="button"
+                onClick={() => setView("child")}
+                className="text-sm font-bold underline bg-transparent border-none cursor-pointer text-nb-black"
+              >
+                Child login with ID instead
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleChildLogin} className="flex flex-col gap-4">
+              <div className="bg-white [border:var(--nb-border)] p-5 [box-shadow:5px_5px_0_var(--nb-black)] mb-1">
+                <div className="w-12 h-12 bg-nb-yellow [border:var(--nb-border)] rounded-full flex items-center justify-center mb-4">
+                  <KeyRound className="w-6 h-6" />
+                </div>
+                <h2 className="font-display text-base mb-2">Child Login</h2>
+                <p className="text-sm font-semibold text-[#555] leading-snug">
+                  Use the Child ID and PIN/password created by your parent.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">
+                  Child ID
+                </label>
+                <input
+                  type="text"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  placeholder="melon_hero"
+                  autoComplete="username"
+                  required
+                  className="nb-input"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">
+                  PIN or Password
+                </label>
+                <div className="relative">
+                  <input
+                    type={showSecret ? "text" : "password"}
+                    value={passwordOrPin}
+                    onChange={(e) => setPasswordOrPin(e.target.value)}
+                    placeholder="••••••"
+                    autoComplete="current-password"
+                    required
+                    className="nb-input pr-12"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowSecret((v) => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-[#888] cursor-pointer bg-transparent border-none"
+                    aria-label="Toggle PIN visibility"
+                  >
+                    {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <NbButton
+                type="submit"
+                variant="primary"
+                size="lg"
+                loading={loading}
+                className="w-full mt-2"
+                icon={<Check className="w-4 h-4" />}
+              >
+                Login as Child
+              </NbButton>
+            </form>
           )}
 
-          {/* Switch mode link */}
-          <p className="text-center mt-5 text-sm font-semibold text-[#555]">
-            {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
-            <button
-              type="button"
-              onClick={() => { switchMode(mode === "login" ? "signup" : "login"); reset(); }}
-              className="text-nb-black font-bold underline cursor-pointer bg-transparent border-none"
-            >
-              {mode === "login" ? "Sign up" : "Login"}
-            </button>
-          </p>
+          {errorMessage && (
+            <div className="mt-5 bg-nb-pink/30 [border:var(--nb-border-3)_solid_var(--nb-red)] px-4 py-3 text-sm font-semibold text-nb-black">
+              {errorMessage}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { AuthModal } from "@/components/auth/AuthModal";
 import { SectionContainer, SectionHeader } from "@/components/shared/SectionHeader";
 import { NbPill } from "@/components/shared/NbPill";
 import { NbButton } from "@/components/shared/NbButton";
+import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { gamificationStore, ALL_BADGES, type Badge } from "@/lib/gamification/gamification-store";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export default function BadgesPage() {
       onLogin={() => setAuthOpen(true)}
       onLogout={logout}
     >
+      <KidOnlyGuard>
       <SectionContainer>
         <SectionHeader
           title="Badge Cabinet"
@@ -77,6 +79,7 @@ export default function BadgesPage() {
           ))}
         </div>
       </SectionContainer>
+      </KidOnlyGuard>
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </KidShell>

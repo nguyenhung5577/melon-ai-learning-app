@@ -39,7 +39,7 @@ export async function uploadFile(
             url: result.url,
             publicId: result.publicId,
           });
-        } catch (e: any) {
+        } catch (e: unknown) {
           reject(e);
         }
       } else {

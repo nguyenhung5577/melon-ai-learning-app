@@ -8,6 +8,7 @@ import { LessonCard } from "@/components/lessons/LessonCard";
 import { SectionContainer, SectionHeader } from "@/components/shared/SectionHeader";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
+import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { getAllLessons, type Lesson, type Subject } from "@/lib/lessons/lesson-store";
 import { getGeneratedLessons } from "@/lib/lessons/generated-lessons-store";
@@ -60,7 +61,8 @@ export default function LessonsPage() {
       onLogin={() => setAuthOpen(true)}
       onLogout={logout}
     >
-      <SectionContainer>
+      <KidOnlyGuard>
+        <SectionContainer>
         <SectionHeader
           title="Lessons"
           subtitle="Pick a subject and start learning"
@@ -111,7 +113,8 @@ export default function LessonsPage() {
             ))}
           </div>
         )}
-      </SectionContainer>
+        </SectionContainer>
+      </KidOnlyGuard>
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </KidShell>

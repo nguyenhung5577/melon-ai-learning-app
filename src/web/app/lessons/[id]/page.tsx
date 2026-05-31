@@ -176,6 +176,15 @@ export default function LessonPlayerPage({
   const quizTotalRef = useRef(0);
 
   useEffect(() => {
+    if (user?.role === "parent") {
+      router.replace("/parent");
+    }
+    if (user?.role === "admin") {
+      router.replace("/admin");
+    }
+  }, [router, user?.role]);
+
+  useEffect(() => {
     let mounted = true;
     lessonStartedAtRef.current = Date.now();
     quizCorrectRef.current = 0;

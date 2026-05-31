@@ -1,16 +1,26 @@
 import { collections } from "@/lib/db/firestore";
 import { getDocument, setDocument, queryDocuments, updateDocument } from "@/lib/db/firestore-helpers";
-import { where, arrayUnion } from "firebase/firestore";
+import { where } from "firebase/firestore";
 import type { MelonUser } from "@/lib/auth/types";
 
 export interface ChildProfile {
   uid: string;
+  loginId?: string;
   displayName: string;
   avatarEmoji: string;
   grade: string;
   birthYear?: number;
   linkedParentUid?: string;
+  status?: "active" | "disabled";
   createdAt: string;
+}
+
+export interface CreateChildAccountInput {
+  loginId: string;
+  displayName: string;
+  passwordOrPin: string;
+  grade: string;
+  avatarEmoji: string;
 }
 
 export interface ParentProfile {
@@ -48,6 +58,19 @@ export const userStore = {
 
   async getChildrenForParent(parentUid: string): Promise<ChildProfile[]> {
     return queryDocuments(collections.children, where("linkedParentUid", "==", parentUid));
+  },
+
+  async createChildAccount(input: CreateChildAccountInput): Promise<ChildProfile> {
+    const res = await fetch("/api/parents/children", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error ?? "Child account creation is not available yet.");
+    }
+    return data.child as ChildProfile;
   },
 };
 

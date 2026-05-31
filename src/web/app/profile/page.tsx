@@ -14,7 +14,7 @@ import { collections } from "@/lib/db/firestore";
 import { updateDocument } from "@/lib/db/firestore-helpers";
 import { uploadAvatar } from "@/lib/storage/upload";
 import { toast } from "sonner";
-import { Upload, Cloud, AlertCircle } from "lucide-react";
+import { Upload, AlertCircle, Copy } from "lucide-react";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -39,26 +39,28 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) return;
-    setLocalName(user.displayName || "");
-    
-    if (user.role === "kid") {
-      userStore.getChild(user.uid).then((existing) => {
-        if (existing) {
-          setProfile(existing);
-          setLocalName(existing.displayName);
-        } else {
-          const newProfile = {
-            uid: user.uid,
-            displayName: user.displayName ?? "Learner",
-            avatarEmoji: "🦊",
-            grade: "Grade 1",
-            createdAt: new Date().toISOString(),
-          };
-          setProfile(newProfile);
-          setLocalName(newProfile.displayName);
-        }
-      });
+    if (user.role !== "kid") {
+      Promise.resolve().then(() => setLocalName(user.displayName || ""));
+      return;
     }
+    
+    userStore.getChild(user.uid).then((existing) => {
+      if (existing) {
+        setProfile(existing);
+        setLocalName(existing.displayName);
+      } else {
+        const newProfile = {
+          uid: user.uid,
+          loginId: user.loginId,
+          displayName: user.displayName ?? "Learner",
+          avatarEmoji: "🦊",
+          grade: "Grade 1",
+          createdAt: new Date().toISOString(),
+        };
+        setProfile(newProfile);
+        setLocalName(newProfile.displayName);
+      }
+    });
   }, [user]);
 
   const handleLogout = async () => {
@@ -104,8 +106,9 @@ export default function ProfilePage() {
       });
       
       toast.success("Profile saved!");
-    } catch (err: any) {
-      toast.error("Failed to save: " + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      toast.error("Failed to save: " + message);
     } finally {
       setSaving(false);
     }
@@ -121,8 +124,8 @@ export default function ProfilePage() {
       const url = await uploadAvatar(file, setAvatarProgress);
       await updateDocument(collections.users, user.uid, { avatarUrl: url });
       toast.success("Avatar updated! Refresh to see changes.");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to upload avatar");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload avatar");
     } finally {
       setUploadingAvatar(false);
       setAvatarProgress(0);
@@ -148,7 +151,9 @@ export default function ProfilePage() {
           <div className="flex-1 text-center sm:text-left">
             <div className="font-display text-lg truncate w-full max-w-[250px]">{localName || user.displayName}</div>
             {isKid && <div className="text-sm font-semibold text-[#666]">{profile?.grade}</div>}
-            <div className="text-xs text-[#999] mt-0.5 mb-3">{user.email}</div>
+            <div className="text-xs text-[#999] mt-0.5 mb-3">
+              {isKid ? (user.loginId ?? profile?.loginId ?? "Child account") : user.email}
+            </div>
             
             <label className="inline-flex items-center gap-2 cursor-pointer bg-nb-bg px-3 py-1.5 rounded-lg [border:var(--nb-border)] font-bold text-[0.7rem] uppercase hover:bg-white transition-colors">
               {uploadingAvatar ? (
@@ -182,6 +187,13 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
+
+        {isKid && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <IdentityField label="Child ID" value={user.loginId ?? profile?.loginId ?? "Not assigned"} />
+            <IdentityField label="UID" value={user.uid} />
+          </div>
+        )}
 
         {isKid && profile && (
           <div>
@@ -228,5 +240,30 @@ export default function ProfilePage() {
     >
       {content}
     </KidShell>
+  );
+}
+
+function IdentityField({ label, value }: { label: string; value: string }) {
+  async function copyValue() {
+    if (!navigator.clipboard || value === "Not assigned") return;
+    await navigator.clipboard.writeText(value);
+    toast.success(`${label} copied`);
+  }
+
+  return (
+    <div className="bg-white [border:var(--nb-border-thin)] rounded-xl p-3">
+      <div className="text-[0.65rem] font-black uppercase text-[#777] mb-1">{label}</div>
+      <div className="flex items-center gap-2">
+        <code className="text-xs font-bold break-all flex-1">{value}</code>
+        <button
+          type="button"
+          onClick={copyValue}
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-nb-bg [border:var(--nb-border-thin)] cursor-pointer"
+          aria-label={`Copy ${label}`}
+        >
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }

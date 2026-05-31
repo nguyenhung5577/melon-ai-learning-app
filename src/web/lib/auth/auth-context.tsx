@@ -14,6 +14,7 @@ import {
   signOut,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCustomToken,
   updateProfile,
   type User as FirebaseUser,
 } from "firebase/auth";
@@ -30,6 +31,8 @@ function toMelonUser(fbUser: FirebaseUser, dbUser?: Partial<MelonUser>): MelonUs
     photoURL: fbUser.photoURL,
     role: dbUser?.role ?? "kid",
     avatarUrl: dbUser?.avatarUrl,
+    loginId: dbUser?.loginId,
+    linkedParentUid: dbUser?.linkedParentUid,
     coppaConsented: dbUser?.coppaConsented ?? true,
     createdAt: dbUser?.createdAt ?? new Date().toISOString(),
   };
@@ -63,7 +66,8 @@ interface AuthContextValue extends AuthState {
     role: UserRole,
     displayName?: string
   ) => Promise<void>;
-  signInWithGoogle: (role?: UserRole) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInChild: (loginId: string, passwordOrPin: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -72,14 +76,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
-    loading: true,
+    loading: Boolean(auth),
     error: null,
   });
 
   useEffect(() => {
     if (!auth) {
       // Firebase not configured — run in demo/mock mode
-      setState({ user: null, loading: false, error: null });
       return;
     }
 
@@ -133,16 +136,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ user, loading: false, error: null });
   }
 
-  async function signInWithGoogle(role: UserRole = "kid") {
+  async function signInWithGoogle() {
     if (!auth) throw new Error("Firebase not configured. Add keys to .env.local");
     const provider = new GoogleAuthProvider();
     const cred = await signInWithPopup(auth, provider);
     const saved = await fetchUserDoc(cred.user.uid);
-    const user = toMelonUser(cred.user, saved || { role });
-    const merged = { ...user, ...saved, uid: cred.user.uid } as MelonUser;
+    const user = toMelonUser(cred.user, saved || { role: "parent" });
+    const merged = {
+      ...user,
+      ...saved,
+      uid: cred.user.uid,
+      role: saved?.role ?? "parent",
+      coppaConsented: true,
+    } as MelonUser;
     if (!saved) {
       await saveUserDoc(merged);
     }
+    setState({ user: merged, loading: false, error: null });
+  }
+
+  async function signInChild(loginId: string, passwordOrPin: string) {
+    if (!auth) throw new Error("Firebase not configured. Add keys to .env.local");
+    setState((s) => ({ ...s, error: null }));
+
+    const res = await fetch("/api/auth/child/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ loginId: loginId.trim(), passwordOrPin }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.customToken) {
+      throw new Error(data.error ?? "Child login is not available yet.");
+    }
+
+    const cred = await signInWithCustomToken(auth, data.customToken);
+    const saved = await fetchUserDoc(cred.user.uid);
+    const user = toMelonUser(cred.user, saved || { role: "kid", loginId });
+    const merged = {
+      ...user,
+      ...saved,
+      uid: cred.user.uid,
+      role: "kid",
+      loginId: saved?.loginId ?? loginId,
+    } as MelonUser;
     setState({ user: merged, loading: false, error: null });
   }
 
@@ -153,7 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ ...state, signIn, signUp, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ ...state, signIn, signUp, signInWithGoogle, signInChild, logout }}>
       {children}
     </AuthContext.Provider>
   );

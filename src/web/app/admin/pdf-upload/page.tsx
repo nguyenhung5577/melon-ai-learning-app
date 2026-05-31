@@ -13,7 +13,7 @@ import { useAuthContext } from "@/lib/auth/auth-context";
 import { setDocument } from "@/lib/db/firestore-helpers";
 import { collections } from "@/lib/db/firestore";
 import { buildLessonFromExercises, saveGeneratedLesson } from "@/lib/lessons/generated-lessons-store";
-import { type Subject } from "@/lib/lessons/lesson-store";
+import { type Lesson, type Subject } from "@/lib/lessons/lesson-store";
 import { uploadPdf } from "@/lib/storage/upload";
 import { cn } from "@/lib/utils";
 
@@ -164,14 +164,28 @@ export default function PdfUploadPage() {
         chunkCount = finalStatus.chunks ?? chunkCount;
       }
 
-      await setDocument(collections.lessons, lessonId, {
+      const lessonMetadata: Lesson = {
         id: lessonId,
         title: file.name.replace(/\.pdf$/i, ""),
         subject,
+        type: "reading",
+        emoji: "📄",
+        description: "Uploaded PDF lesson source for Melon AI generation.",
+        duration: 10,
+        xpReward: 100,
+        difficulty: 1,
+        tags: ["pdf", "rag"],
+        slides: [],
+        aiEnabled: true,
+        audioEnabled: false,
+        thumbnailBg: "#38b6ff",
         pdfUrl: storageUrl,
         isRAG: true,
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      } as any);
+      };
+
+      await setDocument(collections.lessons, lessonId, lessonMetadata);
 
       setResult({
         success: true,

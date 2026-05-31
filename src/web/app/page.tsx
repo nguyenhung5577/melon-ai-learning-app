@@ -110,32 +110,42 @@ export default function HomePage() {
 
           <div className="flex flex-wrap gap-3">
             {user ? (
-              <>
-                <Link href="/lessons">
-                  <NbButton variant="primary" size="lg" icon={<BookOpen className="w-4 h-4" />}>
-                    Start Learning
-                  </NbButton>
-                </Link>
-                <Link href="/progress">
-                  <NbButton variant="ghost" size="lg">
-                    My Progress
-                  </NbButton>
-                </Link>
-              </>
+              user.role === "parent" ? (
+                <>
+                  <Link href="/parent">
+                    <NbButton variant="primary" size="lg" icon={<Users className="w-4 h-4" />}>
+                      Parent Dashboard
+                    </NbButton>
+                  </Link>
+                  <Link href="/family">
+                    <NbButton variant="ghost" size="lg">
+                      Manage Family
+                    </NbButton>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href="/lessons">
+                    <NbButton variant="primary" size="lg" icon={<BookOpen className="w-4 h-4" />}>
+                      Start Learning
+                    </NbButton>
+                  </Link>
+                  <Link href="/progress">
+                    <NbButton variant="ghost" size="lg">
+                      My Progress
+                    </NbButton>
+                  </Link>
+                </>
+              )
             ) : (
-              <>
-                <NbButton
-                  variant="primary"
-                  size="lg"
-                  onClick={() => setAuthOpen(true)}
-                  icon={<Zap className="w-4 h-4" />}
-                >
-                  Get Started Free
-                </NbButton>
-                <NbButton variant="ghost" size="lg" onClick={() => setAuthOpen(true)}>
-                  Login
-                </NbButton>
-              </>
+              <NbButton
+                variant="primary"
+                size="lg"
+                onClick={() => setAuthOpen(true)}
+                icon={<Zap className="w-4 h-4" />}
+              >
+                Get Started Free
+              </NbButton>
             )}
           </div>
         </div>
@@ -226,13 +236,13 @@ export default function HomePage() {
         </p>
         <div className="flex flex-wrap gap-3 justify-center">
           {user ? (
-            <Link href="/lessons">
+            <Link href={user.role === "parent" ? "/parent" : "/lessons"}>
               <NbButton
                 variant="secondary"
                 size="lg"
-                icon={<BookOpen className="w-4 h-4" />}
+                icon={user.role === "parent" ? <Users className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
               >
-                Go to Lessons
+                {user.role === "parent" ? "Go to Dashboard" : "Go to Lessons"}
               </NbButton>
             </Link>
           ) : (

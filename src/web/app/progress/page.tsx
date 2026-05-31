@@ -8,6 +8,7 @@ import { XPBar } from "@/components/shared/XPBar";
 import { SectionContainer, SectionHeader } from "@/components/shared/SectionHeader";
 import { NbPill } from "@/components/shared/NbPill";
 import { NbButton } from "@/components/shared/NbButton";
+import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import {
   gamificationStore,
@@ -53,6 +54,7 @@ export default function ProgressPage() {
       onLogin={() => setAuthOpen(true)}
       onLogout={logout}
     >
+      <KidOnlyGuard>
       {/* Hero / XP section */}
       <section className="px-6 py-10 [border-bottom:var(--nb-border)] bg-gradient-to-br from-nb-purple via-nb-pink to-nb-yellow">
         <div className="flex items-center gap-4 mb-6 flex-wrap">
@@ -155,6 +157,7 @@ export default function ProgressPage() {
           </div>
         </SectionContainer>
       )}
+      </KidOnlyGuard>
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
     </KidShell>

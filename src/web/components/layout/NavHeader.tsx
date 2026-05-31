@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
@@ -84,15 +85,13 @@ export function NavHeader({
       <Link
         href="/"
         className={cn(
-          "font-display text-sm uppercase",
-          "bg-nb-orange px-4 py-2",
-          "[border:var(--nb-border)] [box-shadow:4px_4px_0_var(--nb-black)]",
-          "text-nb-black no-underline flex items-center gap-2",
-          "hover:[box-shadow:6px_6px_0_var(--nb-black)] hover:-translate-x-0.5 hover:-translate-y-0.5",
-          "transition-all duration-150"
+          "text-nb-black no-underline flex items-center",
+          "h-11 w-11 sm:w-auto transition-transform duration-150",
+          "hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-nb-orange"
         )}
+        aria-label="Melon home"
       >
-        🍈 Melon
+        <Image src="/icon.png" alt="Melon" width={40} height={40} className="h-10 w-10 object-contain" priority />
       </Link>
 
       {/* Desktop nav */}
