@@ -1,5 +1,6 @@
 import { collections } from "@/lib/db/firestore";
 import { getDocument, setDocument, queryDocuments, updateDocument } from "@/lib/db/firestore-helpers";
+import { auth } from "@/lib/auth/firebase";
 import { where } from "firebase/firestore";
 import type { MelonUser } from "@/lib/auth/types";
 
@@ -14,6 +15,7 @@ export interface ChildProfile {
   linkedParentUid?: string;
   status?: "active" | "disabled";
   createdAt: string;
+  updatedAt?: string;
 }
 
 export type PrimaryGoal =
@@ -105,9 +107,17 @@ export const userStore = {
   },
 
   async createChildAccount(input: CreateChildAccountInput): Promise<ChildProfile> {
+    const token = await auth?.currentUser?.getIdToken();
+    if (!token) {
+      throw new Error("Bạn cần đăng nhập bằng tài khoản phụ huynh trước.");
+    }
+
     const res = await fetch("/api/parents/children", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify(input),
     });
     const data = await res.json().catch(() => ({}));

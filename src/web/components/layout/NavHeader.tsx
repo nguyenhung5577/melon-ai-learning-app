@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  FileQuestion,
   Trophy,
   LayoutDashboard,
   Users,
@@ -29,21 +30,23 @@ interface NavLink {
 }
 
 const kidLinks: NavLink[] = [
-  { href: "/lessons", label: "Learn", icon: <BookOpen className="w-4 h-4" /> },
-  { href: "/leaderboard", label: "Ranks", icon: <Trophy className="w-4 h-4" /> },
-  { href: "/progress", label: "Progress", icon: <LayoutDashboard className="w-4 h-4" /> },
-  { href: "/profile", label: "Profile", icon: <User className="w-4 h-4" /> },
+  { href: "/lessons", label: "Bài học", icon: <BookOpen className="w-4 h-4" /> },
+  { href: "/practice", label: "Luyện đề", icon: <FileQuestion className="w-4 h-4" /> },
+  { href: "/leaderboard", label: "Xếp hạng", icon: <Trophy className="w-4 h-4" /> },
+  { href: "/progress", label: "Tiến độ", icon: <LayoutDashboard className="w-4 h-4" /> },
+  { href: "/profile", label: "Hồ sơ", icon: <User className="w-4 h-4" /> },
 ];
 
 const parentLinks: NavLink[] = [
-  { href: "/parent", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-  { href: "/family", label: "Family", icon: <Users className="w-4 h-4" /> },
+  { href: "/parent", label: "Tổng quan", icon: <LayoutDashboard className="w-4 h-4" /> },
+  { href: "/family", label: "Gia đình", icon: <Users className="w-4 h-4" /> },
 ];
 
 const adminLinks: NavLink[] = [
-  { href: "/admin", label: "Admin Home", icon: <Settings className="w-4 h-4" /> },
-  { href: "/admin/lessons", label: "Lessons", icon: <BookOpen className="w-4 h-4" /> },
-  { href: "/admin/pdf-upload", label: "PDF Upload", icon: <Shield className="w-4 h-4" /> },
+  { href: "/admin", label: "Quản trị", icon: <Settings className="w-4 h-4" /> },
+  { href: "/admin/lessons", label: "Bài học", icon: <BookOpen className="w-4 h-4" /> },
+  { href: "/admin/pdf-upload", label: "Upload PDF", icon: <Shield className="w-4 h-4" /> },
+  { href: "/admin/question-bank", label: "Kho đề", icon: <FileQuestion className="w-4 h-4" /> },
 ];
 
 const linksMap: Record<Exclude<Role, "guest">, NavLink[]> = {
@@ -123,7 +126,7 @@ export function NavHeader({
             onClick={onLoginClick}
             className="hidden md:inline-flex"
           >
-            Login
+            Đăng nhập
           </NbButton>
         ) : (
           <div className="relative hidden md:block">
@@ -159,7 +162,7 @@ export function NavHeader({
                   onClick={() => setUserMenuOpen(false)}
                   className="flex items-center gap-2.5 px-4 py-3 font-bold text-sm text-nb-black no-underline hover:bg-nb-yellow transition-colors"
                 >
-                  <User className="w-4 h-4" /> My Profile
+                  <User className="w-4 h-4" /> Hồ sơ
                 </Link>
                 {role === "admin" && (
                   <Link
@@ -167,14 +170,14 @@ export function NavHeader({
                     onClick={() => setUserMenuOpen(false)}
                     className="flex items-center gap-2.5 px-4 py-3 font-bold text-sm text-nb-black no-underline hover:bg-nb-orange transition-colors"
                   >
-                    <Shield className="w-4 h-4" /> Admin Panel
+                    <Shield className="w-4 h-4" /> Quản trị
                   </Link>
                 )}
                 <button
                   onClick={() => { setUserMenuOpen(false); onLogoutClick?.(); }}
                   className="flex items-center gap-2.5 px-4 py-3 font-bold text-sm text-nb-black hover:bg-nb-pink/30 transition-colors cursor-pointer bg-transparent border-none border-t-2 border-nb-black/10 text-left"
                 >
-                  <LogOut className="w-4 h-4" /> Logout
+                  <LogOut className="w-4 h-4" /> Đăng xuất
                 </button>
               </div>
             )}
@@ -222,7 +225,7 @@ export function NavHeader({
               className="mx-6 my-4 nb-btn nb-btn-secondary"
               onClick={() => { setMobileOpen(false); onLoginClick?.(); }}
             >
-              Login
+              Đăng nhập
             </button>
           )}
         </div>

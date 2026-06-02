@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "migrate:question-bank": "node scripts/migrate-question-bank.mjs",
+    "import:pdf-question-bank": "node scripts/import-pdf-question-bank.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.52.0",
@@ -44,12 +46,14 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-query": "^5.100.9",
     "@tanstack/react-query-devtools": "^5.100.9",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.10.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "embla-carousel-react": "^8.6.0",
     "firebase": "^12.13.0",
+    "firebase-admin": "^13.10.0",
     "framer-motion": "^12.38.0",
     "howler": "^2.2.4",
     "input-otp": "^1.4.2",

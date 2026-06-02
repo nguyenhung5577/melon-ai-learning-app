@@ -18,6 +18,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { where } from "firebase/firestore";
 import { ParentShell } from "@/components/layout/ParentShell";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { SectionContainer, SectionHeader } from "@/components/shared/SectionHeader";
@@ -25,6 +26,9 @@ import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { userStore, type ChildProfile } from "@/lib/user/user-store";
+import { collections } from "@/lib/db/firestore";
+import { queryDocuments } from "@/lib/db/firestore-helpers";
+import type { KidQuestionStats } from "@/lib/problems/types";
 import type { ProgressSummary } from "@/lib/progress/types";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -53,6 +57,7 @@ export default function ParentDashboard() {
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [selectedChildIdx, setSelectedChildIdx] = useState(0);
   const [progressSummary, setProgressSummary] = useState<ProgressSummary | null>(null);
+  const [questionStats, setQuestionStats] = useState<KidQuestionStats[]>([]);
 
   const handleLogout = async () => {
     await logout();
@@ -70,14 +75,21 @@ export default function ParentDashboard() {
 
         const child = kids[selectedChildIdx];
         const targetUid = child?.uid || "demo-child";
-        const res = await fetch(`/api/v1/progress/${targetUid}`, { cache: "no-store" });
-        if (!res.ok) throw new Error("Failed to load progress summary");
-        const data = (await res.json()) as { summary: ProgressSummary };
+        const [progressRes, savedQuestionStats] = await Promise.all([
+          fetch(`/api/v1/progress/${targetUid}`, { cache: "no-store" }),
+          child
+            ? queryDocuments(collections.kidQuestionStats, where("kidUid", "==", child.uid))
+            : Promise.resolve([] as KidQuestionStats[]),
+        ]);
+        if (!progressRes.ok) throw new Error("Failed to load progress summary");
+        const data = (await progressRes.json()) as { summary: ProgressSummary };
 
         setProgressSummary(data.summary);
+        setQuestionStats(savedQuestionStats);
       })
       .catch(() => {
         setProgressSummary(null);
+        setQuestionStats([]);
       });
   }, [user, selectedChildIdx]);
 
@@ -92,6 +104,11 @@ export default function ParentDashboard() {
     conceptsToReinforce: progressSummary?.conceptsToReinforce ?? [],
     xp: progressSummary?.totalXpEarned ?? 0,
   };
+  const totalQuestionAttempts = questionStats.reduce((sum, item) => sum + item.attemptCount, 0);
+  const totalCorrectAnswers = questionStats.reduce((sum, item) => sum + item.correctCount, 0);
+  const questionAccuracy = totalQuestionAttempts > 0
+    ? Math.round((totalCorrectAnswers / totalQuestionAttempts) * 100)
+    : metrics.averageQuizScore;
 
   if (!user || user.role !== "parent") {
     return (
@@ -195,8 +212,8 @@ export default function ParentDashboard() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           {[
             { icon: <Clock className="w-5 h-5" />, value: `${metrics.totalWatchMinutes}m`, label: "Time Learned", color: "text-nb-blue" },
-            { icon: <BookOpen className="w-5 h-5" />, value: metrics.completedExperiences, label: "Lessons Done", color: "text-nb-green" },
-            { icon: <Trophy className="w-5 h-5" />, value: `${metrics.averageQuizScore}%`, label: "Avg Quiz", color: "text-nb-orange" },
+            { icon: <BookOpen className="w-5 h-5" />, value: questionStats.length || metrics.completedExperiences, label: questionStats.length ? "Questions Done" : "Lessons Done", color: "text-nb-green" },
+            { icon: <Trophy className="w-5 h-5" />, value: `${questionAccuracy}%`, label: "Accuracy", color: "text-nb-orange" },
             { icon: <TrendingUp className="w-5 h-5" />, value: metrics.xp, label: "Total XP", color: "text-nb-purple" },
           ].map((s) => (
             <div key={s.label} className="nb-card rounded-2xl p-5 flex flex-col gap-1">

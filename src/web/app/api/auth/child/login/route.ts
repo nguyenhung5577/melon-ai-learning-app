@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -14,15 +16,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
   }
 
-  return NextResponse.json(
-    {
-      error:
-        "Child login backend is not implemented yet. Validate loginId/passwordOrPin server-side and return { customToken }.",
-      contract: {
-        input: { loginId: "string", passwordOrPin: "string" },
-        output: { customToken: "Firebase custom token for childUid" },
-      },
-    },
-    { status: 501 }
-  );
+  try {
+    const loginIdLower = body.data.loginId.trim().toLowerCase();
+    const credentialSnap = await adminDb().collection("childCredentials").doc(loginIdLower).get();
+    const credential = credentialSnap.data();
+
+    if (!credentialSnap.exists || credential?.disabled || !credential?.passwordHash || !credential?.childUid) {
+      return NextResponse.json({ error: "Login ID hoặc PIN không đúng." }, { status: 401 });
+    }
+
+    const passwordMatches = await bcrypt.compare(body.data.passwordOrPin, credential.passwordHash);
+    if (!passwordMatches) {
+      return NextResponse.json({ error: "Login ID hoặc PIN không đúng." }, { status: 401 });
+    }
+
+    const userSnap = await adminDb().collection("users").doc(credential.childUid).get();
+    if (!userSnap.exists || userSnap.data()?.role !== "kid") {
+      return NextResponse.json({ error: "Tài khoản học sinh không khả dụng." }, { status: 401 });
+    }
+
+    const customToken = await adminAuth().createCustomToken(credential.childUid);
+    return NextResponse.json({ customToken });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Không đăng nhập được tài khoản học sinh." },
+      { status: 500 }
+    );
+  }
 }

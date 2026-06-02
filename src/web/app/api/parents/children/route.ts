@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { adminAuth, adminDb, FieldValue } from "@/lib/server/firebase-admin";
 
 export const runtime = "nodejs";
 
@@ -40,51 +42,116 @@ const CreateChildSchema = z.object({
   learningPreferences: LearningPreferencesSchema,
 });
 
+function getBearerToken(req: NextRequest): string | null {
+  const header = req.headers.get("authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim();
+}
+
 export async function POST(req: NextRequest) {
   const body = CreateChildSchema.safeParse(await req.json());
   if (!body.success) {
     return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
   }
 
-  return NextResponse.json(
-    {
-      error:
-        "Create child backend is not implemented yet. Verify parent auth, create child user/profile, hash credential, and return { child }.",
-      contract: {
-        input: {
-          loginId: "unique child login id",
-          displayName: "child display name",
-          passwordOrPin: "raw secret received only by backend",
-          grade: "grade label",
-          avatarEmoji: "selected avatar",
+  const token = getBearerToken(req);
+  if (!token) {
+    return NextResponse.json({ error: "Missing parent auth token." }, { status: 401 });
+  }
+
+  try {
+    const auth = adminAuth();
+    const db = adminDb();
+    const decoded = await auth.verifyIdToken(token);
+    const parentUid = decoded.uid;
+    const parentSnap = await db.collection("users").doc(parentUid).get();
+    const parent = parentSnap.data();
+
+    if (!parentSnap.exists || parent?.role !== "parent") {
+      return NextResponse.json({ error: "Only parent accounts can create child accounts." }, { status: 403 });
+    }
+
+    const data = body.data;
+    const loginIdLower = data.loginId.toLowerCase();
+    const credentialRef = db.collection("childCredentials").doc(loginIdLower);
+    const existing = await credentialRef.get();
+    if (existing.exists) {
+      return NextResponse.json({ error: "Login ID này đã được dùng." }, { status: 409 });
+    }
+
+    const childUser = await auth.createUser({
+      displayName: data.displayName,
+      disabled: false,
+    });
+    const now = new Date().toISOString();
+    const passwordHash = await bcrypt.hash(data.passwordOrPin, 12);
+
+    try {
+      await db.runTransaction(async (tx) => {
+        const latestCredential = await tx.get(credentialRef);
+        if (latestCredential.exists) {
+          throw new Error("DUPLICATE_LOGIN_ID");
+        }
+
+        const child = {
+          uid: childUser.uid,
+          loginId: loginIdLower,
+          displayName: data.displayName,
+          avatarEmoji: data.avatarEmoji,
+          grade: data.grade,
           learningPreferences: {
-            primaryGoal: "improve_math_score",
-            domain: "math",
-            gradeLevel: "grade_4",
-            currentScore: 7,
-            targetScore: 9,
-            targetSchool: "optional target school",
-            weakTopics: ["fractions"],
-            practiceSource: "both",
-            sessionMinutes: 30,
-            sessionsPerWeek: 5,
-            reminderPreference: "evening",
-            parentReportPreference: "weekly",
+            ...data.learningPreferences,
+            updatedAt: now,
+            createdAt: data.learningPreferences.createdAt ?? now,
           },
-        },
-        output: {
-          child: {
-            uid: "childUid",
-            loginId: "loginId",
-            displayName: "displayName",
-            grade: "grade",
-            avatarEmoji: "avatarEmoji",
-            learningPreferences: "stored learning preferences",
-            linkedParentUid: "parentUid",
-          },
-        },
-      },
-    },
-    { status: 501 }
-  );
+          linkedParentUid: parentUid,
+          status: "active",
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        tx.set(db.collection("users").doc(childUser.uid), {
+          uid: childUser.uid,
+          email: null,
+          displayName: data.displayName,
+          photoURL: null,
+          role: "kid",
+          loginId: loginIdLower,
+          linkedParentUid: parentUid,
+          coppaConsented: true,
+          createdAt: now,
+          updatedAt: now,
+        });
+        tx.set(db.collection("children").doc(childUser.uid), child);
+        tx.set(credentialRef, {
+          loginIdLower,
+          childUid: childUser.uid,
+          parentUid,
+          passwordHash,
+          hashVersion: "bcryptjs-12",
+          disabled: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        tx.set(db.collection("users").doc(parentUid), {
+          role: "parent",
+          childUids: FieldValue.arrayUnion(childUser.uid),
+          updatedAt: now,
+        }, { merge: true });
+      });
+    } catch (transactionError) {
+      await auth.deleteUser(childUser.uid).catch(() => undefined);
+      if (transactionError instanceof Error && transactionError.message === "DUPLICATE_LOGIN_ID") {
+        return NextResponse.json({ error: "Login ID này đã được dùng." }, { status: 409 });
+      }
+      throw transactionError;
+    }
+
+    const child = (await db.collection("children").doc(childUser.uid).get()).data();
+    return NextResponse.json({ child });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Không tạo được tài khoản học sinh.";
+    const status = message.startsWith("Missing FIREBASE_ADMIN_") ? 500 : 400;
+    return NextResponse.json({ error: message }, { status });
+  }
 }

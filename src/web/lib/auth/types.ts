@@ -9,8 +9,10 @@ export interface MelonUser {
   avatarUrl?: string;
   loginId?: string;
   linkedParentUid?: string;
+  childUids?: string[];
   coppaConsented: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface AuthState {

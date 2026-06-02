@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   BookOpen,
   FileText,
+  FileQuestion,
   Flag,
   BarChart2,
   LogOut,
@@ -13,11 +14,12 @@ import {
 import { cn } from "@/lib/utils";
 
 const adminNav = [
-  { href: "/admin", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-  { href: "/admin/lessons", label: "Lessons", icon: <BookOpen className="w-4 h-4" /> },
+  { href: "/admin", label: "Tổng quan", icon: <LayoutDashboard className="w-4 h-4" /> },
+  { href: "/admin/lessons", label: "Bài học", icon: <BookOpen className="w-4 h-4" /> },
   { href: "/admin/pdf-upload", label: "PDF / RAG", icon: <FileText className="w-4 h-4" /> },
-  { href: "/admin/flagged", label: "Flagged", icon: <Flag className="w-4 h-4" /> },
-  { href: "/admin/analytics", label: "Analytics", icon: <BarChart2 className="w-4 h-4" /> },
+  { href: "/admin/question-bank", label: "Kho đề", icon: <FileQuestion className="w-4 h-4" /> },
+  { href: "/admin/flagged", label: "Bị báo cáo", icon: <Flag className="w-4 h-4" /> },
+  { href: "/admin/analytics", label: "Thống kê", icon: <BarChart2 className="w-4 h-4" /> },
 ];
 
 interface AdminShellProps {
@@ -43,7 +45,7 @@ export function AdminShell({ children, userName, onLogout }: AdminShellProps) {
         <div className="px-5 py-5 [border-bottom:var(--nb-border-3)_solid_rgba(255,255,255,0.2)]">
           <span className="font-display text-sm text-nb-yellow">🍈 Melon</span>
           <div className="text-[0.6rem] text-white/40 font-bold uppercase mt-0.5 tracking-wider">
-            Admin Panel
+            Bảng quản trị
           </div>
         </div>
 

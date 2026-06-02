@@ -1,4 +1,4 @@
-const DEFAULT_BACKEND_URL = "http://localhost:8000";
+const DEFAULT_BACKEND_URL = "http://127.0.0.1:8001";
 
 export function getMelonAiBackendUrl(): string {
   return (process.env.MELON_AI_BACKEND_URL ?? DEFAULT_BACKEND_URL).replace(/\/+$/, "");
