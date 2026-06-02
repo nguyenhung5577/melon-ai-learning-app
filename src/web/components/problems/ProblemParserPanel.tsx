@@ -159,7 +159,19 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
             file,
             mode === "admin" ? "melon/question-bank" : "melon/student-submissions"
           );
-          uploadedUrls.push(uploadResult.url);
+          if (!uploadResult || !uploadResult.url) {
+            console.error("[BẢO HIỂM] Upload thất bại cho file:", file.name);
+            continue; // Bỏ qua file lỗi, không làm crash vòng lặp
+          }
+          // --- LỚP TIỀN XỬ LÝ ẢNH CHỐNG MỜ/TỐI QUA CLOUDINARY ---
+          let processedUrl = uploadResult.url;
+          if (processedUrl.includes("res.cloudinary.com")) {
+            // Chèn tham số transformation: e_improve (tự động cân bằng sáng), e_sharpen:100 (làm nét tối đa các nét chữ mờ), e_grayscale (đưa về đen trắng lọc nhiễu màu)
+            processedUrl = processedUrl.replace("/upload/", "/upload/e_improve,e_sharpen:100,e_grayscale/");
+          }
+          console.log("[BẢO HIỂM URL FRONTEND] Đường dẫn ảnh đã xử lý nâng cao:", processedUrl);
+          uploadedUrls.push(processedUrl);
+
           setUploadProgress(Math.round(((index + 1) / files.length) * 100));
         }
         savedSourceUrls = uploadedUrls;

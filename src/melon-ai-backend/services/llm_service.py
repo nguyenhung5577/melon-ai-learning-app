@@ -47,12 +47,22 @@ def _call_chat_completion(
                 "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
                 "Content-Type": "application/json",
             }
-            payload = {
+            payload: dict[str, Any] = {
                 "model": model,
                 "messages": messages,
                 "temperature": temperature,
                 "response_format": {"type": "json_object"},
             }
+            
+            # CHỈ THÊM response_format NẾU KHÔNG CÓ ẢNH TRONG MESSAGES
+            # Kiểm tra xem trong list messages có thằng nào chứa 'image_url' không
+            has_image = any("image_url" in msg.get("content", []) or 
+                            any(isinstance(item, dict) and "image_url" in item for item in (msg.get("content") if isinstance(msg.get("content"), list) else [])) 
+                            for msg in messages)
+            
+            if not has_image:
+                payload["response_format"] = {"type": "json_object"}
+            
             if max_tokens:
                 payload["max_tokens"] = max_tokens
             url = "https://openrouter.ai/api/v1/chat/completions"
@@ -75,6 +85,43 @@ def _call_chat_completion(
             raise RuntimeError(f"LLM request failed ({provider}): {response.status_code} - {response.text}")
 
     raise RuntimeError("LLM request failed after retries")
+
+def analyze_problem_image(image_url: str) -> dict[str, Any]:
+    if not image_url or not isinstance(image_url, str):
+        return {"error": "Invalid image URL"}
+
+    prompt = """
+    Bạn là hệ thống OCR bóc tách đề thi toán học chính xác tuyệt đối. Nhiệm vụ của bạn là trích xuất dữ liệu từ ảnh sang JSON. TUYỆT ĐỐI KHÔNG TÓM TẮT.
+
+    {
+        "text": "Trích xuất TOÀN BỘ text xuất hiện trong ảnh (bao gồm cả các đáp án A, B, C, D nếu có). Đọc từ trên xuống dưới. Dùng định dạng LaTeX cho các công thức toán học, ví dụ $4m^3$ hoặc $\\frac{19}{100}$.",
+        "table_markdown": "CHỈ tạo Markdown table NẾU trong ảnh thực sự CÓ ĐƯỜNG KẺ BẢNG. Nếu không có bảng, bắt buộc trả về null.",
+        "has_illustration": true/false (chỉ trả true nếu trong đề CÓ SƠ ĐỒ, ĐỒ THỊ, HOẶC HÌNH VẼ MINH HỌA (ví dụ hình tròn, biểu đồ quạt). Không tính các text thông thường).
+        "crop_box": "Nếu has_illustration là true, hãy ước lượng chặt chẽ [ymin, xmin, ymax, xmax] CHỈ BAO QUANH CÁI HÌNH VẼ ĐÓ theo tỷ lệ pixel thật. KHÔNG trả về tọa độ của toàn bộ ảnh. Nếu false, để null."
+    }
+    """
+    
+    messages = [
+        {"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": image_url}}
+        ]}
+    ]
+    
+    try:
+        raw_response = _call_chat_completion(messages, temperature=0.1)
+        parsed = _parse_json_object(raw_response)
+        
+        required_keys = ["text", "table_markdown", "has_illustration", "crop_box"]
+        if not all(key in parsed for key in required_keys):
+            # Nếu AI trả thiếu key, thử fallback bằng cách ép thêm mặc định
+            parsed["text"] = parsed.get("text", "Không đọc được đề")
+            parsed["has_illustration"] = parsed.get("has_illustration", False)
+            
+        return parsed
+    except Exception as e:
+        print(f"🛡️ [LỖI VISION PIPELINE]: {e}")
+        return {"text": "Lỗi AI phân tích", "error": str(e)}
 
 
 def _parse_json_object(raw: str) -> dict[str, Any]:

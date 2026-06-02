@@ -9,6 +9,7 @@ from services.llm_service import (
     generate_lesson_content,
     generate_exercise_questions,
     generate_exercise_guidance,
+    analyze_problem_image,
 )
 from services.problem_parser_service import (
     ParserInputFile,
@@ -46,6 +47,9 @@ class ExerciseGuideRequest(BaseModel):
     correct_answer: str | None = None
     file_id: str | None = None
     topic: str | None = None
+
+class ParseImageRequest(BaseModel):
+    image_url: str
 
 class ProblemParseRequest(BaseModel):
     sourceType: str = "text"
@@ -202,6 +206,24 @@ def guide_exercise(req: ExerciseGuideRequest):
         "audio_url": audio_url,
         "topic": req.topic,
     }
+
+@router.post("/exercise/parse-image")
+def parse_problem_image(req: ParseImageRequest):
+    """
+    Endpoint nhận URL ảnh (đã được làm nét từ Frontend), 
+    gọi Vision AI để trích xuất text, bảng biểu markdown và tọa độ ảnh minh họa.
+    """
+    if not req.image_url:
+        raise HTTPException(status_code=400, detail="Missing image_url")
+    
+    # Gọi service Vision AI chúng ta vừa hoàn thiện
+    result = analyze_problem_image(req.image_url)
+    
+    # Lớp bảo hiểm: Bắt lỗi nếu AI thất bại
+    if "error" in result and result["error"]:
+        raise HTTPException(status_code=500, detail=result["error"])
+        
+    return result
 
 @router.post("/problems/parse")
 async def parse_problem(
