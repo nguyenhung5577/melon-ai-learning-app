@@ -1,15 +1,11 @@
 # PA3 Working Software Demo
 
-## Demo Video
-
-Link: TBD
-
 ## Demo Scope
 
 This working software demo focuses on two main flows:
 
 - Flow 1: Parent login, parent dashboard overview, setting study goals for a child, creating a child account, child login, and selected child-facing learning interfaces.
-- Flow 2: Admin login, uploading an image to parse math questions, reviewing parsed questions, and saving them into the shared question bank.
+- Flow 2: Admin login, uploading an image to parse math questions, reviewing parsed questions, showing question bank.
 
 ## Features Have Been Implemented
 
