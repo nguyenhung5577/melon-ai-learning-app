@@ -14,6 +14,8 @@ const CompletionSchema = z.object({
   quizTotal: z.number().int().min(0),
   xpEarned: z.number().int().min(0),
   timeOnTaskSeconds: z.number().int().min(0),
+  concepts: z.array(z.string()).optional(),
+  skills: z.array(z.string()).optional(),
   completedAt: z.string().datetime().optional(),
 });
 
@@ -28,4 +30,3 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ record, summary }, { status: 201 });
 }
-

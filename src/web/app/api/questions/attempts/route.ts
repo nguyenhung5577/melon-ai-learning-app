@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
+import { writeExerciseAttemptInTransaction } from "@/lib/progress/progress-store";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,11 @@ function isAnswerCorrect(question: Record<string, unknown>, submittedAnswer: str
   );
 }
 
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+}
+
 export async function POST(req: NextRequest) {
   const body = SubmitAttemptSchema.safeParse(await req.json());
   if (!body.success) {
@@ -86,6 +92,24 @@ export async function POST(req: NextRequest) {
       const attemptCount = Number(stats.attemptCount ?? 0) + 1;
       const correctCount = Number(stats.correctCount ?? 0) + (isCorrect ? 1 : 0);
       const wrongCount = Number(stats.wrongCount ?? 0) + (isCorrect ? 0 : 1);
+
+      await writeExerciseAttemptInTransaction(tx, db, {
+        childUid: kidUid,
+        questionId: body.data.questionId,
+        questionSetId: String(question.questionSetId ?? question.sourceSetId ?? ""),
+        sourceTitle: String(question.sourceTitle ?? ""),
+        subject: String(question.subject ?? "math"),
+        grade: Number(question.grade ?? 0) || undefined,
+        rubricLevel: String(question.rubricLevel ?? "unclassified"),
+        submittedAnswer: body.data.submittedAnswer,
+        isCorrect,
+        timeSpentMs: body.data.timeSpentMs,
+        startedAt: body.data.startedAt ?? now,
+        submittedAt: now,
+        source: body.data.source,
+        concepts: stringList(question.concepts),
+        skills: stringList(question.skills),
+      }, attemptId);
 
       tx.set(db.collection("questionAttempts").doc(attemptId), {
         id: attemptId,

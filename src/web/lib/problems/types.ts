@@ -51,6 +51,8 @@ export interface ParsedQuestion {
   visualDescription: string;
   rawText: string;
   confidence: number;
+  concepts?: string[];
+  skills?: string[];
   createdAt?: string;
   updatedAt?: string;
 }

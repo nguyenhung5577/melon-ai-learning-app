@@ -15,6 +15,13 @@ import type {
   QuestionSet,
   StudentSubmission,
 } from "@/lib/problems/types";
+import type {
+  StudentExerciseAttemptRecord,
+  StudentLessonProgressRecord,
+  StudentPersonalizedPlanRecord,
+  StudentProgressRecord,
+  LessonCompletionRecord,
+} from "@/lib/progress/types";
 
 /**
  * Helper to strongly type a Firestore collection
@@ -37,6 +44,11 @@ export const collections = {
   get kidQuestionStats() { return createCollection<KidQuestionStats>("kidQuestionStats"); },
   get studentSubmissions() { return createCollection<StudentSubmission>("studentSubmissions"); },
   get parseJobs() { return createCollection<ParseJob>("parseJobs"); },
+  get studentProgress() { return createCollection<StudentProgressRecord>("studentProgress"); },
+  get studentLessonProgress() { return createCollection<StudentLessonProgressRecord>("studentLessonProgress"); },
+  get studentLessonCompletions() { return createCollection<LessonCompletionRecord>("studentLessonCompletions"); },
+  get studentExerciseAttempts() { return createCollection<StudentExerciseAttemptRecord>("studentExerciseAttempts"); },
+  get studentPersonalizedPlans() { return createCollection<StudentPersonalizedPlanRecord>("studentPersonalizedPlans"); },
 };
 
 // Subcollections

@@ -40,6 +40,8 @@ export const ParsedQuestionSchema = z.object({
   visualDescription: z.string(),
   rawText: z.string(),
   confidence: z.number().min(0).max(1),
+  concepts: z.array(z.string()).optional(),
+  skills: z.array(z.string()).optional(),
 });
 
 export const RubricLevelSchema = z.enum([
