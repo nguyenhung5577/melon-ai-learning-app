@@ -949,9 +949,8 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
 
                     {isExpanded && (
                       <div className="mt-3 rounded-lg border-2 border-[#ddd] p-3 text-sm">
-                        <div className="font-bold">{question.sourceTitle || questionSet.title}</div>
                         {question.answerText || question.answer ? (
-                          <div className="mt-2 text-nb-green font-bold">Đáp án: {question.answerText || question.answer}</div>
+                          <div className="text-nb-green font-bold">Đáp án: {question.answerText || question.answer}</div>
                         ) : null}
                         <SubQuestionList question={question} />
                         {question.choices.length > 0 ? (

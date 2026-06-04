@@ -963,7 +963,11 @@ def _normalize_question(item: dict[str, Any], index: int, question_set_id: str, 
 
     raw_id = str(item.get("id") or "").strip()
     slugged_raw_id = _slugify(raw_id) if raw_id and not raw_id.isdigit() else ""
-    question_id = slugged_raw_id if slugged_raw_id != "question-set" else _question_id(question_set_id, question_number, index)
+    question_id = (
+        slugged_raw_id
+        if slugged_raw_id and slugged_raw_id != "question-set"
+        else _question_id(question_set_id, question_number, index)
+    )
 
     confidence = item.get("confidence", 0.8)
     try:
@@ -1010,6 +1014,7 @@ def _dedupe_question_ids(questions: list[dict[str, Any]]) -> list[dict[str, Any]
     seen: dict[str, int] = {}
     for index, question in enumerate(questions):
         question_id = str(question.get("id") or "").strip() or f"question-{index + 1}"
+        question["id"] = question_id
         count = seen.get(question_id, 0) + 1
         seen[question_id] = count
         if count > 1:

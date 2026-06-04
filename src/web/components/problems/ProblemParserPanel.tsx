@@ -39,6 +39,51 @@ function errorMessageFromResponse(data: unknown): string {
   }
 }
 
+function fallbackId(prefix: string, index: number) {
+  const random =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${index + 1}-${random}`;
+}
+
+function safeDocumentId(value: string | undefined, fallback: string) {
+  const normalized = (value ?? "")
+    .trim()
+    .replace(/[\\/]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || fallback;
+}
+
+function ensureParseResultIds<T extends ProblemParseResult>(parsedResult: T, resultIndex: number): T {
+  const questionSetId = safeDocumentId(parsedResult.questionSet.id, fallbackId("question-set", resultIndex));
+  const seenQuestionIds = new Map<string, number>();
+
+  return {
+    ...parsedResult,
+    questionSet: {
+      ...parsedResult.questionSet,
+      id: questionSetId,
+    },
+    questions: parsedResult.questions.map((question, questionIndex) => {
+      const baseQuestionId = safeDocumentId(
+        question.id,
+        `${questionSetId}-cau-${question.questionNumber || questionIndex + 1}-${questionIndex + 1}`
+      );
+      const seenCount = seenQuestionIds.get(baseQuestionId) ?? 0;
+      seenQuestionIds.set(baseQuestionId, seenCount + 1);
+      const questionId = seenCount > 0 ? `${baseQuestionId}-${seenCount + 1}` : baseQuestionId;
+
+      return {
+        ...question,
+        id: questionId,
+        questionSetId,
+      };
+    }),
+  };
+}
+
 export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [text, setText] = useState("");
@@ -120,15 +165,20 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
         throw new Error(errorMessageFromResponse(data));
       }
 
-      const parsedResults = normalizeParseResponse(data as ProblemParseResponse).map((parsedResult) => ({
-        ...parsedResult,
-        questionSet: {
-          ...parsedResult.questionSet,
-          sourceFiles: parsedResult.questionSet.sourceFiles.length > 0
-            ? parsedResult.questionSet.sourceFiles
-            : files.map((file) => file.name),
-        },
-      }));
+      const parsedResults = normalizeParseResponse(data as ProblemParseResponse).map((parsedResult, resultIndex) =>
+        ensureParseResultIds(
+          {
+            ...parsedResult,
+            questionSet: {
+              ...parsedResult.questionSet,
+              sourceFiles: parsedResult.questionSet.sourceFiles.length > 0
+                ? parsedResult.questionSet.sourceFiles
+                : files.map((file) => file.name),
+            },
+          },
+          resultIndex
+        )
+      );
       setResults(parsedResults);
       setActiveResultIndex(0);
       setShowAnswers(mode === "admin");
@@ -178,13 +228,18 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
         setSourceUrls(uploadedUrls);
       }
 
-      const resultsToSave = results.map((parsedResult) => ({
-        ...parsedResult,
-        questionSet: {
-          ...parsedResult.questionSet,
-          sourceFiles: savedSourceUrls.length > 0 ? savedSourceUrls : parsedResult.questionSet.sourceFiles,
-        },
-      }));
+      const resultsToSave = results.map((parsedResult, resultIndex) =>
+        ensureParseResultIds(
+          {
+            ...parsedResult,
+            questionSet: {
+              ...parsedResult.questionSet,
+              sourceFiles: savedSourceUrls.length > 0 ? savedSourceUrls : parsedResult.questionSet.sourceFiles,
+            },
+          },
+          resultIndex
+        )
+      );
 
       if (mode === "admin") {
         for (const parsedResult of resultsToSave) {
