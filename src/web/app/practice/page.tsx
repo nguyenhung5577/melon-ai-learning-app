@@ -24,14 +24,21 @@ export default function PracticePage() {
       <KidOnlyGuard>
         <SectionContainer>
           <SectionHeader
-            title="Gửi Đề Toán"
-            subtitle="Upload ảnh, PDF hoặc paste đề để Melon đọc câu hỏi và đáp án"
+            title="Luyện Toán"
+            subtitle="Melon chọn bài theo mục tiêu, điểm mạnh và điểm cần ôn của con."
             badge={<NbPill color="green">Lớp 4-5</NbPill>}
           />
-          <div className="mt-8">
+
+          <SavedProblemLists mode="student" uid={user?.uid} />
+
+          <div className="mt-10">
+            <SectionHeader
+              title="Gửi đề riêng"
+              subtitle="Upload ảnh, PDF hoặc paste đề để Melon đọc câu hỏi và đáp án."
+              badge={<NbPill color="orange">Tùy chọn</NbPill>}
+            />
             <ProblemParserPanel mode="student" uid={user?.uid} />
           </div>
-          <SavedProblemLists mode="student" uid={user?.uid} />
         </SectionContainer>
       </KidOnlyGuard>
 

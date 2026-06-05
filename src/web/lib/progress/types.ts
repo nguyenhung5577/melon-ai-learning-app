@@ -111,6 +111,45 @@ export interface RecommendedQuestionFilter {
   subject: string;
 }
 
+export type PersonalizedActionType =
+  | "diagnostic_short_set"
+  | "micro_lesson_then_guided_retry"
+  | "remediation_practice"
+  | "mixed_practice"
+  | "spiral_review_or_challenge";
+
+export type PersonalizedHintMode =
+  | "available"
+  | "after_first_wrong"
+  | "step_by_step";
+
+export type PersonalizedUiMode =
+  | "normal"
+  | "slow_down_check_step"
+  | "step_by_step";
+
+export interface PersonalizedWeaknessSummary {
+  concept: string;
+  attempts: number;
+  accuracy: number;
+  masteryState: MasteryState;
+  needsAttention: boolean;
+}
+
+export interface PersonalizedNextAction {
+  id: string;
+  priority: number;
+  title: string;
+  description: string;
+  actionType: PersonalizedActionType;
+  concepts: string[];
+  rubricLevels: string[];
+  questionCount: number;
+  reason: string;
+  hintMode: PersonalizedHintMode;
+  uiMode: PersonalizedUiMode;
+}
+
 export interface StudentPersonalizedPlanRecord {
   id: string;
   childUid: string;
@@ -120,6 +159,8 @@ export interface StudentPersonalizedPlanRecord {
   targetConcepts: string[];
   recommendedLessonIds: string[];
   recommendedQuestionFilters: RecommendedQuestionFilter[];
+  nextBestActions?: PersonalizedNextAction[];
+  weaknessSummary?: PersonalizedWeaknessSummary[];
   reasonSummary: string;
   source: "rules_v1" | "llm_v1";
   createdAt?: string;

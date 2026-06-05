@@ -115,16 +115,35 @@ Important fields:
 - `targetConcepts`
 - `recommendedLessonIds`
 - `recommendedQuestionFilters`
+- `nextBestActions` (optional v1.1 UI-ready actions)
+- `weaknessSummary` (optional v1.1 concept diagnostics)
 - `reasonSummary`
 - `source`
 - `updatedAt`
+
+`nextBestActions` is an ordered list of up to 3 immediate actions for the learner:
+
+- `id`
+- `priority`
+- `title`
+- `description`
+- `actionType`: `diagnostic_short_set`, `micro_lesson_then_guided_retry`, `remediation_practice`, `mixed_practice`, or `spiral_review_or_challenge`
+- `concepts`
+- `rubricLevels`
+- `questionCount`
+- `reason`
+- `hintMode`: `available`, `after_first_wrong`, or `step_by_step`
+- `uiMode`: `normal`, `slow_down_check_step`, or `step_by_step`
 
 ## V1 Recommendation Rules
 
 - Before enough attempt data exists, seed weak concepts from `children/{childUid}.learningPreferences.weakTopics`.
 - A concept is weak when it has at least 3 attempts and accuracy is below 70%.
-- If exercise accuracy is below 70%, recommended question filters prefer `nhan_biet` and `thong_hieu`.
-- Otherwise, recommended question filters prefer `thong_hieu` and `van_dung`.
+- If a concept has fewer than 3 attempts, recommend a short diagnostic set using `nhan_biet` and `thong_hieu`.
+- If a concept accuracy is below 50%, recommend a micro-lesson or guided retry using `nhan_biet` with step-by-step hints.
+- If a concept accuracy is from 50% to 69%, recommend remediation practice using `nhan_biet` and `thong_hieu`.
+- If a concept accuracy is from 70% to 84%, recommend mixed practice using `thong_hieu` and `van_dung`.
+- If a concept accuracy is at least 85%, recommend spiral review or challenge using `van_dung` and `van_dung_cao`.
 - If question documents do not have `concepts`, the plan still falls back to parent weak topics and rubric/grade filters.
 
 ## Legacy Compatibility

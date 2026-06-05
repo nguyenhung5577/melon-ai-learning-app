@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLessonCompletions, getProgressSummary } from "@/lib/progress/progress-store";
+import { getLessonCompletions, getPersonalizedPlan, getProgressSummary } from "@/lib/progress/progress-store";
 
 export const runtime = "nodejs";
 
@@ -8,9 +8,12 @@ export async function GET(
   { params }: { params: Promise<{ childUid: string }> }
 ) {
   const { childUid } = await params;
-  const summary = await getProgressSummary(childUid);
-  const completions = await getLessonCompletions(childUid);
+  const [summary, completions, plan] = await Promise.all([
+    getProgressSummary(childUid),
+    getLessonCompletions(childUid),
+    getPersonalizedPlan(childUid),
+  ]);
 
-  return NextResponse.json({ summary, completions });
+  return NextResponse.json({ summary, completions, plan });
 }
 

@@ -141,5 +141,34 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated()
         && (resource.data.uid == request.auth.uid || isAdmin());
     }
+
+    // Personalized learning progress is written by trusted server APIs.
+    match /studentProgress/{childId} {
+      allow read: if isOwner(childId) || isParentOfChild(childId) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /studentLessonProgress/{progressId} {
+      allow read: if isAuthenticated()
+        && (resource.data.childUid == request.auth.uid || isParentOfChild(resource.data.childUid) || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /studentLessonCompletions/{attemptId} {
+      allow read: if isAuthenticated()
+        && (resource.data.childUid == request.auth.uid || isParentOfChild(resource.data.childUid) || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /studentExerciseAttempts/{attemptId} {
+      allow read: if isAuthenticated()
+        && (resource.data.childUid == request.auth.uid || isParentOfChild(resource.data.childUid) || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /studentPersonalizedPlans/{childId} {
+      allow read: if isOwner(childId) || isParentOfChild(childId) || isAdmin();
+      allow write: if isAdmin();
+    }
   }
 }

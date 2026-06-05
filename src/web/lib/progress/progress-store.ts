@@ -5,6 +5,8 @@ import type {
   LessonCompletionInput,
   LessonCompletionRecord,
   MasteryState,
+  PersonalizedNextAction,
+  PersonalizedWeaknessSummary,
   RecommendedQuestionFilter,
   StatBucket,
   StudentExerciseAttemptInput,
@@ -18,6 +20,7 @@ import type {
 
 const SCHEMA_VERSION = 1;
 const WEAK_ACCURACY_THRESHOLD = 70;
+const MASTERED_ACCURACY_THRESHOLD = 85;
 const MIN_CONCEPT_ATTEMPTS = 3;
 
 type LearningPreferences = {
@@ -271,6 +274,141 @@ function gradeFromPreferences(child?: ChildDocument): number | undefined {
   return undefined;
 }
 
+const conceptLabels: Record<string, string> = {
+  arithmetic: "Số học",
+  fractions: "Phân số",
+  geometry: "Hình học",
+  word_problems: "Toán có lời văn",
+  logic: "Tư duy logic",
+  mixed_exams: "Đề tổng hợp",
+};
+
+function conceptLabel(concept: string): string {
+  return conceptLabels[concept] ?? concept.replace(/[_-]+/g, " ");
+}
+
+function weaknessSummaryFrom(progress: StudentProgressRecord, targetConcepts: string[]): PersonalizedWeaknessSummary[] {
+  return targetConcepts.map((concept) => {
+    const stats = progress.conceptStats?.[concept];
+    const attempts = Math.max(0, Number(stats?.attempts ?? 0));
+    const accuracy = clampPercent(Number(stats?.accuracy ?? 0));
+    const masteryState = stats?.masteryState ?? "not_started";
+
+    return {
+      concept,
+      attempts,
+      accuracy,
+      masteryState,
+      needsAttention: attempts < MIN_CONCEPT_ATTEMPTS || accuracy < WEAK_ACCURACY_THRESHOLD,
+    };
+  });
+}
+
+function actionForConcept(
+  concept: string,
+  stats: StatBucket | undefined,
+  priority: number
+): PersonalizedNextAction {
+  const label = conceptLabel(concept);
+  const attempts = Math.max(0, Number(stats?.attempts ?? 0));
+  const accuracy = clampPercent(Number(stats?.accuracy ?? 0));
+  const id = documentId("next", String(priority), concept || "balanced");
+
+  if (attempts < MIN_CONCEPT_ATTEMPTS) {
+    return {
+      id,
+      priority,
+      title: `Kiểm tra nhẹ: ${label}`,
+      description: "Làm một cụm câu ngắn để hệ thống xác định con đang chắc phần nào.",
+      actionType: "diagnostic_short_set",
+      concepts: [concept],
+      rubricLevels: ["nhan_biet", "thong_hieu"],
+      questionCount: 3,
+      reason: "Chưa đủ 3 lượt làm để kết luận điểm yếu, nên cần kiểm tra nhẹ trước.",
+      hintMode: "available",
+      uiMode: "normal",
+    };
+  }
+
+  if (accuracy < 50) {
+    return {
+      id,
+      priority,
+      title: `Ôn lại từng bước: ${label}`,
+      description: "Xem gợi ý ngắn, sau đó làm lại các câu số nhỏ và rõ bước.",
+      actionType: "micro_lesson_then_guided_retry",
+      concepts: [concept],
+      rubricLevels: ["nhan_biet"],
+      questionCount: 4,
+      reason: `Độ chính xác hiện tại là ${accuracy}%, cần giảm độ khó để lấp lỗ hổng trước.`,
+      hintMode: "step_by_step",
+      uiMode: "step_by_step",
+    };
+  }
+
+  if (accuracy < WEAK_ACCURACY_THRESHOLD) {
+    return {
+      id,
+      priority,
+      title: `Luyện bù: ${label}`,
+      description: "Luyện các câu cơ bản và thông hiểu, có gợi ý sau lần thử đầu.",
+      actionType: "remediation_practice",
+      concepts: [concept],
+      rubricLevels: ["nhan_biet", "thong_hieu"],
+      questionCount: 6,
+      reason: `Độ chính xác hiện tại là ${accuracy}%, dưới ngưỡng 70% của lộ trình cá nhân hóa.`,
+      hintMode: "after_first_wrong",
+      uiMode: "slow_down_check_step",
+    };
+  }
+
+  if (accuracy < MASTERED_ACCURACY_THRESHOLD) {
+    return {
+      id,
+      priority,
+      title: `Củng cố xen kẽ: ${label}`,
+      description: "Luyện câu thông hiểu và vận dụng để con dùng kiến thức linh hoạt hơn.",
+      actionType: "mixed_practice",
+      concepts: [concept],
+      rubricLevels: ["thong_hieu", "van_dung"],
+      questionCount: 5,
+      reason: `Độ chính xác hiện tại là ${accuracy}%, đã khá hơn nhưng chưa đủ ổn định để coi là thành thạo.`,
+      hintMode: "after_first_wrong",
+      uiMode: "normal",
+    };
+  }
+
+  return {
+    id,
+    priority,
+    title: `Thử thách nhỏ: ${label}`,
+    description: "Làm vài câu vận dụng để giữ nhịp và tránh quên kiến thức.",
+    actionType: "spiral_review_or_challenge",
+    concepts: [concept],
+    rubricLevels: ["van_dung", "van_dung_cao"],
+    questionCount: 3,
+    reason: `Độ chính xác hiện tại là ${accuracy}%, có thể tăng nhẹ độ khó.`,
+    hintMode: "available",
+    uiMode: "normal",
+  };
+}
+
+function balancedAction(priority = 1): PersonalizedNextAction {
+  return {
+    id: documentId("next", String(priority), "balanced"),
+    priority,
+    title: "Luyện cân bằng lớp 4-5",
+    description: "Chọn một cụm câu vừa sức để tiếp tục thu thập dữ liệu học tập.",
+    actionType: "mixed_practice",
+    concepts: [],
+    rubricLevels: ["thong_hieu", "van_dung"],
+    questionCount: 5,
+    reason: "Chưa có concept yếu rõ ràng, nên hệ thống tiếp tục luyện cân bằng.",
+    hintMode: "available",
+    uiMode: "normal",
+  };
+}
+
 function buildPersonalizedPlan(
   progress: StudentProgressRecord,
   child: ChildDocument | undefined,
@@ -280,17 +418,20 @@ function buildPersonalizedPlan(
     ? progress.weakConcepts
     : child?.learningPreferences?.weakTopics ?? []);
   const grade = gradeFromPreferences(child);
-  const rubricLevels = progress.exerciseAccuracy > 0 && progress.exerciseAccuracy < WEAK_ACCURACY_THRESHOLD
-    ? ["nhan_biet", "thong_hieu"]
-    : ["thong_hieu", "van_dung"];
-  const recommendedQuestionFilters: RecommendedQuestionFilter[] = [
+  const nextBestActions = (targetConcepts.length > 0
+    ? targetConcepts
+        .slice(0, 3)
+        .map((concept, index) => actionForConcept(concept, progress.conceptStats?.[concept], index + 1))
+    : [balancedAction()]);
+  const weaknessSummary = weaknessSummaryFrom(progress, targetConcepts);
+  const recommendedQuestionFilters: RecommendedQuestionFilter[] = nextBestActions.map((action) =>
     stripUndefined({
       grade,
-      rubricLevels,
-      concepts: targetConcepts,
+      rubricLevels: action.rubricLevels,
+      concepts: action.concepts,
       subject: "math",
-    }),
-  ];
+    })
+  );
 
   return stripUndefined({
     id: progress.childUid,
@@ -301,9 +442,11 @@ function buildPersonalizedPlan(
     targetConcepts,
     recommendedLessonIds: [],
     recommendedQuestionFilters,
+    nextBestActions,
+    weaknessSummary,
     reasonSummary: targetConcepts.length > 0
-      ? `Prioritize ${targetConcepts.join(", ")} based on parent goals and learner performance.`
-      : "Continue balanced math practice until enough performance data is available.",
+      ? `Ưu tiên ${targetConcepts.map(conceptLabel).join(", ")} dựa trên mục tiêu ban đầu và tiến trình làm bài.`
+      : "Tiếp tục luyện Toán cân bằng cho đến khi có đủ dữ liệu để xác định điểm yếu rõ ràng.",
     source: "rules_v1",
     createdAt: now,
     updatedAt: now,
@@ -597,4 +740,79 @@ export async function getProgressSummary(childUid: string): Promise<ProgressSumm
     : undefined;
 
   return summaryFromRecords(childUid, completions, progress);
+}
+
+export async function getPersonalizedPlan(childUid: string): Promise<StudentPersonalizedPlanRecord> {
+  const now = new Date().toISOString();
+
+  if (childUid === "demo-child") {
+    const demoChild: ChildDocument = {
+      learningPreferences: {
+        gradeLevel: "grade_5",
+        weakTopics: ["fractions", "word_problems"],
+      },
+    };
+    const progress = {
+      ...emptyProgress(childUid, now, demoChild),
+      totalExerciseAttempts: 8,
+      totalCorrectExerciseAttempts: 4,
+      exerciseAccuracy: 50,
+      conceptStats: {
+        fractions: {
+          attempts: 5,
+          correct: 2,
+          accuracy: 40,
+          masteryState: "in_progress",
+          lastPracticedAt: now,
+        },
+        word_problems: {
+          attempts: 3,
+          correct: 2,
+          accuracy: 67,
+          masteryState: "developing",
+          lastPracticedAt: now,
+        },
+      },
+      weakConcepts: ["fractions", "word_problems"],
+      recommendedConcepts: ["fractions", "word_problems"],
+      updatedAt: now,
+    } satisfies StudentProgressRecord;
+
+    return buildPersonalizedPlan(progress, demoChild, now);
+  }
+
+  const db = adminDb();
+  const [childSnap, progressSnap, planSnap] = await Promise.all([
+    db.collection("children").doc(childUid).get(),
+    db.collection("studentProgress").doc(childUid).get(),
+    db.collection("studentPersonalizedPlans").doc(childUid).get(),
+  ]);
+  const child = childSnap.exists ? childSnap.data() as ChildDocument : undefined;
+  const progress = progressFromData(childUid, progressSnap.data(), now, child);
+  const rebuiltPlan = buildPersonalizedPlan(progress, child, now);
+
+  if (!planSnap.exists) {
+    return rebuiltPlan;
+  }
+
+  const storedPlan = planSnap.data() as Partial<StudentPersonalizedPlanRecord>;
+  const planNeedsRefresh =
+    storedPlan.basedOnProgressUpdatedAt !== progress.updatedAt ||
+    !Array.isArray(storedPlan.nextBestActions) ||
+    storedPlan.nextBestActions.length === 0;
+
+  if (planNeedsRefresh) {
+    return {
+      ...rebuiltPlan,
+      createdAt: storedPlan.createdAt ?? rebuiltPlan.createdAt,
+    };
+  }
+
+  return {
+    ...rebuiltPlan,
+    ...storedPlan,
+    id: childUid,
+    childUid,
+    weaknessSummary: storedPlan.weaknessSummary ?? rebuiltPlan.weaknessSummary,
+  } as StudentPersonalizedPlanRecord;
 }

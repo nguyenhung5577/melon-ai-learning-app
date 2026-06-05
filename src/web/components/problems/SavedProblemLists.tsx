@@ -15,6 +15,7 @@ import type {
 } from "@/lib/problems/types";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
+import { PersonalizedExercisePanel } from "@/components/problems/PersonalizedExercisePanel";
 import { QuestionMedia } from "@/components/problems/QuestionMedia";
 
 interface SavedProblemListsProps {
@@ -823,6 +824,14 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
       </div>
 
       {error && <p className="text-sm font-bold text-nb-red">{error}</p>}
+
+      {mode === "student" && (
+        <PersonalizedExercisePanel
+          uid={uid}
+          questions={questions}
+          loadingQuestions={loading}
+        />
+      )}
 
       {(mode === "admin" || questionSets.length > 0) && (
         <div className="nb-card rounded-2xl bg-white p-5">
