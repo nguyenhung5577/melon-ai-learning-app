@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { where } from "firebase/firestore";
-import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Eye, Pencil, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
 import { collections } from "@/lib/db/firestore";
 import { deleteDocument, queryDocuments, setDocument, updateDocument } from "@/lib/db/firestore-helpers";
 import type {
@@ -430,6 +430,10 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
   const [mutating, setMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // AI classification state
+  const [classifying, setClassifying] = useState(false);
+  const [classifyProgress, setClassifyProgress] = useState<{ classified: number; total: number } | null>(null);
+
   const loadSavedProblems = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -561,6 +565,95 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
       updatedBy: uid ?? "admin",
       classifiedAt: rubricLevel === "unclassified" ? null : now,
     });
+  }
+
+  const unclassifiedCount = useMemo(
+    () => questions.filter((q) => q.rubricLevel === "unclassified").length,
+    [questions],
+  );
+
+  async function handleAiClassify(classifyAll: boolean) {
+    setClassifying(true);
+    setClassifyProgress(null);
+    setError(null);
+
+    try {
+      const body = classifyAll
+        ? { all: true }
+        : { questionIds: filteredQuestions.filter((q) => q.rubricLevel === "unclassified").map((q) => q.id) };
+
+      const res = await fetch("/api/v1/problems/classify-rubric", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+      }
+
+      // Non-SSE response (e.g. "no questions to classify")
+      const contentType = res.headers.get("content-type") ?? "";
+      if (!contentType.includes("text/event-stream")) {
+        await res.json();
+        void loadSavedProblems();
+        return;
+      }
+
+      // SSE streaming
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6)) as {
+              type: string;
+              classified: number;
+              total: number;
+              current?: { questionId: string; rubricLevel: RubricLevel; confidence: number; reasoning: string };
+              error?: string;
+            };
+
+            setClassifyProgress({ classified: event.classified, total: event.total });
+
+            if (event.type === "progress" && event.current) {
+              const result = event.current;
+              setQuestions((items) =>
+                items.map((item) =>
+                  item.id === result.questionId
+                    ? { ...item, rubricLevel: result.rubricLevel, updatedBy: "ai-rubric-classifier", updatedAt: new Date().toISOString() }
+                    : item,
+                ),
+              );
+            }
+
+            if (event.type === "error" && event.error) {
+              console.warn("AI classify error:", event.error);
+            }
+          } catch {
+            // skip malformed events
+          }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Lỗi khi phân loại AI");
+    } finally {
+      setClassifying(false);
+      setClassifyProgress(null);
+    }
   }
 
   function beginEditSet(questionSet: QuestionSet) {
@@ -867,6 +960,33 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
               </select>
             </label>
           </div>
+          {mode === "admin" && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <NbButton
+                variant="secondary"
+                size="sm"
+                loading={classifying}
+                disabled={classifying || unclassifiedCount === 0}
+                onClick={() => void handleAiClassify(true)}
+              >
+                <Bot className="w-4 h-4" />
+                {classifying ? "Đang phân loại..." : `🤖 AI Phân loại tất cả (${unclassifiedCount})`}
+              </NbButton>
+              {classifyProgress && (
+                <div className="flex flex-1 flex-col gap-1 min-w-48">
+                  <div className="nb-progress-track h-4">
+                    <div
+                      className="nb-progress-fill bg-nb-green"
+                      style={{ width: `${Math.round((classifyProgress.classified / classifyProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold text-[#666]">
+                    {classifyProgress.classified}/{classifyProgress.total} câu
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
           <div className="mt-4 flex flex-col gap-3">
             {filteredQuestions.length === 0 ? (
               <p className="text-sm font-semibold text-[#666]">Chưa có câu nào trong kho đề chung.</p>
@@ -888,7 +1008,10 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
                         <div className="mt-1 font-bold">{question.stem}</div>
                         <div className="mt-2 flex flex-wrap gap-2 text-[0.7rem] font-bold uppercase text-[#666]">
                           <span>Lớp {question.grade}</span>
-                          <span>Rubric: {rubricLabels[question.rubricLevel]}</span>
+                          <span>
+                            {question.updatedBy === "ai-rubric-classifier" && "🤖 "}
+                            Rubric: {rubricLabels[question.rubricLevel]}
+                          </span>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-start gap-2">
