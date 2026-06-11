@@ -1,0 +1,374 @@
+{
+  "savedAt": "2026-06-11T09:53:08.206Z",
+  "childUid": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+  "studentProgress": {
+    "recommendedConcepts": [
+      "fractions",
+      "mixed_exams",
+      "logic"
+    ],
+    "schemaVersion": 1,
+    "level": 1,
+    "createdAt": "2026-06-10T15:47:00.918Z",
+    "weakConcepts": [],
+    "id": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+    "childUid": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+    "totalXpEarned": 85,
+    "totalLessonAttempts": 1,
+    "conceptStats": {
+      "decimals": {
+        "masteryState": "in_progress",
+        "lastPracticedAt": "2026-06-10T15:51:17.412Z",
+        "correct": 0,
+        "accuracy": 0,
+        "attempts": 1
+      },
+      "arithmetic": {
+        "masteryState": "in_progress",
+        "lastPracticedAt": "2026-06-10T15:51:17.412Z",
+        "correct": 0,
+        "accuracy": 0,
+        "attempts": 1
+      }
+    },
+    "totalLessonsCompleted": 1,
+    "averageQuizScore": 100,
+    "totalCorrectExerciseAttempts": 23,
+    "totalTimeOnTaskSeconds": 2994,
+    "totalExerciseAttempts": 47,
+    "exerciseAccuracy": 49,
+    "lastActivityAt": "2026-06-11T09:46:58.695Z",
+    "subjectStats": {
+      "math": {
+        "correct": 23,
+        "masteryState": "in_progress",
+        "lastPracticedAt": "2026-06-11T09:46:58.695Z",
+        "accuracy": 48,
+        "attempts": 48
+      }
+    },
+    "updatedAt": "2026-06-11T09:46:58.695Z"
+  },
+  "studentPersonalizedPlans": {
+    "reasonSummary": "Ưu tiên Phân số, Đề tổng hợp, Tư duy logic dựa trên mục tiêu ban đầu và tiến trình làm bài.",
+    "recommendedLessonIds": [],
+    "nextBestActions": [
+      {
+        "id": "next_1_fractions",
+        "priority": 1,
+        "title": "Kiểm tra nhẹ: Phân số",
+        "description": "Làm một cụm câu ngắn để hệ thống xác định con đang chắc phần nào.",
+        "actionType": "diagnostic_short_set",
+        "concepts": [
+          "fractions"
+        ],
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ],
+        "questionCount": 3,
+        "reason": "Chưa đủ 3 lượt làm để kết luận điểm yếu, nên cần kiểm tra nhẹ trước.",
+        "hintMode": "available",
+        "uiMode": "normal"
+      },
+      {
+        "id": "next_2_mixed_exams",
+        "priority": 2,
+        "title": "Kiểm tra nhẹ: Đề tổng hợp",
+        "description": "Làm một cụm câu ngắn để hệ thống xác định con đang chắc phần nào.",
+        "actionType": "diagnostic_short_set",
+        "concepts": [
+          "mixed_exams"
+        ],
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ],
+        "questionCount": 3,
+        "reason": "Chưa đủ 3 lượt làm để kết luận điểm yếu, nên cần kiểm tra nhẹ trước.",
+        "hintMode": "available",
+        "uiMode": "normal"
+      },
+      {
+        "id": "next_3_logic",
+        "priority": 3,
+        "title": "Kiểm tra nhẹ: Tư duy logic",
+        "description": "Làm một cụm câu ngắn để hệ thống xác định con đang chắc phần nào.",
+        "actionType": "diagnostic_short_set",
+        "concepts": [
+          "logic"
+        ],
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ],
+        "questionCount": 3,
+        "reason": "Chưa đủ 3 lượt làm để kết luận điểm yếu, nên cần kiểm tra nhẹ trước.",
+        "hintMode": "available",
+        "uiMode": "normal"
+      }
+    ],
+    "targetConcepts": [
+      "fractions",
+      "mixed_exams",
+      "logic"
+    ],
+    "source": "rules_v1",
+    "weaknessSummary": [
+      {
+        "concept": "fractions",
+        "attempts": 0,
+        "accuracy": 0,
+        "masteryState": "not_started",
+        "needsAttention": true
+      },
+      {
+        "concept": "mixed_exams",
+        "attempts": 0,
+        "accuracy": 0,
+        "masteryState": "not_started",
+        "needsAttention": true
+      },
+      {
+        "concept": "logic",
+        "attempts": 0,
+        "accuracy": 0,
+        "masteryState": "not_started",
+        "needsAttention": true
+      }
+    ],
+    "recommendedQuestionFilters": [
+      {
+        "grade": 5,
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ],
+        "concepts": [
+          "fractions"
+        ],
+        "subject": "math"
+      },
+      {
+        "grade": 5,
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ],
+        "concepts": [
+          "mixed_exams"
+        ],
+        "subject": "math"
+      },
+      {
+        "grade": 5,
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ],
+        "concepts": [
+          "logic"
+        ],
+        "subject": "math"
+      }
+    ],
+    "id": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+    "childUid": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+    "status": "active",
+    "createdAt": "2026-06-11T09:46:58.695Z",
+    "generatedAt": "2026-06-11T09:46:58.695Z",
+    "basedOnProgressUpdatedAt": "2026-06-11T09:46:58.695Z",
+    "updatedAt": "2026-06-11T09:46:58.695Z"
+  },
+  "studentCourseRuns": [
+    {
+      "id": "WsdqC2uK6TPb8zgXo5W5p6iWP892_math-g5-fractions",
+      "currentStageOrder": 1,
+      "currentStageId": "diagnostic",
+      "pipelineId": "math-g5-fractions-pipeline-v1",
+      "recommendedQuestionFilter": {
+        "questionCount": 3,
+        "keywords": [
+          "phân số",
+          "thập phân",
+          "phần mười",
+          "phần trăm",
+          "quy đồng"
+        ],
+        "subject": "math",
+        "grade": 5,
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ]
+      },
+      "priorityScore": 159,
+      "childUid": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+      "courseId": "math-g5-fractions",
+      "status": "active",
+      "createdAt": "2026-06-11T08:50:11.990Z",
+      "stageProgress": {
+        "diagnostic": {
+          "correct": 0,
+          "accuracy": 0,
+          "attempts": 0,
+          "stageId": "diagnostic",
+          "status": "in_progress",
+          "enteredAt": "2026-06-11T08:50:11.990Z"
+        }
+      },
+      "startedAt": "2026-06-11T08:50:11.990Z",
+      "lastActivityAt": "2026-06-11T08:50:11.990Z",
+      "personalizedReason": "Mình bắt đầu với vài câu khởi động về Phân số để vào nhịp nhé.",
+      "updatedAt": "2026-06-11T09:47:17.567Z"
+    },
+    {
+      "id": "WsdqC2uK6TPb8zgXo5W5p6iWP892_math-g5-geometry",
+      "currentStageOrder": 1,
+      "currentStageId": "diagnostic",
+      "pipelineId": "math-g5-geometry-pipeline-v1",
+      "recommendedQuestionFilter": {
+        "questionCount": 3,
+        "keywords": [
+          "hình",
+          "diện tích",
+          "thể tích",
+          "hình hộp",
+          "hình lập phương",
+          "chu vi"
+        ],
+        "subject": "math",
+        "grade": 5,
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ]
+      },
+      "priorityScore": 77,
+      "childUid": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+      "courseId": "math-g5-geometry",
+      "status": "active",
+      "createdAt": "2026-06-11T08:50:11.990Z",
+      "stageProgress": {
+        "diagnostic": {
+          "correct": 0,
+          "accuracy": 0,
+          "attempts": 0,
+          "stageId": "diagnostic",
+          "status": "in_progress",
+          "enteredAt": "2026-06-11T08:50:11.990Z"
+        }
+      },
+      "startedAt": "2026-06-11T08:50:11.990Z",
+      "lastActivityAt": "2026-06-11T08:50:11.990Z",
+      "personalizedReason": "Mình bắt đầu với vài câu khởi động về Hình học để vào nhịp nhé.",
+      "updatedAt": "2026-06-11T09:47:17.567Z"
+    },
+    {
+      "id": "WsdqC2uK6TPb8zgXo5W5p6iWP892_math-g5-logic",
+      "currentStageOrder": 1,
+      "currentStageId": "diagnostic",
+      "pipelineId": "math-g5-logic-pipeline-v1",
+      "recommendedQuestionFilter": {
+        "questionCount": 3,
+        "keywords": [
+          "nên làm gì",
+          "logic",
+          "tư duy",
+          "đúng",
+          "suy luận"
+        ],
+        "subject": "math",
+        "grade": 5,
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ]
+      },
+      "priorityScore": 116,
+      "childUid": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+      "courseId": "math-g5-logic",
+      "status": "active",
+      "createdAt": "2026-06-11T08:50:11.990Z",
+      "stageProgress": {
+        "diagnostic": {
+          "correct": 0,
+          "accuracy": 0,
+          "attempts": 0,
+          "stageId": "diagnostic",
+          "status": "in_progress",
+          "enteredAt": "2026-06-11T08:50:11.990Z"
+        }
+      },
+      "startedAt": "2026-06-11T08:50:11.990Z",
+      "lastActivityAt": "2026-06-11T08:50:11.990Z",
+      "personalizedReason": "Mình bắt đầu với vài câu khởi động về Tư duy logic để vào nhịp nhé.",
+      "updatedAt": "2026-06-11T09:47:17.567Z"
+    },
+    {
+      "id": "WsdqC2uK6TPb8zgXo5W5p6iWP892_math-g5-mixed-exams",
+      "currentStageOrder": 1,
+      "currentStageId": "diagnostic",
+      "pipelineId": "math-g5-mixed-exams-pipeline-v1",
+      "recommendedQuestionFilter": {
+        "questionCount": 3,
+        "keywords": [
+          "đề kiểm tra",
+          "tính",
+          "thuận tiện",
+          "viết số",
+          "tỉ số phần trăm"
+        ],
+        "subject": "math",
+        "grade": 5,
+        "rubricLevels": [
+          "nhan_biet",
+          "thong_hieu"
+        ]
+      },
+      "priorityScore": 138,
+      "childUid": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+      "courseId": "math-g5-mixed-exams",
+      "status": "active",
+      "createdAt": "2026-06-11T08:50:11.990Z",
+      "stageProgress": {
+        "diagnostic": {
+          "correct": 0,
+          "accuracy": 0,
+          "attempts": 0,
+          "stageId": "diagnostic",
+          "status": "in_progress",
+          "enteredAt": "2026-06-11T08:50:11.990Z"
+        }
+      },
+      "startedAt": "2026-06-11T08:50:11.990Z",
+      "lastActivityAt": "2026-06-11T08:50:11.990Z",
+      "personalizedReason": "Mình bắt đầu với vài câu khởi động về Đề tổng hợp để vào nhịp nhé.",
+      "updatedAt": "2026-06-11T09:47:17.567Z"
+    }
+  ],
+  "studentLessonCompletions": [
+    {
+      "id": "WsdqC2uK6TPb8zgXo5W5p6iWP892_math-g5-decimals-place-value_1781106677412_6t62ek",
+      "childUid": "WsdqC2uK6TPb8zgXo5W5p6iWP892",
+      "lessonId": "math-g5-decimals-place-value",
+      "lessonTitle": "Số thập phân và giá trị chữ số",
+      "subject": "math",
+      "scorePercent": 63,
+      "quizCorrect": 2,
+      "quizTotal": 2,
+      "xpEarned": 85,
+      "timeOnTaskSeconds": 18,
+      "concepts": [
+        "arithmetic",
+        "decimals"
+      ],
+      "skills": [
+        "thong_hieu"
+      ],
+      "quizScorePercent": 100,
+      "completedAt": "2026-06-10T15:51:17.412Z",
+      "masteryState": "developing"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import type { DocumentData, Firestore, Transaction } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/server/firebase-admin";
+import { syncCourseRunAttemptInTransaction } from "./course-run-store";
 import type {
   DailyProgressPoint,
   LessonCompletionInput,
@@ -194,51 +195,55 @@ function demoRecords(childUid: string): LessonCompletionRecord[] {
   const seed: Array<Omit<LessonCompletionInput, "childUid" | "completedAt"> & { daysAgo: number }> = [
     {
       daysAgo: 6,
-      lessonId: "lesson-001",
-      lessonTitle: "What is Photosynthesis?",
-      subject: "science",
-      scorePercent: 92,
+      lessonId: "math-g4-fractions-foundation",
+      lessonTitle: "Phân số: tử số, mẫu số và phần bằng nhau",
+      subject: "math",
+      scorePercent: 78,
       quizCorrect: 2,
-      quizTotal: 2,
-      xpEarned: 150,
-      timeOnTaskSeconds: 1080,
-      concepts: ["photosynthesis"],
+      quizTotal: 3,
+      xpEarned: 110,
+      timeOnTaskSeconds: 720,
+      concepts: ["fractions"],
+      skills: ["nhan_biet"],
     },
     {
       daysAgo: 5,
-      lessonId: "lesson-002",
-      lessonTitle: "Fractions Made Easy",
+      lessonId: "math-g4-common-denominator",
+      lessonTitle: "Quy đồng mẫu số để so sánh phân số",
       subject: "math",
-      scorePercent: 85,
-      quizCorrect: 2,
+      scorePercent: 62,
+      quizCorrect: 1,
       quizTotal: 3,
-      xpEarned: 180,
-      timeOnTaskSeconds: 1500,
+      xpEarned: 150,
+      timeOnTaskSeconds: 960,
       concepts: ["fractions"],
+      skills: ["thong_hieu"],
     },
     {
       daysAgo: 3,
-      lessonId: "lesson-003",
-      lessonTitle: "The Water Cycle",
-      subject: "science",
-      scorePercent: 100,
+      lessonId: "math-g4-word-problem-reading",
+      lessonTitle: "Toán có lời văn: đọc đề không bị rối",
+      subject: "math",
+      scorePercent: 67,
       quizCorrect: 1,
-      quizTotal: 1,
-      xpEarned: 120,
-      timeOnTaskSeconds: 900,
-      concepts: ["water_cycle"],
+      quizTotal: 2,
+      xpEarned: 140,
+      timeOnTaskSeconds: 840,
+      concepts: ["word_problems"],
+      skills: ["nhan_biet"],
     },
     {
       daysAgo: 1,
-      lessonId: "lesson-005",
-      lessonTitle: "Intro to Python: Variables",
-      subject: "coding",
-      scorePercent: 75,
-      quizCorrect: 1,
+      lessonId: "math-g4-geometry-area-perimeter",
+      lessonTitle: "Chu vi và diện tích hình chữ nhật",
+      subject: "math",
+      scorePercent: 86,
+      quizCorrect: 2,
       quizTotal: 2,
-      xpEarned: 220,
-      timeOnTaskSeconds: 1260,
-      concepts: ["variables"],
+      xpEarned: 145,
+      timeOnTaskSeconds: 780,
+      concepts: ["geometry"],
+      skills: ["thong_hieu"],
     },
   ];
 
@@ -625,6 +630,7 @@ export async function writeExerciseAttemptInTransaction(
 
   tx.set(db.collection("studentExerciseAttempts").doc(record.id), stripUndefined(record));
   stageProgressAndPlan(tx, db, nextProgress, child, now);
+  await syncCourseRunAttemptInTransaction(tx, db, record, now);
   return record;
 }
 

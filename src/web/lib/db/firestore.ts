@@ -16,7 +16,10 @@ import type {
   StudentSubmission,
 } from "@/lib/problems/types";
 import type {
+  CourseDefinition,
+  CoursePipelineDefinition,
   StudentExerciseAttemptRecord,
+  StudentCourseRunRecord,
   StudentLessonProgressRecord,
   StudentPersonalizedPlanRecord,
   StudentProgressRecord,
@@ -49,6 +52,9 @@ export const collections = {
   get studentLessonCompletions() { return createCollection<LessonCompletionRecord>("studentLessonCompletions"); },
   get studentExerciseAttempts() { return createCollection<StudentExerciseAttemptRecord>("studentExerciseAttempts"); },
   get studentPersonalizedPlans() { return createCollection<StudentPersonalizedPlanRecord>("studentPersonalizedPlans"); },
+  get courses() { return createCollection<CourseDefinition>("courses"); },
+  get coursePipelines() { return createCollection<CoursePipelineDefinition>("coursePipelines"); },
+  get studentCourseRuns() { return createCollection<StudentCourseRunRecord>("studentCourseRuns"); },
 };
 
 // Subcollections

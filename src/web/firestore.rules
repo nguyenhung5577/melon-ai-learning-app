@@ -170,5 +170,21 @@ service cloud.firestore {
       allow read: if isOwner(childId) || isParentOfChild(childId) || isAdmin();
       allow write: if isAdmin();
     }
+
+    match /courses/{courseId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /coursePipelines/{pipelineId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /studentCourseRuns/{runId} {
+      allow read: if isAuthenticated()
+        && (resource.data.childUid == request.auth.uid || isParentOfChild(resource.data.childUid) || isAdmin());
+      allow write: if isAdmin();
+    }
   }
 }

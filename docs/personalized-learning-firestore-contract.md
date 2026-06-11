@@ -135,6 +135,76 @@ Important fields:
 - `hintMode`: `available`, `after_first_wrong`, or `step_by_step`
 - `uiMode`: `normal`, `slow_down_check_step`, or `step_by_step`
 
+### `courses/{courseId}`
+
+Course catalog for a grade/subject. This defines the learning product-level structure instead of only one-step recommendations.
+
+Important fields:
+
+- `title`
+- `subject`
+- `grade`
+- `primaryConcept`
+- `conceptLabels`
+- `description`
+- `goalText`
+- `pipelineId`
+- `entryKeywords`
+- `recommendedOrder`
+- `status`
+- `createdAt`
+- `updatedAt`
+
+### `coursePipelines/{pipelineId}`
+
+Defines the standard learning pipeline for a course.
+
+Important fields:
+
+- `courseId`
+- `version`
+- `stages[]`
+
+Each stage includes:
+
+- `id`
+- `title`
+- `description`
+- `stageType`: `diagnostic`, `foundation`, `practice`, `checkpoint`, `remedial`, or `challenge`
+- `supportText`
+- `questionFilter.grade`
+- `questionFilter.rubricLevels`
+- `questionFilter.keywords`
+- `questionFilter.questionCount`
+- `passAccuracy`
+- `minAttempts`
+- `nextStageId`
+- `remedialStageId`
+- `hintMode`
+- `uiMode`
+
+### `studentCourseRuns/{childUid_courseId}`
+
+Active per-student state for a course pipeline.
+
+Important fields:
+
+- `childUid`
+- `courseId`
+- `pipelineId`
+- `status`
+- `priorityScore`
+- `personalizedReason`
+- `currentStageId`
+- `currentStageOrder`
+- `stageProgress`
+- `recommendedQuestionFilter`
+- `startedAt`
+- `completedAt`
+- `lastActivityAt`
+- `createdAt`
+- `updatedAt`
+
 ## V1 Recommendation Rules
 
 - Before enough attempt data exists, seed weak concepts from `children/{childUid}.learningPreferences.weakTopics`.
@@ -149,3 +219,19 @@ Important fields:
 ## Legacy Compatibility
 
 `POST /api/questions/attempts` still writes legacy `questionAttempts` and `kidQuestionStats` so existing practice UI remains compatible. New personalized features should read from `studentExerciseAttempts`, `studentProgress`, and `studentPersonalizedPlans`.
+
+## Current Course-Pipeline Model
+
+- Personalized learning now has two layers:
+  - `studentPersonalizedPlans` for short-term recommendation summary.
+  - `studentCourseRuns` for actual course/stage progression.
+- The frontend should prefer `studentCourseRuns.currentStage` when selecting the next exercise set.
+- Exercise attempts may include:
+  - `courseId`
+  - `courseRunId`
+  - `pipelineId`
+  - `stageId`
+  - `stageTitle`
+- When those fields are present, the server updates both:
+  - aggregate progress (`studentProgress`)
+  - pipeline progression (`studentCourseRuns`)

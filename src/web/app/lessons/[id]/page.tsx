@@ -17,6 +17,27 @@ import { cn } from "@/lib/utils";
 
 type AnswerState = "idle" | "correct" | "wrong";
 
+const conceptTags = new Set([
+  "arithmetic",
+  "fractions",
+  "geometry",
+  "word_problems",
+  "logic",
+  "mixed_exams",
+  "decimals",
+]);
+
+const skillTags = new Set([
+  "nhan_biet",
+  "thong_hieu",
+  "van_dung",
+  "van_dung_cao",
+]);
+
+function tagsFromLesson(lesson: Lesson | null | undefined, allowed: Set<string>) {
+  return (lesson?.tags ?? []).filter((tag) => allowed.has(tag));
+}
+
 interface SlideRendererProps {
   slide: LessonSlide;
   onComplete: (xp: number) => void;
@@ -43,7 +64,7 @@ function TextSlide({ slide, onComplete }: SlideRendererProps) {
         icon={<ChevronRight className="w-4 h-4" />}
         iconPosition="right"
       >
-        Got it
+        Đã hiểu
       </NbButton>
     </div>
   );
@@ -80,7 +101,7 @@ function QuizSlide({ slide, onComplete, onQuizAnswer }: SlideRendererProps) {
     <div className="flex flex-col gap-6">
       <div>
         <div className="font-display text-[0.7rem] text-[#888] mb-2 tracking-widest uppercase">
-          Question
+          Câu hỏi
         </div>
         <h2 className="font-display text-h2 leading-snug">{slide.content}</h2>
       </div>
@@ -147,10 +168,10 @@ function DragDropSlide({ slide, onComplete }: SlideRendererProps) {
         </div>
       </div>
       <p className="text-sm font-semibold text-[#666]">
-        (Drag-and-drop interaction — coming in Phase 2!)
+        Bài tương tác kéo-thả sẽ được hoàn thiện ở phiên bản sau.
       </p>
       <NbButton variant="primary" size="lg" onClick={() => onComplete(slide.xp)} className="self-start">
-        Continue →
+        Tiếp tục →
       </NbButton>
     </div>
   );
@@ -169,7 +190,7 @@ export default function LessonPlayerPage({
   const [totalXp, setTotalXp] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [hintShown, setHintShown] = useState(false);
-  const [hintText, setHintText] = useState("Need a hint? Ask me!");
+  const [hintText, setHintText] = useState("Cần gợi ý thì hỏi Cosmo nhé!");
   const [hintLoading, setHintLoading] = useState(false);
   const lessonStartedAtRef = useRef(0);
   const quizCorrectRef = useRef(0);
@@ -201,7 +222,7 @@ export default function LessonPlayerPage({
     };
   }, [id]);
 
-  const slide = lesson?.slides[currentSlideIdx];
+  const slide = lesson?.slides?.[currentSlideIdx];
 
   const handleQuizAnswer = useCallback((correct: boolean) => {
     quizCorrectRef.current += correct ? 1 : 0;
@@ -213,7 +234,7 @@ export default function LessonPlayerPage({
       const newXp = totalXp + xp;
       setTotalXp(newXp);
       setHintShown(false);
-      setHintText("Need a hint? Ask me!");
+      setHintText("Cần gợi ý thì hỏi Cosmo nhé!");
 
       if (currentSlideIdx < (lesson?.slides.length ?? 0) - 1) {
         setCurrentSlideIdx((i) => i + 1);
@@ -233,7 +254,7 @@ export default function LessonPlayerPage({
           gamificationStore.addXp(
             user.uid,
             newXp,
-            `Completed: ${lesson?.title ?? id}`,
+            `Hoàn thành: ${lesson?.title ?? id}`,
             id
           );
           logActivityEvent(user.uid, {
@@ -256,6 +277,8 @@ export default function LessonPlayerPage({
               quizTotal: finalQuizTotal,
               xpEarned: newXp,
               timeOnTaskSeconds,
+              concepts: tagsFromLesson(lesson, conceptTags),
+              skills: tagsFromLesson(lesson, skillTags),
             }),
           }).catch(() => {
             /* Progress tracking should not block lesson completion. */
@@ -270,7 +293,7 @@ export default function LessonPlayerPage({
     if (hintLoading || !slide) return;
     setHintShown(true);
     setHintLoading(true);
-    setHintText("Cosmo is preparing your step-by-step guidance...");
+    setHintText("Cosmo đang chuẩn bị gợi ý từng bước...");
     try {
       const res = await fetch("/api/v1/exercise/guide", {
         method: "POST",
@@ -278,15 +301,15 @@ export default function LessonPlayerPage({
         body: JSON.stringify({
           question: slide.content,
           correctAnswer: typeof slide.answer === "string" ? slide.answer : undefined,
-          topic: lesson?.title ?? "Lesson",
+          topic: lesson?.title ?? "Bài học",
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error ?? "Failed to generate guidance");
+        throw new Error(data.error ?? "Không tạo được gợi ý");
       }
 
-      const guidance = (data.guidance as string) || "Let's solve this together!";
+      const guidance = (data.guidance as string) || "Mình cùng giải từng bước nhé!";
       setHintText(guidance);
 
       if (lesson?.audioEnabled && data.audioUrl) {
@@ -296,7 +319,7 @@ export default function LessonPlayerPage({
         });
       }
     } catch {
-      setHintText("Try this: identify key words in the question, remove wrong options, then choose the best match. You can do it! 🌟");
+      setHintText("Gợi ý: đọc lại đề hỏi gì, gạch dữ kiện quan trọng, rồi chọn phép tính phù hợp. Con làm được mà!");
     } finally {
       setHintLoading(false);
     }
@@ -307,10 +330,10 @@ export default function LessonPlayerPage({
       <KidShell>
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <div className="text-6xl">🚧</div>
-          <p className="font-display text-lg">This lesson is still being prepared by AI.</p>
-          <p className="text-sm text-[#666] max-w-xs text-center">It doesn&apos;t have any content slides yet. Check back soon!</p>
+          <p className="font-display text-lg">Bài học này đang được chuẩn bị.</p>
+          <p className="text-sm text-[#666] max-w-xs text-center">Melon chưa có đủ nội dung cho bài này. Con quay lại danh sách bài học nhé.</p>
           <NbButton variant="secondary" onClick={() => router.push("/lessons")}>
-            Back to Lessons
+            Quay lại bài học
           </NbButton>
         </div>
       </KidShell>
@@ -331,14 +354,14 @@ export default function LessonPlayerPage({
           >
             <div className="text-7xl">🎉</div>
             <h1 className="font-display text-[clamp(1.75rem,4vw,3rem)] text-nb-orange">
-              Lesson Complete!
+              Hoàn thành bài học!
             </h1>
             <div className="nb-card rounded-2xl p-8 flex flex-col items-center gap-2">
               <div className="font-display text-6xl text-nb-orange leading-none">
                 {totalXp}
               </div>
-              <div className="font-bold text-sm uppercase text-[#666]">XP Earned</div>
-              <div className="mt-2 font-bold text-sm">Score: {pct}%</div>
+              <div className="font-bold text-sm uppercase text-[#666]">XP nhận được</div>
+              <div className="mt-2 font-bold text-sm">Điểm: {pct}%</div>
             </div>
             <div className="flex flex-wrap gap-3 justify-center">
               <NbButton
@@ -353,14 +376,14 @@ export default function LessonPlayerPage({
                   lessonStartedAtRef.current = Date.now();
                 }}
               >
-                Play Again
+                Học lại
               </NbButton>
               <NbButton
                 variant="secondary"
                 size="lg"
                 onClick={() => router.push("/lessons")}
               >
-                More Lessons
+                Bài khác
               </NbButton>
             </div>
           </motion.div>
@@ -379,7 +402,7 @@ export default function LessonPlayerPage({
             onClick={() => router.push("/lessons")}
             icon={<ArrowLeft className="w-3.5 h-3.5" />}
           >
-            Quit
+            Thoát
           </NbButton>
 
           <div className="flex-1 flex flex-col gap-1.5 min-w-[160px]">
@@ -491,7 +514,7 @@ export default function LessonPlayerPage({
                         "transition-all duration-150"
                       )}
                     >
-                      💡 Get a hint
+                      💡 Gợi ý
                     </button>
                   )}
                   {lesson.audioEnabled && (
@@ -502,7 +525,7 @@ export default function LessonPlayerPage({
                       aria-label="Play audio"
                     >
                       <Volume2 className="w-3 h-3" />
-                      {hintLoading ? "Loading..." : "Listen"}
+                      {hintLoading ? "Đang tải..." : "Nghe"}
                     </button>
                   )}
                 </div>

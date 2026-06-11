@@ -15,12 +15,13 @@ import type {
 } from "@/lib/problems/types";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
-import { PersonalizedExercisePanel } from "@/components/problems/PersonalizedExercisePanel";
+import { PracticeExamPanel } from "@/components/problems/PracticeExamPanel";
 import { QuestionMedia } from "@/components/problems/QuestionMedia";
 
 interface SavedProblemListsProps {
   mode: "admin" | "student";
   uid?: string;
+  onExerciseSessionChange?: (active: boolean) => void;
 }
 
 function formatDate(value?: string) {
@@ -410,7 +411,7 @@ function QuestionEditor({
   );
 }
 
-export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
+export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedProblemListsProps) {
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [questions, setQuestions] = useState<QuestionBankQuestion[]>([]);
   const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
@@ -430,6 +431,14 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
   const [loading, setLoading] = useState(false);
   const [mutating, setMutating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exerciseActive, setExerciseActive] = useState(false);
+
+  const handleExerciseSessionChange = useCallback((active: boolean) => {
+    setExerciseActive(active);
+    onExerciseSessionChange?.(active);
+  }, [onExerciseSessionChange]);
+
+  useEffect(() => () => onExerciseSessionChange?.(false), [onExerciseSessionChange]);
 
   const loadSavedProblems = useCallback(async () => {
     setLoading(true);
@@ -806,7 +815,8 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
   }
 
   return (
-    <div className="mt-8 flex flex-col gap-5">
+    <div className={exerciseActive ? "mt-0 flex flex-col gap-5" : "mt-8 flex flex-col gap-5"}>
+      {!exerciseActive && (
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="font-display text-sm">
@@ -822,18 +832,21 @@ export function SavedProblemLists({ mode, uid }: SavedProblemListsProps) {
           <RefreshCw className="w-4 h-4" />
         </NbButton>
       </div>
+      )}
 
       {error && <p className="text-sm font-bold text-nb-red">{error}</p>}
 
       {mode === "student" && (
-        <PersonalizedExercisePanel
+        <PracticeExamPanel
           uid={uid}
+          questionSets={questionSets}
           questions={questions}
-          loadingQuestions={loading}
+          loading={loading}
+          onSessionChange={handleExerciseSessionChange}
         />
       )}
 
-      {(mode === "admin" || questionSets.length > 0) && (
+      {mode === "admin" && (
         <div className="nb-card rounded-2xl bg-white p-5">
           <div className="flex items-center justify-between gap-3">
             <h4 className="font-display text-xs">

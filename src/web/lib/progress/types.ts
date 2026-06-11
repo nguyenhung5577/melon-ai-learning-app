@@ -96,6 +96,11 @@ export interface StudentExerciseAttemptInput {
   source: "practice" | "student_submission" | "question_bank";
   concepts?: string[];
   skills?: string[];
+  courseId?: string;
+  courseRunId?: string;
+  pipelineId?: string;
+  stageId?: string;
+  stageTitle?: string;
 }
 
 export interface StudentExerciseAttemptRecord extends StudentExerciseAttemptInput {
@@ -165,6 +170,112 @@ export interface StudentPersonalizedPlanRecord {
   source: "rules_v1" | "llm_v1";
   createdAt?: string;
   updatedAt: string;
+}
+
+export type CourseStageType =
+  | "diagnostic"
+  | "foundation"
+  | "practice"
+  | "checkpoint"
+  | "remedial"
+  | "challenge";
+
+export type CourseRunStatus =
+  | "active"
+  | "completed"
+  | "paused";
+
+export type CourseStageStatus =
+  | "locked"
+  | "ready"
+  | "in_progress"
+  | "mastered"
+  | "retry_required";
+
+export interface CourseQuestionFilter {
+  subject: "math";
+  grade: number;
+  rubricLevels: string[];
+  keywords: string[];
+  questionCount: number;
+}
+
+export interface CourseDefinition {
+  id: string;
+  title: string;
+  subject: "math";
+  grade: 4 | 5;
+  primaryConcept: string;
+  conceptLabels: string[];
+  description: string;
+  goalText: string;
+  pipelineId: string;
+  entryKeywords: string[];
+  recommendedOrder: number;
+  status: "active" | "draft";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CoursePipelineStage {
+  id: string;
+  title: string;
+  description: string;
+  stageType: CourseStageType;
+  supportText: string;
+  questionFilter: CourseQuestionFilter;
+  passAccuracy: number;
+  minAttempts: number;
+  nextStageId?: string;
+  remedialStageId?: string;
+  hintMode: PersonalizedHintMode;
+  uiMode: PersonalizedUiMode;
+}
+
+export interface CoursePipelineDefinition {
+  id: string;
+  courseId: string;
+  version: number;
+  stages: CoursePipelineStage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudentCourseStageProgress {
+  stageId: string;
+  attempts: number;
+  correct: number;
+  accuracy: number;
+  status: CourseStageStatus;
+  enteredAt: string;
+  lastAttemptAt?: string;
+  completedAt?: string;
+}
+
+export interface StudentCourseRunRecord {
+  id: string;
+  childUid: string;
+  courseId: string;
+  pipelineId: string;
+  status: CourseRunStatus;
+  priorityScore: number;
+  personalizedReason: string;
+  currentStageId: string;
+  currentStageOrder: number;
+  stageProgress: Record<string, StudentCourseStageProgress>;
+  recommendedQuestionFilter: CourseQuestionFilter;
+  startedAt: string;
+  completedAt?: string;
+  lastActivityAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CourseRunSnapshot {
+  course: CourseDefinition;
+  pipeline: CoursePipelineDefinition;
+  run: StudentCourseRunRecord;
+  currentStage: CoursePipelineStage;
 }
 
 export interface DailyProgressPoint {

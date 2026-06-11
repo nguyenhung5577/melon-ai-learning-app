@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "type-check": "tsc --noEmit",
+    "seed:course-pipelines": "node scripts/seed-course-pipelines.mjs",
     "migrate:question-bank": "node scripts/migrate-question-bank.mjs",
     "import:pdf-question-bank": "node scripts/import-pdf-question-bank.mjs"
   },

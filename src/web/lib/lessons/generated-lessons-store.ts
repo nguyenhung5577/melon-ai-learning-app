@@ -1,8 +1,13 @@
 "use client";
 
-import { MOCK_LESSONS, type Lesson, type Subject } from "@/lib/lessons/lesson-store";
+import {
+  MOCK_LESSONS,
+  isCurrentMathLesson,
+  type Lesson,
+  type Subject,
+} from "@/lib/lessons/lesson-store";
 
-const STORAGE_KEY = "melon.generated.lessons.v1";
+const STORAGE_KEY = "melon.generated.math.lessons.v2";
 
 export interface GeneratedExerciseQuestion {
   question: string;
@@ -23,7 +28,7 @@ function safeJsonParse(raw: string | null): Lesson[] {
 
 export function getGeneratedLessons(): Lesson[] {
   if (typeof window === "undefined") return [];
-  return safeJsonParse(window.localStorage.getItem(STORAGE_KEY));
+  return safeJsonParse(window.localStorage.getItem(STORAGE_KEY)).filter(isCurrentMathLesson);
 }
 
 export function saveGeneratedLesson(lesson: Lesson): void {
@@ -80,7 +85,9 @@ export function buildLessonFromExercises(params: {
     duration: Math.max(8, Math.round(slides.length * 2.5)),
     xpReward,
     difficulty: 2,
-    tags: ["ai", "rag", "generated"],
+    tags: subject === "math"
+      ? ["math_curriculum_v2", "grade_4", "grade_5", "ai", "rag", "generated"]
+      : ["ai", "rag", "generated"],
     slides,
     aiEnabled: true,
     audioEnabled: true,

@@ -66,7 +66,7 @@ export default function PdfUploadPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [lessonId, setLessonId] = useState("");
-  const [subject, setSubject] = useState<Subject>("science");
+  const [subject, setSubject] = useState<Subject>("math");
   const [status, setStatus] = useState<UploadStatus>("idle");
   const [result, setResult] = useState<UploadResult | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -174,7 +174,7 @@ export default function PdfUploadPage() {
         duration: 10,
         xpReward: 100,
         difficulty: 1,
-        tags: ["pdf", "rag"],
+        tags: ["math_curriculum_v2", "grade_4", "grade_5", "pdf", "rag"],
         slides: [],
         aiEnabled: true,
         audioEnabled: false,
@@ -292,11 +292,7 @@ export default function PdfUploadPage() {
                       onChange={(e) => setSubject(e.target.value as Subject)}
                       disabled={status !== "idle"}
                     >
-                      <option value="science">Science</option>
-                      <option value="math">Math</option>
-                      <option value="english">English</option>
-                      <option value="history">History</option>
-                      <option value="coding">Coding</option>
+                      <option value="math">Toán lớp 4-5</option>
                     </select>
                   </div>
                 </div>

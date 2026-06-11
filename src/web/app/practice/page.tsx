@@ -13,6 +13,7 @@ import { useAuthContext } from "@/lib/auth/auth-context";
 export default function PracticePage() {
   const { user, logout } = useAuthContext();
   const [authOpen, setAuthOpen] = useState(false);
+  const [exerciseActive, setExerciseActive] = useState(false);
 
   return (
     <KidShell
@@ -20,25 +21,34 @@ export default function PracticePage() {
       photoURL={user?.photoURL}
       onLogout={logout}
       onLogin={() => setAuthOpen(true)}
+      hideNav={exerciseActive}
     >
       <KidOnlyGuard>
-        <SectionContainer>
-          <SectionHeader
-            title="Luyện Toán"
-            subtitle="Melon chọn bài theo mục tiêu, điểm mạnh và điểm cần ôn của con."
-            badge={<NbPill color="green">Lớp 4-5</NbPill>}
+        <SectionContainer className={exerciseActive ? "px-0 py-0 [border-bottom:0]" : undefined}>
+          {!exerciseActive && (
+            <SectionHeader
+              title="Luyện đề Toán"
+              subtitle="Chọn một đề trọn vẹn, làm trong khoảng 40-60 phút và giữ nhịp như khi làm bài kiểm tra thật."
+              badge={<NbPill color="green">Lớp 4-5</NbPill>}
+            />
+          )}
+
+          <SavedProblemLists
+            mode="student"
+            uid={user?.uid}
+            onExerciseSessionChange={setExerciseActive}
           />
 
-          <SavedProblemLists mode="student" uid={user?.uid} />
-
-          <div className="mt-10">
-            <SectionHeader
-              title="Gửi đề riêng"
-              subtitle="Upload ảnh, PDF hoặc paste đề để Melon đọc câu hỏi và đáp án."
-              badge={<NbPill color="orange">Tùy chọn</NbPill>}
-            />
-            <ProblemParserPanel mode="student" uid={user?.uid} />
-          </div>
+          {!exerciseActive && (
+            <div className="mt-10">
+              <SectionHeader
+                title="Gửi đề riêng"
+                subtitle="Upload ảnh, PDF hoặc paste đề để Melon đọc câu hỏi và đáp án."
+                badge={<NbPill color="orange">Tùy chọn</NbPill>}
+              />
+              <ProblemParserPanel mode="student" uid={user?.uid} />
+            </div>
+          )}
         </SectionContainer>
       </KidOnlyGuard>
 

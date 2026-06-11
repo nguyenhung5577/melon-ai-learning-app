@@ -11,6 +11,11 @@ const SubmitAttemptSchema = z.object({
   timeSpentMs: z.number().int().min(0).default(0),
   startedAt: z.string().datetime().optional(),
   source: z.enum(["practice", "student_submission", "question_bank"]).default("practice"),
+  courseId: z.string().min(1).optional(),
+  courseRunId: z.string().min(1).optional(),
+  pipelineId: z.string().min(1).optional(),
+  stageId: z.string().min(1).optional(),
+  stageTitle: z.string().min(1).optional(),
 });
 
 function getBearerToken(req: NextRequest): string | null {
@@ -24,17 +29,70 @@ function normalizeAnswer(value: unknown): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ")
+    .replace(/(\d),(\d)/g, "$1.$2")
+    .replace(/^(-?\d+)\s+(-?\d+)$/g, "$1/$2")
     .replace(/[.,;:]$/g, "");
+}
+
+function labeledParts(value: unknown): Record<string, string> | null {
+  const text = String(value ?? "").trim();
+  const matches = Array.from(text.matchAll(/([a-z])\s*[\).:]\s*/giu))
+    .filter((match) => match.index !== undefined);
+  if (matches.length < 2) return null;
+
+  const parts: Record<string, string> = {};
+  for (let index = 0; index < matches.length; index += 1) {
+    const match = matches[index];
+    const label = match[1].toLowerCase();
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? text.length;
+    const answer = normalizeAnswer(text.slice(start, end).replace(/^[\s;,-]+|[\s;,-]+$/g, ""));
+    if (answer) parts[label] = answer;
+  }
+
+  return Object.keys(parts).length >= 2 ? parts : null;
+}
+
+function answersEquivalent(submittedAnswer: string, expectedAnswer: unknown): boolean {
+  const submitted = normalizeAnswer(submittedAnswer);
+  const expected = normalizeAnswer(expectedAnswer);
+  if (!submitted || !expected) return false;
+  if (submitted === expected) return true;
+
+  const submittedParts = labeledParts(submittedAnswer);
+  const expectedParts = labeledParts(expectedAnswer);
+  if (!submittedParts || !expectedParts) return false;
+
+  return Object.entries(expectedParts).every(([label, expectedPart]) => (
+    submittedParts[label] === expectedPart
+  ));
+}
+
+function finalAnswerFromExplanation(value: unknown): string {
+  const explanation = String(value ?? "");
+  const candidates: string[] = [];
+  const finalPhrasePattern = /(?:tức là|vậy|đáp số|đáp án|trả lời|kết quả)[^0-9-]*(-?\d+(?:\s*\/\s*\d+)?)/giu;
+  const variablePattern = /(?:^|[^\p{L}\p{N}])x\s*=\s*(-?\d+(?:\s*\/\s*\d+)?)/giu;
+
+  for (const match of explanation.matchAll(finalPhrasePattern)) {
+    candidates.push(match[1]);
+  }
+  for (const match of explanation.matchAll(variablePattern)) {
+    candidates.push(match[1]);
+  }
+
+  return normalizeAnswer(candidates.at(-1));
 }
 
 function isAnswerCorrect(question: Record<string, unknown>, submittedAnswer: string): boolean {
   const submitted = normalizeAnswer(submittedAnswer);
-  const answer = normalizeAnswer(question.answer);
-  const answerText = normalizeAnswer(question.answerText);
+  const answerText = question.answerText;
+  const explanationAnswer = finalAnswerFromExplanation(question.explanation);
 
   if (!submitted) return false;
-  if (answer && submitted === answer) return true;
-  if (answerText && submitted === answerText) return true;
+  if (answersEquivalent(submittedAnswer, question.answer)) return true;
+  if (answersEquivalent(submittedAnswer, question.answerText)) return true;
+  if (explanationAnswer && submitted === explanationAnswer) return true;
 
   const choices = Array.isArray(question.choices) ? question.choices : [];
   const selectedChoice = choices.find((choice) => {
@@ -44,7 +102,7 @@ function isAnswerCorrect(question: Record<string, unknown>, submittedAnswer: str
   return Boolean(
     selectedChoice &&
       answerText &&
-      normalizeAnswer((selectedChoice as { text?: unknown }).text) === answerText
+      answersEquivalent(String((selectedChoice as { text?: unknown }).text ?? ""), answerText)
   );
 }
 
@@ -109,6 +167,11 @@ export async function POST(req: NextRequest) {
         source: body.data.source,
         concepts: stringList(question.concepts),
         skills: stringList(question.skills),
+        courseId: body.data.courseId,
+        courseRunId: body.data.courseRunId,
+        pipelineId: body.data.pipelineId,
+        stageId: body.data.stageId,
+        stageTitle: body.data.stageTitle,
       }, attemptId);
 
       tx.set(db.collection("questionAttempts").doc(attemptId), {
