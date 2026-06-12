@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Check,
@@ -32,6 +33,7 @@ interface PersonalizedExercisePanelProps {
   loadingQuestions?: boolean;
   onSessionChange?: (active: boolean) => void;
   preferredCourseRunId?: string;
+  autoStart?: boolean;
 }
 
 type AnswerState = "idle" | "correct" | "wrong";
@@ -58,14 +60,6 @@ const fallbackAction: PersonalizedNextAction = {
   reason: "Chưa có đủ dữ liệu để xác định điểm yếu rõ ràng.",
   hintMode: "available",
   uiMode: "normal",
-};
-
-const rubricLabels: Record<string, string> = {
-  unclassified: "Chưa phân loại",
-  nhan_biet: "Nhận biết",
-  thong_hieu: "Thông hiểu",
-  van_dung: "Vận dụng",
-  van_dung_cao: "Vận dụng cao",
 };
 
 const conceptLabels: Record<string, string> = {
@@ -482,7 +476,9 @@ export function PersonalizedExercisePanel({
   loadingQuestions = false,
   onSessionChange,
   preferredCourseRunId,
+  autoStart = false,
 }: PersonalizedExercisePanelProps) {
+  const router = useRouter();
   const [plan, setPlan] = useState<StudentPersonalizedPlanRecord | null>(null);
   const [courseRuns, setCourseRuns] = useState<CourseRunSnapshot[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
@@ -505,6 +501,7 @@ export function PersonalizedExercisePanel({
   const [attemptSaving, setAttemptSaving] = useState(false);
   const [planReloadKey, setPlanReloadKey] = useState(0);
   const questionStartedAtRef = useRef(0);
+  const autoStartConsumedRef = useRef(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -643,10 +640,6 @@ export function PersonalizedExercisePanel({
     ? Math.round((currentIndex / sessionQuestions.length) * 100)
     : 0;
   const currentWrongCount = currentQuestion ? wrongCounts[currentQuestion.id] ?? 0 : 0;
-  const activeStageProgress = activeCourseRun
-    ? activeCourseRun.run.stageProgress[activeCourseRun.currentStage.id] ?? null
-    : null;
-
   useEffect(() => {
     if (courseRuns.length === 0) {
       setActiveCourseRunId(null);
@@ -685,9 +678,10 @@ export function PersonalizedExercisePanel({
     setCurrentIndex(0);
     resetQuestionState();
     setPlanReloadKey((current) => current + 1);
-  }, [resetQuestionState]);
+    router.replace("/lessons");
+  }, [resetQuestionState, router]);
 
-  function startSession(actionId?: string) {
+  const startSession = useCallback((actionId?: string) => {
     if (actionId) setActiveActionId(actionId);
     setSessionStarted(true);
     setCurrentIndex(0);
@@ -695,7 +689,25 @@ export function PersonalizedExercisePanel({
     setWrongCounts({});
     resetQuestionState();
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }
+  }, [resetQuestionState]);
+
+  useEffect(() => {
+    if (!autoStart || autoStartConsumedRef.current || sessionStarted) return;
+    if (!uid || !activeCourseRun || loadingQuestions || courseRunsLoading) return;
+    if (sessionQuestions.length === 0) return;
+
+    autoStartConsumedRef.current = true;
+    startSession();
+  }, [
+    activeCourseRun,
+    autoStart,
+    courseRunsLoading,
+    loadingQuestions,
+    sessionQuestions.length,
+    sessionStarted,
+    startSession,
+    uid,
+  ]);
 
   function nextQuestion() {
     if (currentIndex >= sessionQuestions.length - 1) {
@@ -1160,221 +1172,28 @@ export function PersonalizedExercisePanel({
     );
   }
 
+  const waitingForSession =
+    planLoading ||
+    courseRunsLoading ||
+    loadingQuestions ||
+    (usingCourseRun ? !activeCourseRun : false) ||
+    sessionQuestions.length > 0;
+
   return (
-    <div className="nb-card rounded-2xl bg-white p-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-display text-sm">Lộ trình hôm nay</h3>
-            <NbPill color="green" icon={<Target className="h-3 w-3" />}>
-              Cá nhân hóa
-            </NbPill>
-          </div>
-          <p className="mt-2 text-sm font-semibold text-[#555]">
-            Hệ thống chọn bài theo mục tiêu ban đầu và kết quả làm bài gần đây.
-          </p>
+    <div className="flex min-h-[calc(100dvh-96px)] items-center justify-center px-6 py-12">
+      <div className="max-w-md rounded-2xl border-4 border-nb-black bg-white p-6 text-center shadow-[8px_8px_0_var(--nb-black)]">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-4 border-nb-black bg-nb-yellow text-3xl shadow-[4px_4px_0_var(--nb-black)]">
+          🍈
         </div>
-        <NbPill color="yellow" icon={<Sparkles className="h-3 w-3" />}>
-          {sessionXp} XP phiên này
-        </NbPill>
+        <h3 className="font-display text-sm leading-relaxed">Chưa mở được bài học</h3>
+        <p className="mt-3 text-sm font-bold leading-relaxed text-[#555]">
+          {planError
+            ? planError
+            : waitingForSession
+              ? "Melon đang chuẩn bị câu hỏi đầu tiên cho mình."
+              : "Chưa có câu hỏi phù hợp cho chặng này. Ba mẹ hoặc admin cần bổ sung thêm câu trong kho đề."}
+        </p>
       </div>
-
-      {planError && <p className="mt-3 text-sm font-bold text-nb-red">{planError}</p>}
-
-      {usingCourseRun && (
-        <>
-          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-            {courseRuns.slice(0, 3).map((snapshot) => {
-              const matches = selectQuestionsForStage(questions, snapshot).length;
-              const selected = snapshot.run.id === activeCourseRun?.run.id;
-
-              return (
-                <button
-                  key={snapshot.run.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveCourseRunId(snapshot.run.id);
-                    setCurrentIndex(0);
-                    resetQuestionState();
-                  }}
-                  className={cn(
-                    "rounded-xl border-2 border-nb-black bg-nb-bg p-4 text-left transition-all",
-                    "[box-shadow:4px_4px_0_var(--nb-black)] hover:-translate-x-0.5 hover:-translate-y-0.5",
-                    selected && "bg-nb-yellow [box-shadow:6px_6px_0_var(--nb-black)]"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[0.7rem] font-black uppercase text-[#666]">
-                      Khóa {snapshot.course.grade}
-                    </span>
-                    <span className="text-[0.7rem] font-black uppercase text-nb-orange">
-                      {matches} câu
-                    </span>
-                  </div>
-                  <div className="mt-2 font-black leading-snug">{snapshot.course.title}</div>
-                  <p className="mt-2 text-sm font-semibold leading-relaxed text-[#555]">
-                    {snapshot.currentStage.title}: {snapshot.currentStage.description}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-
-          {activeCourseRun && (
-            <div className="mt-5 rounded-xl border-2 border-nb-black bg-[#fff9ed] p-4">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-black uppercase text-[#666]">Khóa đang theo</div>
-                  <h4 className="mt-1 font-display text-[0.95rem] leading-snug">
-                    {activeCourseRun.course.title}
-                  </h4>
-                  <p className="mt-2 text-sm font-bold leading-relaxed">{activeCourseRun.run.personalizedReason}</p>
-                  <p className="mt-2 text-sm font-semibold leading-relaxed text-[#555]">
-                    Chặng hiện tại: {activeCourseRun.currentStage.title}. {activeCourseRun.currentStage.supportText}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {activeCourseRun.course.conceptLabels.map((concept) => (
-                      <NbPill key={concept} color="orange">
-                        {conceptLabel(concept)}
-                      </NbPill>
-                    ))}
-                    {activeCourseRun.currentStage.questionFilter.rubricLevels.map((rubric) => (
-                      <NbPill key={rubric} color="green">
-                        {rubricLabels[rubric] ?? rubric}
-                      </NbPill>
-                    ))}
-                    <NbPill color="yellow">
-                      {activeStageProgress ? `${activeStageProgress.accuracy}% đúng` : "Chưa có lượt làm"}
-                    </NbPill>
-                  </div>
-                  <div className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
-                    {activeCourseRun.pipeline.stages.map((stage, index) => {
-                      const progressItem = activeCourseRun.run.stageProgress[stage.id];
-                      const isCurrent = stage.id === activeCourseRun.currentStage.id;
-                      const statusLabel =
-                        progressItem?.status === "mastered" ? "Đã xong"
-                          : progressItem?.status === "retry_required" ? "Cần ôn lại"
-                            : isCurrent ? "Đang học"
-                              : progressItem ? "Đã mở" : "Chưa tới";
-
-                      return (
-                        <div
-                          key={stage.id}
-                          className={cn(
-                            "rounded-lg border-2 border-nb-black bg-white p-3 [box-shadow:3px_3px_0_var(--nb-black)]",
-                            isCurrent && "bg-nb-yellow"
-                          )}
-                        >
-                          <div className="text-[0.65rem] font-black uppercase text-[#666]">Chặng {index + 1}</div>
-                          <div className="mt-1 text-sm font-black leading-snug">{stage.title}</div>
-                          <div className="mt-2 text-[0.7rem] font-semibold text-[#555]">{statusLabel}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <NbButton
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  onClick={() => startSession()}
-                  loading={planLoading || courseRunsLoading || loadingQuestions}
-                  disabled={sessionQuestions.length === 0}
-                >
-                  Vào chặng này
-                  <ChevronRight className="h-4 w-4" />
-                </NbButton>
-              </div>
-
-              {sessionQuestions.length === 0 && !planLoading && !courseRunsLoading && !loadingQuestions && (
-                <p className="mt-3 text-sm font-bold text-nb-red">
-                  Chưa chọn đủ câu hỏi phù hợp cho chặng này từ kho Firebase. Hãy bổ sung thêm câu cùng lớp, cùng rubric hoặc cùng từ khóa.
-                </p>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {!usingCourseRun && (
-      <>
-      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
-        {actions.map((action) => {
-          const matches = selectQuestionsForAction(questions, action).length;
-          const selected = action.id === activeAction.id;
-
-          return (
-            <button
-              key={action.id}
-              type="button"
-              onClick={() => {
-                setActiveActionId(action.id);
-                setCurrentIndex(0);
-                resetQuestionState();
-              }}
-              className={cn(
-                "rounded-xl border-2 border-nb-black bg-nb-bg p-4 text-left transition-all",
-                "[box-shadow:4px_4px_0_var(--nb-black)] hover:-translate-x-0.5 hover:-translate-y-0.5",
-                selected && "bg-nb-yellow [box-shadow:6px_6px_0_var(--nb-black)]"
-              )}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[0.7rem] font-black uppercase text-[#666]">
-                  Bước {action.priority}
-                </span>
-                <span className="text-[0.7rem] font-black uppercase text-nb-orange">
-                  {matches} câu
-                </span>
-              </div>
-              <div className="mt-2 font-black leading-snug">{action.title}</div>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#555]">{action.description}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-5 rounded-xl border-2 border-nb-black bg-[#fff9ed] p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-xs font-black uppercase text-[#666]">Vì sao chọn bước này?</div>
-            <p className="mt-1 text-sm font-bold leading-relaxed">{activeAction.reason}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {activeAction.concepts.length > 0 ? activeAction.concepts.map((concept) => (
-                <NbPill key={concept} color="orange">
-                  {conceptLabel(concept)}
-                </NbPill>
-              )) : (
-                <NbPill color="orange">Ôn cân bằng</NbPill>
-              )}
-              {activeAction.rubricLevels.map((rubric) => (
-                <NbPill key={rubric} color="green">
-                  {rubricLabels[rubric] ?? rubric}
-                </NbPill>
-              ))}
-            </div>
-          </div>
-          <NbButton
-            type="button"
-            variant="primary"
-            size="lg"
-            onClick={() => startSession(activeAction.id)}
-            loading={planLoading || loadingQuestions}
-            disabled={sessionQuestions.length === 0}
-          >
-            Luyện ngay
-            <ChevronRight className="h-4 w-4" />
-          </NbButton>
-        </div>
-
-        {sessionQuestions.length === 0 && !planLoading && !loadingQuestions && (
-          <p className="mt-3 text-sm font-bold text-nb-red">
-            Kho đề chưa có câu đủ dữ liệu cho bước này. Admin cần bổ sung ảnh/đáp án, gắn rubric/concept hoặc nhập thêm câu cùng chủ đề.
-          </p>
-        )}
-      </div>
-      </>
-      )}
     </div>
   );
 }
