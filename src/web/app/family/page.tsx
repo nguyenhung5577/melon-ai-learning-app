@@ -174,7 +174,12 @@ export default function FamilyPage() {
       setForm(defaultForm);
       setMessage(`Created child account ${child.loginId ?? child.uid}.`);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Could not create child account.");
+      const msg = err instanceof Error ? err.message : "Could not create child account.";
+      if (msg.includes("subscription_limit_reached") || msg.includes("subscription required")) {
+        setPaywallOpen(true);
+      } else {
+        setFormError(msg);
+      }
     } finally {
       setSaving(false);
     }

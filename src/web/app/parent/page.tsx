@@ -32,6 +32,9 @@ import type { KidQuestionStats } from "@/lib/problems/types";
 import type { ProgressSummary } from "@/lib/progress/types";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { CreditCard } from "lucide-react";
+import { toast } from "sonner";
+import { auth } from "@/lib/auth/firebase";
 
 const PIE_COLORS = ["#b497ff", "#38b6ff", "#ff914d", "#22c55e", "#ffde59"];
 
@@ -54,6 +57,28 @@ export default function ParentDashboard() {
   const { user, logout } = useAuthContext();
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const handleOpenBilling = async () => {
+    setPortalLoading(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/v1/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        toast.error(data.error || "Không thể mở trang thanh toán.");
+        setPortalLoading(false);
+      }
+    } catch (err) {
+      toast.error("Lỗi kết nối máy chủ thanh toán.");
+      setPortalLoading(false);
+    }
+  };
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [selectedChildIdx, setSelectedChildIdx] = useState(0);
   const [progressSummary, setProgressSummary] = useState<ProgressSummary | null>(null);
@@ -129,11 +154,21 @@ export default function ParentDashboard() {
   return (
     <ParentShell userName={user.displayName ?? undefined} onLogout={handleLogout}>
       <SectionContainer>
-        <SectionHeader
-          title="Parent Dashboard"
-          subtitle={selectedChild ? `Tracking ${selectedChild.displayName}'s progress` : "Tracking your child's progress (Demo Data)"}
-          badge={<NbPill color={selectedChild ? "green" : "blue"}>{selectedChild ? "Backend API" : "Demo Mode"}</NbPill>}
-        />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <SectionHeader
+            title="Parent Dashboard"
+            subtitle={selectedChild ? `Tracking ${selectedChild.displayName}'s progress` : "Tracking your child's progress (Demo Data)"}
+            badge={<NbPill color={selectedChild ? "green" : "blue"}>{selectedChild ? "Backend API" : "Demo Mode"}</NbPill>}
+          />
+          <NbButton 
+            variant="secondary" 
+            size="sm" 
+            onClick={handleOpenBilling}
+            loading={portalLoading}
+          >
+            <CreditCard className="w-4 h-4 mr-2" /> Quản lý Gói cước
+          </NbButton>
+        </div>
 
         {/* Child selector if multiple */}
         {children.length > 1 && (

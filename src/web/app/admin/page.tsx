@@ -15,11 +15,13 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
+import { auth } from "@/lib/auth/firebase";
 import { updateDocument } from "@/lib/db/firestore-helpers";
 import { collections } from "@/lib/db/firestore";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { AdminGuard } from "@/components/shared/AdminGuard";
+import { toast } from "sonner";
 
 const AI_SPEND = [
   { date: "Apr 17", cost: 0.12 },
@@ -93,41 +95,18 @@ export default function AdminDashboard() {
           {/* Quick Actions */}
           <div className="flex flex-col gap-6">
             <div className="nb-card rounded-2xl p-6 bg-nb-purple/10 border-nb-purple">
-              <h3 className="font-display text-sm mb-4">Cấp quyền Melon Pro</h3>
-              <form 
-                className="flex flex-col gap-3"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const targetUid = (e.target as any).targetUid.value;
-                  if (!targetUid) return;
-                  try {
-                    const token = await user?.getIdToken();
-                    const res = await fetch("/api/v1/admin/subscription", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ targetUid, plan: "pro" })
-                    });
-                    if (res.ok) {
-                      alert(`Đã nâng cấp thành công tài khoản (UID: ${targetUid}) lên gói Pro!`);
-                      (e.target as any).reset();
-                    } else {
-                      alert("Lỗi khi nâng cấp. Có thể bạn không đủ quyền Admin.");
-                    }
-                  } catch (err) {
-                    alert("Lỗi mạng kết nối.");
-                  }
-                }}
+              <h3 className="font-display text-sm mb-2">Quản lý Người dùng</h3>
+              <p className="text-sm font-semibold text-[#666] mb-4">
+                Xem danh sách phụ huynh, tài khoản con và cấp quyền Melon Pro.
+              </p>
+              <NbButton 
+                variant="primary" 
+                size="sm" 
+                className="w-full justify-center bg-nb-purple text-white"
+                onClick={() => router.push('/admin/users')}
               >
-                <input 
-                  name="targetUid" 
-                  placeholder="Nhập Parent UID..." 
-                  className="nb-input text-sm" 
-                  required 
-                />
-                <NbButton type="submit" variant="primary" size="sm" className="w-full bg-nb-purple text-white">
-                  Nâng cấp ngay
-                </NbButton>
-              </form>
+                Tới danh sách Users
+              </NbButton>
             </div>
 
             <div className="nb-card rounded-2xl p-6">

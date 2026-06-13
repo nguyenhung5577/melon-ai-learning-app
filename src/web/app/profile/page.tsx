@@ -188,10 +188,15 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {isKid && (
+        {isKid ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <IdentityField label="Child ID" value={user.loginId ?? profile?.loginId ?? "Not assigned"} />
             <IdentityField label="UID" value={user.uid} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <IdentityField label="Email" value={user.email ?? "Not available"} />
+            <IdentityField label="Parent UID" value={user.uid} />
           </div>
         )}
 
