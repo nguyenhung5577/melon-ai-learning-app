@@ -71,6 +71,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Only parent accounts can create child accounts." }, { status: 403 });
     }
 
+    // --- FREEMIUM GUARD: Giới hạn số lượng child account ---
+    const { checkMaxChildrenLimit } = await import("@/lib/server/subscription-guard");
+    const limitCheck = await checkMaxChildrenLimit(parentUid);
+    if (!limitCheck.allowed) {
+      return NextResponse.json({ 
+        error: "subscription_limit_reached",
+        message: `Gói cước hiện tại của bạn chỉ hỗ trợ tối đa ${limitCheck.maxAllowed} tài khoản học sinh. Vui lòng nâng cấp lên Melon Pro để tạo thêm.`,
+        currentCount: limitCheck.currentCount
+      }, { status: 403 });
+    }
+    // --------------------------------------------------------
+
     const data = body.data;
     const loginIdLower = data.loginId.toLowerCase();
     const credentialRef = db.collection("childCredentials").doc(loginIdLower);

@@ -46,7 +46,30 @@ async function buildBackendForm(req: NextRequest): Promise<FormData | NextRespon
   return backendForm;
 }
 
+function getBearerToken(req: NextRequest): string | null {
+  const header = req.headers.get("authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim();
+}
+
 export async function POST(req: NextRequest) {
+  const token = getBearerToken(req);
+  if (!token) {
+    return NextResponse.json({ error: "Missing auth token." }, { status: 401 });
+  }
+
+  // --- FREEMIUM GUARD ---
+  const { requireEntitlement } = await import("@/lib/server/subscription-guard");
+  const guard = await requireEntitlement(token, "canGenerateExercises");
+  if (!guard.allowed) {
+    return NextResponse.json({ 
+      error: guard.error, 
+      message: "Vui lòng nâng cấp lên Melon Pro để sử dụng tính năng Upload tài liệu AI.",
+      requiredPlan: guard.requiredPlan 
+    }, { status: 402 });
+  }
+  // ----------------------
+
   try {
     const backendForm = await buildBackendForm(req);
     if (backendForm instanceof NextResponse) {

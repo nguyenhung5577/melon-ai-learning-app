@@ -9,6 +9,8 @@ import { NbPill } from "@/components/shared/NbPill";
 import { SectionContainer, SectionHeader } from "@/components/shared/SectionHeader";
 import { ChildAvatarPicker } from "@/components/shared/ChildAvatarPicker";
 import { useAuthContext } from "@/lib/auth/auth-context";
+import { useSubscription } from "@/lib/subscription/use-subscription";
+import { PaywallModal } from "@/components/subscription/PaywallModal";
 import {
   userStore,
   type ChildProfile,
@@ -91,8 +93,10 @@ function optionLabel<T extends string>(
 
 export default function FamilyPage() {
   const { user, logout } = useAuthContext();
+  const { entitlements } = useSubscription();
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
@@ -142,6 +146,11 @@ export default function FamilyPage() {
     }
     if (form.learningPreferences.weakTopics.length === 0) {
       setFormError("Choose at least one weak topic.");
+      return;
+    }
+
+    if (entitlements && children.length >= entitlements.maxChildren) {
+      setPaywallOpen(true);
       return;
     }
 
@@ -220,6 +229,8 @@ export default function FamilyPage() {
             </NbPill>
           }
         />
+
+        <PaywallModal isOpen={paywallOpen} onClose={() => setPaywallOpen(false)} featureName="Tạo thêm tài khoản con" />
 
         <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-8 items-start">
           <div className="nb-card rounded-2xl p-6">

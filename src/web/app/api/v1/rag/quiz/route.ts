@@ -46,7 +46,30 @@ function normalizeAnswer(question: BackendQuestion, options: string[]): string {
   return "";
 }
 
+function getBearerToken(req: NextRequest): string | null {
+  const header = req.headers.get("authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim();
+}
+
 export async function POST(req: NextRequest) {
+  const token = getBearerToken(req);
+  if (!token) {
+    return NextResponse.json({ error: "Missing auth token." }, { status: 401 });
+  }
+
+  // --- FREEMIUM GUARD ---
+  const { requireEntitlement } = await import("@/lib/server/subscription-guard");
+  const guard = await requireEntitlement(token, "canGenerateExercises");
+  if (!guard.allowed) {
+    return NextResponse.json({ 
+      error: guard.error, 
+      message: "Vui lòng nâng cấp lên Melon Pro để sử dụng tính năng hỏi đáp AI.",
+      requiredPlan: guard.requiredPlan 
+    }, { status: 402 });
+  }
+  // ----------------------
+
   const body = RequestSchema.safeParse(await req.json());
   if (!body.success) {
     return NextResponse.json({ error: body.error.flatten() }, { status: 400 });

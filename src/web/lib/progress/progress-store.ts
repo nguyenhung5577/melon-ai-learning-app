@@ -628,9 +628,9 @@ export async function writeExerciseAttemptInTransaction(
     updatedAt: now,
   };
 
+  await syncCourseRunAttemptInTransaction(tx, db, record, now);
   tx.set(db.collection("studentExerciseAttempts").doc(record.id), stripUndefined(record));
   stageProgressAndPlan(tx, db, nextProgress, child, now);
-  await syncCourseRunAttemptInTransaction(tx, db, record, now);
   return record;
 }
 

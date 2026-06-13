@@ -92,16 +92,42 @@ export default function AdminDashboard() {
 
           {/* Quick Actions */}
           <div className="flex flex-col gap-6">
-            <div className="nb-card rounded-2xl p-6 bg-nb-orange/10 border-nb-orange">
-              <h3 className="font-display text-sm mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <NbButton variant="secondary" size="sm" icon={<ArrowUpRight className="w-3 h-3" />}>
-                  Export User CSV
+            <div className="nb-card rounded-2xl p-6 bg-nb-purple/10 border-nb-purple">
+              <h3 className="font-display text-sm mb-4">Cấp quyền Melon Pro</h3>
+              <form 
+                className="flex flex-col gap-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const targetUid = (e.target as any).targetUid.value;
+                  if (!targetUid) return;
+                  try {
+                    const token = await user?.getIdToken();
+                    const res = await fetch("/api/v1/admin/subscription", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ targetUid, plan: "pro" })
+                    });
+                    if (res.ok) {
+                      alert(`Đã nâng cấp thành công tài khoản (UID: ${targetUid}) lên gói Pro!`);
+                      (e.target as any).reset();
+                    } else {
+                      alert("Lỗi khi nâng cấp. Có thể bạn không đủ quyền Admin.");
+                    }
+                  } catch (err) {
+                    alert("Lỗi mạng kết nối.");
+                  }
+                }}
+              >
+                <input 
+                  name="targetUid" 
+                  placeholder="Nhập Parent UID..." 
+                  className="nb-input text-sm" 
+                  required 
+                />
+                <NbButton type="submit" variant="primary" size="sm" className="w-full bg-nb-purple text-white">
+                  Nâng cấp ngay
                 </NbButton>
-                <NbButton variant="secondary" size="sm" icon={<ArrowUpRight className="w-3 h-3" />}>
-                  Clear API Cache
-                </NbButton>
-              </div>
+              </form>
             </div>
 
             <div className="nb-card rounded-2xl p-6">

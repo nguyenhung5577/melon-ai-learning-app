@@ -40,7 +40,30 @@ async function forwardJson(req: NextRequest): Promise<Response> {
   });
 }
 
+function getBearerToken(req: NextRequest): string | null {
+  const header = req.headers.get("authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim();
+}
+
 export async function POST(req: NextRequest) {
+  const token = getBearerToken(req);
+  if (!token) {
+    return NextResponse.json({ error: "Missing auth token." }, { status: 401 });
+  }
+
+  // --- FREEMIUM GUARD ---
+  const { requireEntitlement } = await import("@/lib/server/subscription-guard");
+  const guard = await requireEntitlement(token, "canParseProblemsWithAI");
+  if (!guard.allowed) {
+    return NextResponse.json({ 
+      error: guard.error, 
+      message: "Vui lòng nâng cấp lên Melon Pro để sử dụng tính năng Bóc tách đề bằng AI.",
+      requiredPlan: guard.requiredPlan 
+    }, { status: 402 });
+  }
+  // ----------------------
+
   try {
     const contentType = req.headers.get("content-type") ?? "";
     const res = contentType.includes("multipart/form-data")
