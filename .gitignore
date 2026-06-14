@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+
+# Runtime data / generated media
+chroma_db/
+**/chroma_db/
+uploads/
+**/uploads/
+generations/
+**/generations/
+src/web/.melon-progress/
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.ogg
+*.flac
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# macOS
+.DS_Store
