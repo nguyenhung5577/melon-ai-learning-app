@@ -110,7 +110,9 @@ export default function FamilyPage() {
 
   useEffect(() => {
     if (!user || user.role !== "parent") return;
-    userStore.getChildrenForParent(user.uid).then(setChildren);
+    userStore.getChildrenForParent(user.uid)
+      .then(setChildren)
+      .catch((e) => console.warn("Lỗi ngầm Firebase khi tải danh sách con, bỏ qua để không hiện bảng đỏ", e));
   }, [user]);
 
   async function handleCreateChild() {

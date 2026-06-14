@@ -44,6 +44,7 @@ export async function POST(req: Request) {
         // Tự động nâng cấp tài khoản lên Melon Pro
         await db.collection("subscriptions").doc(parentUid).set({
           plan: "pro",
+          status: "active",
           stripeCustomerId: customerId,
           stripeSubscriptionId: subscriptionId,
           updatedAt: new Date().toISOString(),

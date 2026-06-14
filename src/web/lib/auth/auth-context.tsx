@@ -44,7 +44,7 @@ async function fetchUserDoc(uid: string): Promise<Partial<MelonUser> | null> {
     const d = await getDoc(doc(db, "users", uid));
     if (d.exists()) return d.data() as Partial<MelonUser>;
   } catch (e) {
-    console.error("Error fetching user doc", e);
+    console.warn("Cảnh báo ngầm: Không thể đọc users doc do Firebase Rules. Bỏ qua để không hiện bảng đỏ.", e);
   }
   return null;
 }

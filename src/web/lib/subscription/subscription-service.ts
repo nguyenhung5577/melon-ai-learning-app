@@ -19,6 +19,7 @@ export async function getUserSubscription(uid: string): Promise<Subscription> {
   }
 
   const data = subSnap.data() as Subscription;
+  if (!data.status) data.status = "active";
   
   // Kiểm tra hạn sử dụng (Grace period / Expiration logic)
   if (data.expiresAt && new Date(data.expiresAt) < new Date()) {

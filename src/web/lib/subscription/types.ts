@@ -23,7 +23,7 @@ export const FREE_ENTITLEMENTS: Entitlements = {
 
 // Quyền của gói Trả phí (Pro)
 export const PRO_ENTITLEMENTS: Entitlements = {
-  maxChildren: 5,
+  maxChildren: 999, // Không giới hạn
   canParseProblemsWithAI: true,
   canGenerateExercises: true,
 };

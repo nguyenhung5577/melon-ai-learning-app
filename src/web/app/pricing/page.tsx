@@ -33,15 +33,15 @@ export default function PricingPage() {
       });
       const data = await res.json();
       
-      if (res.ok && data.sessionId) {
-        const stripe = await stripePromise;
-        await stripe?.redirectToCheckout({ sessionId: data.sessionId });
+      if (res.ok && data.url) {
+        window.location.href = data.url;
       } else {
         toast.error(data.error || "Không thể khởi tạo thanh toán. Vui lòng thử lại.");
         setLoading(false);
       }
-    } catch (err) {
-      toast.error("Lỗi kết nối máy chủ thanh toán.");
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Lỗi Front-end bắt được: " + (err?.message || String(err)));
       setLoading(false);
     }
   };
