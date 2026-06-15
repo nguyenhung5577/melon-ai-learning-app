@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getMelonAiBackendUrl, getMelonAiEndpoint } from "@/lib/server/melon-ai-backend";
+import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
+import { getUserSubscription, getEntitlements } from "@/lib/subscription/subscription-service";
 
 const RequestSchema = z.object({
   question: z.string().min(1),
@@ -11,6 +13,36 @@ const RequestSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return NextResponse.json({ error: "Missing Auth Header" }, { status: 401 });
+  }
+
+  try {
+    const token = authHeader.split("Bearer ")[1];
+    const decoded = await adminAuth().verifyIdToken(token);
+    const uid = decoded.uid;
+
+    let parentUid = uid;
+    const childDoc = await adminDb().collection("children").doc(uid).get();
+    if (childDoc.exists) {
+      parentUid = childDoc.data()?.linkedParentUid;
+    }
+
+    const subscription = await getUserSubscription(parentUid);
+    const entitlements = getEntitlements(subscription);
+
+    if (!entitlements.aiCoaching) {
+      return NextResponse.json(
+        { error: "Tính năng AI yêu cầu gói Pro. Vui lòng nhờ Phụ huynh nâng cấp!" },
+        { status: 403 }
+      );
+    }
+  } catch (error: any) {
+    console.error("Auth Error in AI Hint API:", error);
+    return NextResponse.json({ error: "Lỗi hệ thống xác thực. Vui lòng thử lại." }, { status: 401 });
+  }
+
   const body = RequestSchema.safeParse(await req.json());
   if (!body.success) {
     return NextResponse.json({ error: body.error.flatten() }, { status: 400 });

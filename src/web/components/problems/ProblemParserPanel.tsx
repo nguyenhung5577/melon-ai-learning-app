@@ -1,11 +1,13 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent } from "react";
-import { FileText, Languages, Save, Upload } from "lucide-react";
+import { FileText, Languages, Save, Upload, AlertCircle } from "lucide-react";
 import { collections } from "@/lib/db/firestore";
 import { setDocument } from "@/lib/db/firestore-helpers";
 import { uploadFile } from "@/lib/storage/upload";
+import { auth } from "@/lib/auth/firebase";
 import type { ProblemParseResponse, ProblemParseResult, ProblemParseSet } from "@/lib/problems/types";
+import { useSubscription } from "@/lib/subscription/use-subscription";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { QuestionMedia } from "@/components/problems/QuestionMedia";
@@ -85,6 +87,9 @@ function ensureParseResultIds<T extends ProblemParseResult>(parsedResult: T, res
 }
 
 export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
+  const { entitlements, loading: subLoading } = useSubscription();
+  const canParse = subLoading ? true : (entitlements?.canParseProblemsWithAI ?? false);
+
   const [files, setFiles] = useState<File[]>([]);
   const [text, setText] = useState("");
   const [pageRange, setPageRange] = useState("");
@@ -130,10 +135,13 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
     setActiveResultIndex(0);
 
     try {
+      const token = await auth.currentUser?.getIdToken();
+
       const response =
         files.length > 0
           ? await fetch("/api/v1/problems/parse", {
               method: "POST",
+              headers: token ? { "Authorization": `Bearer ${token}` } : undefined,
               body: (() => {
                 const formData = new FormData();
                 files.forEach((file) => formData.append("files", file, file.name));
@@ -149,7 +157,10 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
             })
           : await fetch("/api/v1/problems/parse", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { 
+                "Content-Type": "application/json",
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
+              },
               body: JSON.stringify({
                 sourceType: "text",
                 text,
@@ -342,22 +353,38 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
             multiple
             accept="image/*,application/pdf,text/plain,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             onChange={handleFileChange}
+            disabled={!canParse}
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className={cn(
-              "w-full min-h-28 border-2 border-dashed border-nb-black rounded-xl",
-              "bg-nb-bg cursor-pointer flex flex-col items-center justify-center gap-2 p-4",
-              "hover:bg-nb-yellow/30 transition-colors"
-            )}
-          >
-            <Upload className="w-6 h-6" />
-            <span className="text-sm font-bold">Upload PDF, DOCX hoặc ảnh nhiều trang</span>
-            <span className="text-[0.7rem] text-[#555]">
-              {files.length > 0 ? `Đã chọn ${files.length} file` : "JPG, PNG, PDF, DOCX, TXT"}
-            </span>
-          </button>
+          {!canParse ? (
+            <div
+              className={cn(
+                "w-full min-h-28 border-2 border-dashed border-nb-red rounded-xl",
+                "bg-[#ffebeb] flex flex-col items-center justify-center gap-2 p-4"
+              )}
+            >
+              <AlertCircle className="w-6 h-6 text-nb-red" />
+              <span className="text-sm font-bold text-nb-red">Tính năng yêu cầu gói Pro</span>
+              <span className="text-[0.7rem] font-semibold text-nb-red">
+                Vui lòng nhờ Phụ huynh nâng cấp để sử dụng AI đọc đề
+              </span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={cn(
+                "w-full min-h-28 border-2 border-dashed border-nb-black rounded-xl",
+                "bg-nb-bg cursor-pointer flex flex-col items-center justify-center gap-2 p-4",
+                "hover:bg-nb-yellow/30 transition-colors"
+              )}
+            >
+              <Upload className="w-6 h-6" />
+              <span className="text-sm font-bold">Upload PDF, DOCX hoặc ảnh nhiều trang</span>
+              <span className="text-[0.7rem] text-[#555]">
+                {files.length > 0 ? `Đã chọn ${files.length} file` : "JPG, PNG, PDF, DOCX, TXT"}
+              </span>
+            </button>
+          )}
           {files.length > 0 && (
             <div className="mt-3 flex flex-col gap-1">
               {files.map((file) => (
@@ -389,7 +416,8 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
             className="nb-input text-sm min-h-40 resize-y"
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Dán nội dung đề và đáp án ở đây..."
+            disabled={!canParse}
+            placeholder={!canParse ? "Tính năng yêu cầu gói Pro..." : "Dán nội dung đề và đáp án ở đây..."}
           />
         </label>
 

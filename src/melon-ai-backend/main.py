@@ -10,9 +10,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-print("[BẢO HIỂM BACKEND] Kiểm tra key cấu hình...")
-print("OpenRouter API Key:", os.getenv("OPENROUTER_API_KEY")[:15] + "..." if os.getenv("OPENROUTER_API_KEY") else "❌ BỊ THIẾU")
-print("ElevenLabs API Key:", os.getenv("ELEVENLABS_API_KEY")[:15] + "..." if os.getenv("ELEVENLABS_API_KEY") else "❌ BỊ THIẾU")
+print("[BACKEND] Checking config keys...")
+print("OpenRouter API Key:", os.getenv("OPENROUTER_API_KEY")[:15] + "..." if os.getenv("OPENROUTER_API_KEY") else "[MISSING]")
+print("ElevenLabs API Key:", os.getenv("ELEVENLABS_API_KEY")[:15] + "..." if os.getenv("ELEVENLABS_API_KEY") else "[MISSING]")
 
 app = FastAPI(title="Melon AI Backend", description="AI API for Melon Education App")
 

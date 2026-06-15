@@ -15,6 +15,7 @@ import {
   Zap,
 } from "lucide-react";
 import { auth } from "@/lib/auth/firebase";
+import { useAuthContext } from "@/lib/auth/auth-context";
 import type { QuestionBankQuestion } from "@/lib/problems/types";
 import type {
   CourseQuestionFilter,
@@ -479,6 +480,7 @@ export function PersonalizedExercisePanel({
   autoStart = false,
 }: PersonalizedExercisePanelProps) {
   const router = useRouter();
+  const { user } = useAuthContext();
   const [plan, setPlan] = useState<StudentPersonalizedPlanRecord | null>(null);
   const [courseRuns, setCourseRuns] = useState<CourseRunSnapshot[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
@@ -726,9 +728,24 @@ export function PersonalizedExercisePanel({
     setHintText("Cosmo đang tách bài thành các bước nhỏ...");
 
     try {
+      let token = await auth?.currentUser?.getIdToken();
+      if (!token) {
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 100));
+          token = await auth?.currentUser?.getIdToken();
+          if (token) break;
+        }
+      }
+      if (!token) {
+        throw new Error("Lỗi tải thông tin đăng nhập. Vui lòng F5 lại trang!");
+      }
+
       const res = await fetch("/api/v1/exercise/guide", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           question: currentQuestion.stem,
           studentAnswer: answerOverride ?? submittedAnswer,
@@ -741,8 +758,8 @@ export function PersonalizedExercisePanel({
         throw new Error(data.error ?? "Không tạo được gợi ý.");
       }
       setHintText(data.guidance || "Gợi ý: đọc lại đề hỏi gì, gạch dữ kiện quan trọng, rồi chọn phép tính phù hợp.");
-    } catch {
-      setHintText("Gợi ý: đọc lại đề hỏi gì, tìm dữ kiện cần dùng, rồi thử giải bằng một phép tính đơn giản trước.");
+    } catch (err: any) {
+      setHintText(err.message || "Gợi ý: đọc lại đề hỏi gì, tìm dữ kiện cần dùng, rồi thử giải bằng một phép tính đơn giản trước.");
     } finally {
       setHintLoading(false);
     }
