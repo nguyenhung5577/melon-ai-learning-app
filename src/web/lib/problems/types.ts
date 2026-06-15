@@ -30,7 +30,9 @@ export interface QuestionSet {
   sourceFiles: string[];
   createdAt?: string;
   updatedAt?: string;
+  isAiGenerated?: boolean;
 }
+
 
 export interface ParsedQuestion {
   id: string;
@@ -76,6 +78,36 @@ export interface QuestionBankMeta {
   questionCount: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface GenerationMeta {
+  basedOnPlanId: string | null;
+  targetConcepts: string[];
+  rubricDistribution: Record<string, number>;
+  exerciseAccuracyAtGen: number;
+  sourceQuestionIds: string[];
+  generatedAt: string;
+}
+
+export interface GeneratedQuestionSet {
+  id: string;
+  childUid: string;
+  title: string;
+  grade: number;
+  subject: "math";
+  questionIds: string[];
+  questionCount: number;
+  status: "ready" | "in_progress" | "completed";
+  createdAt: string;
+  updatedAt: string;
+  generationMeta: GenerationMeta;
+}
+
+export interface GeneratedQuestion extends ParsedQuestion {
+  childUid: string;
+  generatedSetId: string;
+  rubricLevel: RubricLevel;
+  sourceQuestionId?: string;
 }
 
 export interface QuestionAttempt {

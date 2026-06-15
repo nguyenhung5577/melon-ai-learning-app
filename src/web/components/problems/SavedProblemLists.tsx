@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { where } from "firebase/firestore";
-import { Bot, ChevronLeft, ChevronRight, Eye, Pencil, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { Bot, ChevronLeft, ChevronRight, Eye, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from "lucide-react";
+import { auth } from "@/lib/auth/firebase";
 import { collections } from "@/lib/db/firestore";
 import { deleteDocument, queryDocuments, setDocument, updateDocument } from "@/lib/db/firestore-helpers";
 import type {
+  GeneratedQuestion,
+  GeneratedQuestionSet,
   ParsedChoice,
   ParsedQuestion,
   QuestionBankQuestion,
@@ -444,6 +447,25 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
   const [classifying, setClassifying] = useState(false);
   const [classifyProgress, setClassifyProgress] = useState<{ classified: number; total: number } | null>(null);
 
+  // Smart exam generation state
+  const [generating, setGenerating] = useState(false);
+  const [generatedSets, setGeneratedSets] = useState<GeneratedQuestionSet[]>([]);
+  const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
+
+  const hasGeneratedToday = useMemo(() => {
+    const nowVN = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    return generatedSets.some((set) => {
+      if (!set.createdAt) return false;
+      const createdDate = new Date(set.createdAt);
+      const createdVN = new Date(createdDate.getTime() + 7 * 60 * 60 * 1000);
+      return (
+        createdVN.getUTCFullYear() === nowVN.getUTCFullYear() &&
+        createdVN.getUTCMonth() === nowVN.getUTCMonth() &&
+        createdVN.getUTCDate() === nowVN.getUTCDate()
+      );
+    });
+  }, [generatedSets]);
+
   const loadSavedProblems = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -462,12 +484,47 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
           collections.studentSubmissions,
           where("uid", "==", uid)
         );
-        const [savedSets, savedQuestions] = await Promise.all([
+        const [savedSets, savedQuestions, genSets, genQuestions] = await Promise.all([
           queryDocuments(collections.questionSets),
           queryDocuments(collections.questionBank),
+          queryDocuments(collections.generatedQuestionSets, where("childUid", "==", uid)).catch((err) => {
+            console.error("Lỗi tải generatedQuestionSets:", err);
+            return [] as GeneratedQuestionSet[];
+          }),
+          queryDocuments(collections.generatedQuestions, where("childUid", "==", uid)).catch((err) => {
+            console.error("Lỗi tải generatedQuestions:", err);
+            return [] as GeneratedQuestion[];
+          }),
         ]);
-        setQuestionSets(sortNewest(savedSets));
-        setQuestions(savedQuestions);
+        setGeneratedSets(sortNewest(genSets));
+        setGeneratedQuestions(genQuestions);
+
+        // Merge generated sets into questionSets for PracticeExamPanel
+        const genAsSets: QuestionSet[] = genSets.map((gs) => ({
+          id: gs.id,
+          title: gs.title,
+          grade: gs.grade,
+          subject: gs.subject,
+          language: "vi" as const,
+          sourceFiles: [],
+          createdAt: gs.createdAt,
+          updatedAt: gs.updatedAt,
+          isAiGenerated: true,
+        }));
+        const genAsQuestions: QuestionBankQuestion[] = genQuestions.map((gq) => ({
+          ...gq,
+          sourceSetId: gq.generatedSetId,
+          sourceTitle: genSets.find((s) => s.id === gq.generatedSetId)?.title ?? "Đề AI",
+          sourceFiles: [],
+          sourcePageRange: "",
+          rubricLevel: gq.rubricLevel ?? "unclassified",
+          createdBy: "ai-smart-gen",
+          updatedBy: "ai-smart-gen",
+          classifiedAt: gq.createdAt ?? null,
+        }));
+
+        setQuestionSets(sortNewest([...savedSets, ...genAsSets]));
+        setQuestions([...savedQuestions, ...genAsQuestions]);
         setSubmissions(sortNewest(savedSubmissions));
       }
     } catch (loadError) {
@@ -928,6 +985,73 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
       )}
 
       {error && <p className="text-sm font-bold text-nb-red">{error}</p>}
+
+      {mode === "student" && !exerciseActive && (
+        <div className="nb-card rounded-2xl bg-gradient-to-br from-[#fff4e0] to-[#fff9ed] p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <Sparkles className="h-5 w-5 text-nb-orange" />
+                <h3 className="font-display text-sm">Tự động thiết kế đề ôn tập riêng cho con</h3>
+              </div>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-[#555]">
+                Melon sẽ thiết kế đề ôn tập cá nhân hóa dựa trên những câu làm
+                đúng/sai trước đây của con để giúp con bứt phá điểm số! Câu sai sẽ
+                được ôn lại, câu đúng sẽ được nâng cấp độ khó.
+              </p>
+              {generatedSets.length > 0 && (
+                <p className="mt-2 text-xs font-bold text-[#888]">
+                  Đã tạo {generatedSets.length} đề ôn tập trước đó
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col items-center md:items-end gap-2 shrink-0">
+              <NbButton
+                type="button"
+                variant="primary"
+                size="lg"
+                loading={generating}
+                disabled={generating || !uid || hasGeneratedToday}
+                onClick={async () => {
+                  setGenerating(true);
+                  setError(null);
+                  try {
+                    const token = await auth?.currentUser?.getIdToken();
+                    if (!token) throw new Error("Chưa đăng nhập.");
+                    const res = await fetch("/api/v1/practice/generate-smart-set", {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                      },
+                    });
+                    if (!res.ok) {
+                      const data = await res.json().catch(() => ({}));
+                      throw new Error((data as { error?: string }).error || `Lỗi ${res.status}`);
+                    }
+                    // Reload all data to show the new generated set
+                    await loadSavedProblems();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Không thể tạo đề ôn tập.");
+                  } finally {
+                    setGenerating(false);
+                  }
+                }}
+              >
+                <Sparkles className="h-4 w-4" />
+                {hasGeneratedToday
+                  ? "Đã thiết kế đề hôm nay"
+                  : generating
+                    ? "Đang thiết kế đề..."
+                    : "Thiết kế đề cho con"}
+              </NbButton>
+              <p className="text-[0.7rem] font-bold text-nb-orange/80 text-center md:text-right">
+                * Mỗi ngày con chỉ được thiết kế tối đa 1 đề
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {mode === "student" && (
         <PracticeExamPanel

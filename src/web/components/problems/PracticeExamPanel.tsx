@@ -10,6 +10,7 @@ import {
   Eye,
   FileText,
   RefreshCcw,
+  Sparkles,
   Target,
   Trophy,
 } from "lucide-react";
@@ -663,6 +664,11 @@ export function PracticeExamPanel({
               <div className="mt-4 flex flex-wrap gap-2">
                 <NbPill color="green">{exam.questions.length} câu</NbPill>
                 <NbPill color="yellow">Làm trọn đề</NbPill>
+                {exam.set.isAiGenerated && (
+                  <NbPill color="orange" icon={<Sparkles className="h-3 w-3" />}>
+                    Đề tổng hợp của melon
+                  </NbPill>
+                )}
               </div>
 
               <p className="mt-4 text-sm font-semibold leading-relaxed text-[#555]">
