@@ -912,14 +912,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
       {!exerciseActive && (
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="font-display text-sm">
-            {mode === "admin" ? "Đề đã lưu" : "Lịch sử đề của em"}
-          </h3>
-          <p className="text-sm font-semibold text-[#555]">
-            {mode === "admin"
-              ? "Admin xem kho đề chung và đề học sinh đã gửi"
-              : "Các đề em đã đọc và bấm lưu lịch sử"}
-          </p>
+          <h3 className="font-display text-sm">Đề đã lưu</h3>
         </div>
         <NbButton variant="ghost" size="sm" loading={loading} onClick={loadSavedProblems}>
           <RefreshCw className="w-4 h-4" />
@@ -943,7 +936,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
         <div className="nb-card rounded-2xl bg-white p-5">
           <div className="flex items-center justify-between gap-3">
             <h4 className="font-display text-xs">
-              {mode === "admin" ? "Câu hỏi kho chung" : "Kho luyện tập chung"}
+              {mode === "admin" ? "Chưa có đề." : "Chưa có đề."}
             </h4>
             <NbPill color="orange">{filteredQuestions.length} câu</NbPill>
           </div>
@@ -1255,7 +1248,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
         <div className="mt-4 flex flex-col gap-3">
           {submissions.length === 0 ? (
             <p className="text-sm font-semibold text-[#666]">
-              {mode === "admin" ? "Chưa có đề học sinh gửi." : "Em chưa lưu đề nào."}
+              {mode === "admin" ? "Chưa có đề." : "Chưa có đề."}
             </p>
           ) : (
             visibleSubmissions.map((submission) => {

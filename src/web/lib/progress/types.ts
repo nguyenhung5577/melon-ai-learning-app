@@ -167,7 +167,7 @@ export interface StudentPersonalizedPlanRecord {
   nextBestActions?: PersonalizedNextAction[];
   weaknessSummary?: PersonalizedWeaknessSummary[];
   reasonSummary: string;
-  source: "rules_v1" | "llm_v1";
+  source: "rules_v1" | "rules_v2" | "llm_v1";
   createdAt?: string;
   updatedAt: string;
 }
@@ -260,6 +260,7 @@ export interface StudentCourseRunRecord {
   status: CourseRunStatus;
   priorityScore: number;
   personalizedReason: string;
+  visibleStageIds?: string[];
   currentStageId: string;
   currentStageOrder: number;
   stageProgress: Record<string, StudentCourseStageProgress>;
@@ -276,6 +277,8 @@ export interface CourseRunSnapshot {
   pipeline: CoursePipelineDefinition;
   run: StudentCourseRunRecord;
   currentStage: CoursePipelineStage;
+  attemptedQuestionIds?: string[];
+  attemptedQuestionIdsByStage?: Record<string, string[]>;
 }
 
 export interface DailyProgressPoint {

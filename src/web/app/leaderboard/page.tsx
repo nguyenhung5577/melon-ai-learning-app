@@ -1,16 +1,16 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
-import { KidShell } from "@/components/layout/KidShell";
-import { AuthModal } from "@/components/auth/AuthModal";
-import { SectionContainer } from "@/components/shared/SectionHeader";
-import { NbPill } from "@/components/shared/NbPill";
-import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
-import { useAuthContext } from "@/lib/auth/auth-context";
-import { gamificationStore } from "@/lib/gamification/gamification-store";
-import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { AuthModal } from "@/components/auth/AuthModal";
+import { KidShell } from "@/components/layout/KidShell";
+import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
+import { NbPill } from "@/components/shared/NbPill";
+import { SectionContainer } from "@/components/shared/SectionHeader";
+import { useAuthContext } from "@/lib/auth/auth-context";
+import { cn } from "@/lib/utils";
 
 interface LeaderEntry {
   rank: number;
@@ -22,24 +22,11 @@ interface LeaderEntry {
   isYou?: boolean;
 }
 
-const DEMO_BOARD: Omit<LeaderEntry, "isYou">[] = [
-  { rank: 1, uid: "u1", name: "Minh Khôi",    emoji: "🦁", level: 8,  xp: 1540 },
-  { rank: 2, uid: "u2", name: "Hà Linh",      emoji: "🦊", level: 7,  xp: 1380 },
-  { rank: 3, uid: "u3", name: "Thanh Tùng",   emoji: "🐼", level: 6,  xp: 1200 },
-  { rank: 4, uid: "u4", name: "Ngọc Mai",     emoji: "🦋", level: 5,  xp: 1050 },
-  { rank: 5, uid: "u5", name: "Bảo Long",     emoji: "🐬", level: 4,  xp: 870  },
-  { rank: 6, uid: "u6", name: "Hoàng Anh",    emoji: "🦝", level: 3,  xp: 700  },
-  { rank: 7, uid: "u7", name: "Thu Hà",       emoji: "🐧", level: 3,  xp: 620  },
-  { rank: 8, uid: "u8", name: "Đức Duy",      emoji: "🐸", level: 2,  xp: 500  },
-];
-
 export default function LeaderboardPage() {
   const { user, logout } = useAuthContext();
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
-  const [board, setBoard] = useState<LeaderEntry[]>(() =>
-    DEMO_BOARD.map((e) => ({ ...e, isYou: false }))
-  );
+  const [board, setBoard] = useState<LeaderEntry[]>([]);
 
   const handleLogout = async () => {
     await logout();
@@ -50,30 +37,31 @@ export default function LeaderboardPage() {
     if (!user) {
       return;
     }
-    gamificationStore.seedDemoData(user.uid).then(async () => {
-      const data = await gamificationStore.getData(user.uid);
 
-      const myEntry: Omit<LeaderEntry, "isYou"> = {
-        rank: 0, // Will be calculated
-        uid: user.uid,
-        name: user.displayName ?? "You",
-        // Prefer custom avatarUrl, then photoURL, then star emoji
-        emoji: user.avatarUrl || user.photoURL || "⭐",
-        level: data.level,
-        xp: data.totalXp,
-      };
+    let mounted = true;
 
-      // Combine real user with demo bots and sort by XP descending
-      const allEntries = [...DEMO_BOARD, myEntry]
-        .sort((a, b) => b.xp - a.xp)
-        .map((e, i) => ({ 
-          ...e, 
-          rank: i + 1, 
-          isYou: e.uid === user.uid 
-        }));
+    async function loadBoard() {
+      try {
+        const res = await fetch("/api/v1/leaderboard", { cache: "no-store" });
+        const payload = (await res.json()) as { entries?: LeaderEntry[] };
+        if (!res.ok || !payload.entries || !mounted) return;
+        setBoard(
+          payload.entries.map((entry) => ({
+            ...entry,
+            isYou: entry.uid === user.uid,
+          }))
+        );
+      } catch {
+        if (!mounted) return;
+        setBoard([]);
+      }
+    }
 
-      setBoard(allEntries);
-    });
+    void loadBoard();
+
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
   return (
@@ -84,38 +72,38 @@ export default function LeaderboardPage() {
       onLogout={handleLogout}
     >
       <KidOnlyGuard>
-      {/* Dark header */}
-      <section className="px-6 py-8 bg-nb-black [border-bottom:var(--nb-border)]">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div>
-            <h1 className="font-display text-h1 text-nb-yellow">🏆 Leaderboard</h1>
-            <p className="text-white/60 text-sm font-semibold mt-1">
-              Top learners this week
-            </p>
+        <section className="bg-nb-black px-6 py-8 [border-bottom:var(--nb-border)]">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h1 className="font-display text-h1 text-nb-yellow">🏆 Xếp hạng</h1>
+            </div>
+            <NbPill color="yellow" icon={<Trophy className="h-3 w-3" />}>
+              {board.length} người chơi
+            </NbPill>
           </div>
-          <NbPill color="yellow" icon={<Trophy className="w-3 h-3" />}>
-            {board.length} players
-          </NbPill>
-        </div>
 
-        {/* Top 3 podium */}
-        {board.length >= 3 && (
-          <div className="flex items-end justify-center gap-4 mt-8 mb-2">
-            <PodiumItem entry={board[1]} />
-            <PodiumItem entry={board[0]} crown />
-            <PodiumItem entry={board[2]} />
-          </div>
-        )}
-      </section>
+          {board.length >= 3 ? (
+            <div className="mb-2 mt-8 flex items-end justify-center gap-4">
+              <PodiumItem entry={board[1]} />
+              <PodiumItem entry={board[0]} crown />
+              <PodiumItem entry={board[2]} />
+            </div>
+          ) : null}
+        </section>
 
-      {/* Full list */}
-      <SectionContainer background="black">
-        <div className="flex flex-col gap-3">
-          {board.map((entry) => (
-            <LeaderRow key={entry.uid} entry={entry} />
-          ))}
-        </div>
-      </SectionContainer>
+        <SectionContainer background="black">
+          {board.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              {board.map((entry) => (
+                <LeaderRow key={entry.uid} entry={entry} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border-2 border-dashed border-white/20 py-16 text-center text-sm font-semibold text-white/60">
+              Chưa có dữ liệu xếp hạng.
+            </div>
+          )}
+        </SectionContainer>
       </KidOnlyGuard>
 
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
@@ -132,23 +120,21 @@ function PodiumItem({
 }) {
   return (
     <div className="flex flex-col items-center gap-2">
-      {crown && <div className="text-2xl">👑</div>}
+      {crown ? <div className="text-2xl">👑</div> : null}
       <div
-        className="w-14 h-14 rounded-full flex items-center justify-center text-3xl [border:3px_solid_rgba(255,255,255,0.4)] [box-shadow:0_0_0_0] overflow-hidden"
+        className="relative h-14 w-14 overflow-hidden rounded-full text-3xl [border:3px_solid_rgba(255,255,255,0.4)]"
         style={{ background: entry.isYou ? "#ffde59" : "rgba(255,255,255,0.1)" }}
       >
         {entry.emoji.startsWith("http") ? (
-          <img src={entry.emoji} alt="" className="w-full h-full object-cover" />
+          <Image src={entry.emoji} alt="" fill sizes="56px" className="object-cover" />
         ) : (
-          entry.emoji
+          <div className="flex h-full w-full items-center justify-center">{entry.emoji}</div>
         )}
       </div>
-      <div className="text-xs font-black text-white text-center max-w-[70px] truncate">
+      <div className="max-w-[70px] truncate text-center text-xs font-black text-white">
         {entry.name.split(" ")[0]}
       </div>
-      <div
-        className="font-display text-[0.6rem] bg-nb-orange text-nb-black px-2 py-0.5 rounded"
-      >
+      <div className="rounded bg-nb-orange px-2 py-0.5 font-display text-[0.6rem] text-nb-black">
         #{entry.rank}
       </div>
     </div>
@@ -165,70 +151,51 @@ function LeaderRow({ entry }: { entry: LeaderEntry }) {
   return (
     <div
       className={cn(
-        "relative flex items-center gap-4 px-5 py-4 rounded-2xl [border:3px_solid_rgba(255,255,255,0.15)]",
-        "transition-all duration-150",
+        "relative flex items-center gap-4 rounded-2xl px-5 py-4 [border:3px_solid_rgba(255,255,255,0.15)] transition-all duration-150",
         entry.isYou
-          ? "bg-[rgba(255,222,89,0.15)] [border-color:var(--nb-yellow)] pulse-you"
-          : "bg-[rgba(255,255,255,0.06)] hover:bg-[rgba(255,255,255,0.1)] hover:translate-x-1"
+          ? "pulse-you bg-[rgba(255,222,89,0.15)] [border-color:var(--nb-yellow)]"
+          : "bg-[rgba(255,255,255,0.06)] hover:translate-x-1 hover:bg-[rgba(255,255,255,0.1)]"
       )}
     >
-      {/* Rank badge */}
       <div
         className={cn(
-          "w-11 h-11 rounded-xl [border:3px_solid_rgba(255,255,255,0.3)] flex items-center justify-center flex-shrink-0",
-          "font-display text-base",
+          "flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl font-display text-base [border:3px_solid_rgba(255,255,255,0.3)]",
           rankColors[entry.rank] ?? "bg-transparent text-white"
         )}
       >
         {entry.rank <= 3 ? entry.rank : entry.isYou ? "YOU" : entry.rank}
       </div>
 
-      {/* Avatar */}
       <div
         className={cn(
-          "w-11 h-11 rounded-full flex items-center justify-center text-2xl flex-shrink-0 overflow-hidden",
-          "[border:3px_solid_rgba(255,255,255,0.4)]",
+          "relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-2xl [border:3px_solid_rgba(255,255,255,0.4)]",
           entry.isYou && "[border-color:var(--nb-yellow)] [box-shadow:0_0_0_3px_rgba(255,222,89,0.4)]"
         )}
       >
         {entry.emoji.startsWith("http") ? (
-          <img src={entry.emoji} alt="" className="w-full h-full object-cover" />
+          <Image src={entry.emoji} alt="" fill sizes="44px" className="object-cover" />
         ) : (
           entry.emoji
         )}
       </div>
 
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <div
-          className={cn(
-            "font-black text-base truncate",
-            entry.isYou ? "text-nb-yellow" : "text-white"
-          )}
-        >
+      <div className="min-w-0 flex-1">
+        <div className={cn("truncate text-base font-black", entry.isYou ? "text-nb-yellow" : "text-white")}>
           {entry.name}
         </div>
-        <div className="text-[0.65rem] font-bold text-white/50 uppercase">
+        <div className="text-[0.65rem] font-bold uppercase text-white/50">
           Level {entry.level}
         </div>
       </div>
 
-      {/* Score */}
-      <div className="flex flex-col items-end flex-shrink-0">
-        <div
-          className={cn(
-            "font-display text-base",
-            entry.isYou ? "text-nb-yellow" : "text-nb-orange"
-          )}
-        >
+      <div className="flex flex-shrink-0 flex-col items-end">
+        <div className={cn("font-display text-base", entry.isYou ? "text-nb-yellow" : "text-nb-orange")}>
           {entry.xp.toLocaleString()}
         </div>
-        <div className="text-[0.6rem] font-bold text-white/40 uppercase">XP</div>
+        <div className="text-[0.6rem] font-bold uppercase text-white/40">XP</div>
       </div>
 
-      {entry.rank === 1 && (
-        <div className="absolute right-3 -top-1 text-xl">👑</div>
-      )}
+      {entry.rank === 1 ? <div className="absolute -top-1 right-3 text-xl">👑</div> : null}
     </div>
   );
 }

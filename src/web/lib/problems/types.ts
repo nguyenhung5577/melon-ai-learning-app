@@ -12,12 +12,15 @@ export type RubricLevel =
 export interface ParsedChoice {
   key: string;
   text: string;
+  textMarkdown?: string;
 }
 
 export interface ParsedSubQuestion {
   label: string;
   stem: string;
+  stemMarkdown?: string;
   answerText?: string;
+  answerTextMarkdown?: string;
   explanation?: string;
 }
 
@@ -41,15 +44,19 @@ export interface ParsedQuestion {
   questionNumber: number;
   type: ProblemType;
   stem: string;
+  stemMarkdown?: string;
   choices: ParsedChoice[];
   subQuestions: ParsedSubQuestion[];
   answer: string;
   answerText: string;
+  answerTextMarkdown?: string;
   answerSource: AnswerSource;
   explanation: string;
   imageUrls: string[];
   visualDescription: string;
+  visualDescriptionMarkdown?: string;
   rawText: string;
+  rawTextMarkdown?: string;
   confidence: number;
   concepts?: string[];
   skills?: string[];

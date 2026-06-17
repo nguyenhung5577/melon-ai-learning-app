@@ -1,22 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
-  BarChart3,
   BatteryCharging,
   BookOpen,
   CheckCircle2,
   Cloud,
   Crown,
   Flag,
-  Info,
   LockKeyhole,
   Mountain,
-  RefreshCcw,
-  Rocket,
   Shield,
   Sparkles,
   Star,
@@ -31,11 +26,11 @@ import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
 import { NbPill } from "@/components/shared/NbPill";
 import { SectionContainer } from "@/components/shared/SectionHeader";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import type { CourseRunSnapshot, CourseStageStatus, CourseStageType } from "@/lib/progress/types";
+import type { CourseRunSnapshot, CourseStageType } from "@/lib/progress/types";
 import { cn } from "@/lib/utils";
 
 type JourneyState = "completed" | "current" | "retry" | "ready" | "skipped" | "locked";
-type TagTone = "priority" | "momentum" | "review" | "today" | "done" | "locked";
+type TagTone = "priority" | "momentum" | "review" | "today" | "done";
 
 const stageOffsets = [
   "sm:translate-y-5",
@@ -51,38 +46,16 @@ const tagStyles: Record<TagTone, string> = {
   review: "border-[#0e0e0e] bg-nb-blue text-nb-black shadow-[3px_3px_0_#0e0e0e]",
   today: "border-[#0e0e0e] bg-nb-purple text-nb-black shadow-[3px_3px_0_#0e0e0e]",
   done: "border-[#0e0e0e] bg-nb-yellow text-nb-black shadow-[3px_3px_0_#0e0e0e]",
-  locked: "border-[#d0d5dd] bg-white text-[#667085]",
 };
 
 const stageStatusCopy: Record<JourneyState, string> = {
   completed: "Đã vững",
-  current: "Đang sáng nhất",
-  retry: "Nạp thêm năng lượng",
+  current: "Đang học",
+  retry: "Ôn lại",
   ready: "Đã mở",
-  skipped: "Được đi tắt",
-  locked: "Sắp mở khóa",
+  skipped: "Đã qua",
+  locked: "Sắp mở",
 };
-
-const parentStageStatusCopy: Record<CourseStageStatus, string> = {
-  locked: "Đang khóa",
-  ready: "Đã mở",
-  in_progress: "Đang học",
-  mastered: "Đã đạt",
-  retry_required: "Cần củng cố",
-};
-
-function parentStatusLabel(status?: CourseStageStatus) {
-  return status ? parentStageStatusCopy[status] : "Chưa có lượt làm";
-}
-
-function firstLower(text: string) {
-  if (!text) return text;
-  return `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
-}
-
-function conceptName(snapshot: CourseRunSnapshot) {
-  return snapshot.course.conceptLabels[0] ?? snapshot.course.primaryConcept ?? "phần này";
-}
 
 function stageIcon(stageType: CourseStageType): LucideIcon {
   switch (stageType) {
@@ -107,10 +80,16 @@ function activeStageProgress(snapshot: CourseRunSnapshot) {
   return snapshot.run.stageProgress[snapshot.currentStage.id];
 }
 
-function stageJourneyState(snapshot: CourseRunSnapshot, stageId: string, index: number): JourneyState {
+function stageJourneyState(
+  snapshot: CourseRunSnapshot,
+  stageId: string,
+  index: number,
+  visibleStageList?: Array<CourseRunSnapshot["pipeline"]["stages"][number]>
+): JourneyState {
   const progress = snapshot.run.stageProgress[stageId];
   const isCurrent = snapshot.currentStage.id === stageId;
-  const currentIndex = snapshot.pipeline.stages.findIndex((stage) => stage.id === snapshot.currentStage.id);
+  const stageList = visibleStageList ?? snapshot.pipeline.stages;
+  const currentIndex = stageList.findIndex((stage) => stage.id === snapshot.currentStage.id);
 
   if (snapshot.run.status === "completed" || progress?.status === "mastered") return "completed";
   if (progress?.status === "retry_required") return "retry";
@@ -120,19 +99,14 @@ function stageJourneyState(snapshot: CourseRunSnapshot, stageId: string, index: 
   return "ready";
 }
 
-function isReviewRun(snapshot: CourseRunSnapshot) {
-  const currentIndex = snapshot.pipeline.stages.findIndex((stage) => stage.id === snapshot.currentStage.id);
-  return snapshot.pipeline.stages.some((stage, index) => {
-    const progress = snapshot.run.stageProgress[stage.id];
-    return index < currentIndex && progress?.status === "retry_required";
-  });
-}
-
-function skippedStageCount(snapshot: CourseRunSnapshot) {
-  const currentIndex = snapshot.pipeline.stages.findIndex((stage) => stage.id === snapshot.currentStage.id);
-  return snapshot.pipeline.stages.filter((stage, index) => {
-    return index < currentIndex && !snapshot.run.stageProgress[stage.id];
-  }).length;
+function visibleStages(snapshot: CourseRunSnapshot) {
+  const allowed = snapshot.run.visibleStageIds?.length
+    ? snapshot.run.visibleStageIds
+    : snapshot.pipeline.stages.map((stage) => stage.id);
+  const byId = new Map(snapshot.pipeline.stages.map((stage) => [stage.id, stage] as const));
+  return allowed
+    .map((stageId) => byId.get(stageId))
+    .filter((stage): stage is CourseRunSnapshot["pipeline"]["stages"][number] => Boolean(stage));
 }
 
 function energyValue(snapshot: CourseRunSnapshot) {
@@ -142,34 +116,77 @@ function energyValue(snapshot: CourseRunSnapshot) {
   return Math.min(100, Math.max(10, progress.accuracy));
 }
 
-function childInsight(snapshot: CourseRunSnapshot, position: number) {
+function reviewNeeded(snapshot: CourseRunSnapshot) {
   const progress = activeStageProgress(snapshot);
-  const concept = conceptName(snapshot);
-  const misses = progress ? Math.max(0, progress.attempts - progress.correct) : 0;
+  return Boolean(progress?.status === "retry_required" || (progress && progress.attempts > 0 && progress.accuracy < 60));
+}
 
-  if (snapshot.run.status === "completed") {
-    return `Mình đã chinh phục ${concept}. Huy hiệu đang nằm trong kho báu của Melon!`;
+function stageTypeRank(stageType: CourseStageType) {
+  switch (stageType) {
+    case "diagnostic":
+      return 0;
+    case "foundation":
+      return 1;
+    case "practice":
+      return 2;
+    case "checkpoint":
+      return 3;
+    case "challenge":
+      return 4;
+    case "remedial":
+      return 5;
+    default:
+      return 9;
+  }
+}
+
+function learningOrderValue(snapshot: CourseRunSnapshot) {
+  const progress = activeStageProgress(snapshot);
+  const accuracy = progress?.accuracy ?? 0;
+  const attempts = progress?.attempts ?? 0;
+  const reviewRank = reviewNeeded(snapshot) ? 1 : 0;
+  const stageRank = stageTypeRank(snapshot.currentStage.stageType);
+  const curriculumRank = snapshot.course.recommendedOrder ?? 999;
+  const priorityRank = 1000 - (snapshot.run.priorityScore ?? 0);
+  const masteryRank = Math.max(0, 100 - accuracy);
+  const freshnessRank = attempts === 0 ? -10 : 0;
+
+  return [reviewRank, stageRank, curriculumRank, priorityRank, freshnessRank, masteryRank];
+}
+
+function compareTuples(left: number[], right: number[]) {
+  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+    const diff = (left[index] ?? 0) - (right[index] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function sortRunsForLearning(runs: CourseRunSnapshot[]) {
+  return [...runs].sort((left, right) => {
+    const tupleDiff = compareTuples(learningOrderValue(left), learningOrderValue(right));
+    if (tupleDiff !== 0) return tupleDiff;
+    return left.course.title.localeCompare(right.course.title, "vi");
+  });
+}
+
+function fillShowcaseRuns(
+  primaryRuns: CourseRunSnapshot[],
+  fallbackRuns: CourseRunSnapshot[],
+  minCount: number
+) {
+  if (primaryRuns.length >= minCount) return primaryRuns;
+  const seen = new Set(primaryRuns.map((snapshot) => snapshot.run.id));
+  const supplemented = [...primaryRuns];
+
+  for (const snapshot of fallbackRuns) {
+    if (seen.has(snapshot.run.id)) continue;
+    supplemented.push(snapshot);
+    seen.add(snapshot.run.id);
+    if (supplemented.length >= minCount) break;
   }
 
-  if (progress?.status === "retry_required" || (progress && progress.attempts > 0 && progress.accuracy < 60)) {
-    return misses >= 3
-      ? `Vì gần đây mình sai ${misses} câu ở ${concept}, Melon rủ mình củng cố lại cho chắc.`
-      : `Melon thấy mình hơi vướng ở ${concept}, mình cùng lùi lại một chút để xây nền thật chắc nhé!`;
-  }
-
-  if (progress && progress.accuracy >= 80) {
-    return `Mình đang vào đà ở ${concept}. Melon mở đường nhanh hơn cho hôm nay.`;
-  }
-
-  if (skippedStageCount(snapshot) > 0) {
-    return `Phần đầu mình đã đủ chắc rồi. Melon cho mình đi tắt tới ${snapshot.currentStage.title}.`;
-  }
-
-  if (position === 0) {
-    return `Melon chọn riêng ${concept} cho hôm nay để mình học đúng phần cần nhất.`;
-  }
-
-  return `Nhiệm vụ này đang chờ phía sau. Xong mục tiêu ưu tiên, Melon sẽ gọi mình quay lại.`;
+  return supplemented;
 }
 
 function dynamicTag(snapshot: CourseRunSnapshot, position: number): {
@@ -184,7 +201,7 @@ function dynamicTag(snapshot: CourseRunSnapshot, position: number): {
   }
 
   if (progress?.status === "retry_required" || (progress && progress.attempts > 0 && progress.accuracy < 60)) {
-    return { label: position === 0 ? "Mục tiêu ưu tiên" : "Củng cố sức mạnh", tone: "review", Icon: Shield };
+    return { label: position === 0 ? "Mục tiêu ưu tiên" : "Ôn lại", tone: "review", Icon: Shield };
   }
 
   if (progress && progress.accuracy >= 80) {
@@ -195,19 +212,19 @@ function dynamicTag(snapshot: CourseRunSnapshot, position: number): {
     return { label: "Mục tiêu ưu tiên", tone: "priority", Icon: Target };
   }
 
-  return { label: "Gợi ý hôm nay", tone: "today", Icon: Sparkles };
+  return { label: "Khóa tiếp theo", tone: "today", Icon: Sparkles };
 }
 
 function ctaCopy(snapshot: CourseRunSnapshot, isPriority: boolean) {
-  if (snapshot.run.status === "completed") return "Luyện đề giữ phong độ";
+  if (snapshot.run.status === "completed") return "Luyện đề";
 
   const progress = activeStageProgress(snapshot);
   if (isPriority && (progress?.status === "retry_required" || (progress && progress.attempts > 0 && progress.accuracy < 60))) {
-    return "Bắt đầu giải cứu điểm yếu";
+    return "Ôn lại";
   }
 
-  if (isPriority) return `Học tiếp chặng ${snapshot.currentStage.title}`;
-  return "Xem hành trình";
+  if (isPriority) return `Học chặng ${snapshot.currentStage.title}`;
+  return "Mở khóa học";
 }
 
 function DynamicTag({
@@ -234,31 +251,6 @@ function DynamicTag({
   );
 }
 
-function MelonMascotBubble({ children, compact = false }: { children: React.ReactNode; compact?: boolean }) {
-  return (
-    <div className={cn("flex max-w-full items-start gap-3", compact && "gap-2")}>
-      <div
-        className={cn(
-          "grid shrink-0 place-items-center rounded-full border-2 border-nb-black bg-white shadow-[3px_3px_0_#0e0e0e]",
-          compact ? "h-10 w-10" : "h-14 w-14"
-        )}
-      >
-        <Image
-          src="/icon.png"
-          alt="Melon"
-          width={compact ? 28 : 40}
-          height={compact ? 28 : 40}
-          className="object-contain"
-        />
-      </div>
-      <div className="relative min-w-0 flex-1 rounded-lg border-2 border-nb-black bg-white px-4 py-3 shadow-[3px_3px_0_#0e0e0e]">
-        <span className="absolute -left-2 top-4 h-3 w-3 rotate-45 border-b-2 border-l-2 border-nb-black bg-white" />
-        <p className={cn("break-words font-bold leading-relaxed text-[#243042] [overflow-wrap:anywhere]", compact ? "text-xs" : "text-sm")}>{children}</p>
-      </div>
-    </div>
-  );
-}
-
 function EnergyBar({ value, compact = false }: { value: number; compact?: boolean }) {
   const level = Math.max(0, Math.min(100, value));
   const segmentCount = compact ? 4 : 5;
@@ -268,7 +260,7 @@ function EnergyBar({ value, compact = false }: { value: number; compact?: boolea
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 text-xs font-black text-[#243042]">
           <BatteryCharging className="h-4 w-4 text-nb-green" />
-          Thanh năng lượng
+          Độ nắm vững
         </div>
         <div className="flex items-center gap-1 text-xs font-black text-[#667085]">
           <Star className="h-3.5 w-3.5 fill-[#ffd166] text-nb-black" />
@@ -281,7 +273,7 @@ function EnergyBar({ value, compact = false }: { value: number; compact?: boolea
           compact ? "h-7" : "h-8"
         )}
         style={{ gridTemplateColumns: `repeat(${segmentCount}, minmax(0, 1fr))` }}
-        aria-label="Thanh năng lượng học tập"
+        aria-label="Độ nắm vững chặng hiện tại"
       >
         {Array.from({ length: segmentCount }).map((_, index) => {
           const filled = level >= ((index + 1) / segmentCount) * 100 - 1;
@@ -304,32 +296,19 @@ function EnergyBar({ value, compact = false }: { value: number; compact?: boolea
 }
 
 function JourneyMap({ snapshot, compact = false }: { snapshot: CourseRunSnapshot; compact?: boolean }) {
-  const hasSkip = skippedStageCount(snapshot) > 0;
-  const hasReview = isReviewRun(snapshot);
-
+  const stages = visibleStages(snapshot);
   return (
-    <div className={cn("relative", compact ? "pt-2" : "pt-6")}>
+    <div className={cn("relative", compact ? "pt-2 pb-1" : "pt-6")}>
       <div className="absolute left-5 right-5 top-[72px] hidden h-1 rounded-full bg-nb-black/15 sm:block" />
       <div className="absolute left-5 right-5 top-[72px] hidden border-t-2 border-dashed border-nb-black/45 sm:block" />
 
-      {hasSkip && !compact ? (
-        <div className="mb-8 inline-flex max-w-full items-center gap-2 rounded-full border-2 border-nb-black bg-white px-3 py-1 text-xs font-black text-[#243042] shadow-[3px_3px_0_#0e0e0e]">
-          <Rocket className="h-4 w-4 text-nb-orange" />
-          <span className="min-w-0 break-words">Melon cho mình đi tắt vì phần đầu đã đủ chắc</span>
-        </div>
-      ) : null}
-
-      {hasReview && !compact ? (
-        <div className="mb-8 ml-0 inline-flex max-w-full items-center gap-2 rounded-full border-2 border-nb-black bg-nb-blue px-3 py-1 text-xs font-black text-[#243042] shadow-[3px_3px_0_#0e0e0e] sm:ml-8">
-          <RefreshCcw className="h-4 w-4" />
-          <span className="min-w-0 break-words">Quay lại nạp thêm năng lượng rồi bứt phá tiếp</span>
-        </div>
-      ) : null}
-
-      <div className={cn("grid grid-cols-1 gap-3 sm:grid-cols-5", compact ? "sm:gap-2" : "sm:gap-3")}>
-        {snapshot.pipeline.stages.map((stage, index) => {
+      <div
+        className={cn("grid grid-cols-1 gap-3", compact ? "sm:gap-2" : "sm:gap-3")}
+        style={{ gridTemplateColumns: `repeat(${Math.max(1, stages.length)}, minmax(0, 1fr))` }}
+      >
+        {stages.map((stage, index) => {
           const Icon = stageIcon(stage.stageType);
-          const state = stageJourneyState(snapshot, stage.id, index);
+          const state = stageJourneyState(snapshot, stage.id, index, stages);
           const isCurrent = state === "current" || state === "retry";
           const isLocked = state === "locked";
           const isSkipped = state === "skipped";
@@ -340,7 +319,7 @@ function JourneyMap({ snapshot, compact = false }: { snapshot: CourseRunSnapshot
               className={cn(
                 "relative z-10 flex min-h-[104px] flex-col items-center justify-center gap-2 rounded-lg border-2 border-nb-black p-3 text-center shadow-[3px_3px_0_#0e0e0e] transition-all duration-300",
                 compact ? "min-h-[86px] p-2" : "sm:min-h-[132px]",
-                stageOffsets[index % stageOffsets.length],
+                !compact && stageOffsets[index % stageOffsets.length],
                 state === "completed" && "bg-nb-green text-white",
                 state === "current" && "bg-[#ffd166] shadow-[0_0_0_4px_rgba(255,209,102,0.45),4px_4px_0_#0e0e0e] melon-route-pulse",
                 state === "retry" && "bg-nb-blue shadow-[0_0_0_4px_rgba(56,182,255,0.32),4px_4px_0_#0e0e0e]",
@@ -349,12 +328,7 @@ function JourneyMap({ snapshot, compact = false }: { snapshot: CourseRunSnapshot
                 isLocked && "border-[#cfd6df] bg-[#eef2f6] text-[#667085] shadow-none"
               )}
             >
-              {isLocked ? (
-                <Cloud className="absolute right-2 top-2 h-6 w-6 text-white opacity-90" />
-              ) : null}
-              {isSkipped ? (
-                <Rocket className="absolute right-2 top-2 h-4 w-4 text-nb-orange" />
-              ) : null}
+              {isLocked ? <Cloud className="absolute right-2 top-2 h-6 w-6 text-white opacity-90" /> : null}
               <div
                 className={cn(
                   "grid h-10 w-10 place-items-center rounded-full border-2 border-nb-black bg-white text-nb-black",
@@ -383,34 +357,6 @@ function JourneyMap({ snapshot, compact = false }: { snapshot: CourseRunSnapshot
   );
 }
 
-function ParentStats({ snapshot }: { snapshot: CourseRunSnapshot }) {
-  const progress = activeStageProgress(snapshot);
-  const attempts = progress?.attempts ?? 0;
-  const correct = progress?.correct ?? 0;
-  const accuracy = progress ? `${progress.accuracy}%` : "Chưa có dữ liệu";
-
-  return (
-    <details className="group rounded-lg border-2 border-nb-black bg-white/80 px-3 py-2 shadow-[2px_2px_0_#0e0e0e]">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-xs font-black text-[#243042] marker:hidden">
-        <span className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" />
-          Góc ba mẹ
-        </span>
-        <Info className="h-4 w-4 transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="mt-3 grid gap-2 text-xs font-semibold leading-relaxed text-[#475467] sm:grid-cols-2">
-        <div>Độ chính xác chặng hiện tại: <strong>{accuracy}</strong></div>
-        <div>Số câu đã làm: <strong>{attempts}</strong>, đúng <strong>{correct}</strong></div>
-        <div>Điểm trọng tâm: <strong>{snapshot.course.conceptLabels.join(", ")}</strong></div>
-        <div>Trạng thái: <strong>{parentStatusLabel(progress?.status)}</strong></div>
-        <div className="sm:col-span-2">
-          Đề xuất hệ thống: <strong>{snapshot.run.personalizedReason || `Melon ưu tiên ${firstLower(snapshot.course.title)} cho hôm nay.`}</strong>
-        </div>
-      </div>
-    </details>
-  );
-}
-
 function PriorityCourseCard({ snapshot }: { snapshot: CourseRunSnapshot }) {
   return (
     <article className="relative overflow-hidden rounded-lg border-4 border-nb-black bg-[#fff3c4] p-5 shadow-[0_0_0_4px_rgba(255,209,102,0.5),8px_8px_0_#0e0e0e]">
@@ -432,12 +378,7 @@ function PriorityCourseCard({ snapshot }: { snapshot: CourseRunSnapshot }) {
             <h2 className="max-w-full break-words text-2xl font-black leading-tight text-[#243042] [overflow-wrap:anywhere] sm:max-w-[720px] sm:text-3xl">
               {snapshot.course.title}
             </h2>
-            <p className="mt-2 max-w-[780px] text-sm font-semibold leading-relaxed text-[#475467]">
-              {snapshot.course.goalText || snapshot.course.description}
-            </p>
           </div>
-
-          <MelonMascotBubble>{childInsight(snapshot, 0)}</MelonMascotBubble>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-[1fr_260px]">
@@ -445,9 +386,7 @@ function PriorityCourseCard({ snapshot }: { snapshot: CourseRunSnapshot }) {
           <div className="flex flex-col justify-between gap-4 rounded-lg border-2 border-nb-black bg-white p-4 shadow-[4px_4px_0_#0e0e0e]">
             <EnergyBar value={energyValue(snapshot)} />
             <div className="space-y-2">
-              <div className="text-xs font-black uppercase text-[#667085]">Nhiệm vụ ngay bây giờ</div>
               <div className="text-lg font-black leading-tight text-[#243042]">{snapshot.currentStage.title}</div>
-              <p className="text-sm font-semibold leading-relaxed text-[#475467]">{snapshot.currentStage.supportText}</p>
             </div>
             <Link
               href={`/study?courseRunId=${encodeURIComponent(snapshot.run.id)}&autoStart=1`}
@@ -458,8 +397,6 @@ function PriorityCourseCard({ snapshot }: { snapshot: CourseRunSnapshot }) {
             </Link>
           </div>
         </div>
-
-        <ParentStats snapshot={snapshot} />
       </div>
     </article>
   );
@@ -469,18 +406,22 @@ function CompactCourseCard({
   snapshot,
   position,
   completed = false,
+  className,
 }: {
   snapshot: CourseRunSnapshot;
   position: number;
   completed?: boolean;
+  className?: string;
 }) {
-  const progress = activeStageProgress(snapshot);
+  const canOpenCourse = completed || snapshot.run.status === "active";
+  const showMastery = completed || snapshot.run.status === "active";
 
   return (
     <article
       className={cn(
         "relative overflow-hidden rounded-lg border-2 border-nb-black bg-white p-4 shadow-[4px_4px_0_#0e0e0e] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5",
-        completed && "melon-completed-card border-[#d0d5dd] bg-[#f7f8fa] shadow-none"
+        completed && "melon-completed-card border-[#d0d5dd] bg-[#f7f8fa] shadow-none",
+        className
       )}
     >
       {completed ? (
@@ -496,9 +437,6 @@ function CompactCourseCard({
           <div className="min-w-0 space-y-2">
             <DynamicTag snapshot={snapshot} position={position} compact />
             <h3 className="text-base font-black leading-tight text-[#243042]">{snapshot.course.title}</h3>
-            <p className="line-clamp-2 text-xs font-semibold leading-relaxed text-[#667085]">
-              {completed ? `Huy hiệu ${conceptName(snapshot)} đã được cất vào bộ sưu tập.` : childInsight(snapshot, position)}
-            </p>
           </div>
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-nb-black bg-[#fff3c4] shadow-[2px_2px_0_#0e0e0e]">
             {completed ? <Trophy className="h-5 w-5 text-nb-orange" /> : <Sparkles className="h-5 w-5 text-nb-orange" />}
@@ -507,23 +445,62 @@ function CompactCourseCard({
 
         <JourneyMap snapshot={snapshot} compact />
 
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-          <EnergyBar value={energyValue(snapshot)} compact />
-          <Link
-            href={completed ? "/practice" : `/study?courseRunId=${encodeURIComponent(snapshot.run.id)}`}
-            className={cn(
-              "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border-2 border-nb-black px-3 py-2 text-center font-display text-[0.58rem] leading-tight shadow-[3px_3px_0_#0e0e0e] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5 [letter-spacing:0]",
-              completed ? "bg-white text-nb-black" : "bg-nb-black text-white"
-            )}
-          >
-            {ctaCopy(snapshot, false)}
-            <ArrowRight className="h-4 w-4 shrink-0" />
-          </Link>
+        <div className={cn("grid gap-3", showMastery && canOpenCourse && "sm:grid-cols-[1fr_auto] sm:items-end")}>
+          {showMastery ? <EnergyBar value={energyValue(snapshot)} compact /> : null}
+          {canOpenCourse ? (
+            <Link
+              href={completed ? "/practice" : `/study?courseRunId=${encodeURIComponent(snapshot.run.id)}`}
+              className={cn(
+                "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border-2 border-nb-black px-3 py-2 text-center font-display text-[0.58rem] leading-tight shadow-[3px_3px_0_#0e0e0e] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5 [letter-spacing:0]",
+                completed ? "bg-white text-nb-black" : "bg-nb-black text-white"
+              )}
+            >
+              {ctaCopy(snapshot, false)}
+              <ArrowRight className="h-4 w-4 shrink-0" />
+            </Link>
+          ) : null}
         </div>
-
-        {progress ? <ParentStats snapshot={snapshot} /> : null}
       </div>
     </article>
+  );
+}
+
+function CourseStrip({
+  runs,
+  startPosition = 1,
+  completed = false,
+}: {
+  runs: CourseRunSnapshot[];
+  startPosition?: number;
+  completed?: boolean;
+}) {
+  if (runs.length === 1) {
+    return (
+      <div className="max-w-[420px]">
+        <CompactCourseCard
+          key={runs[0].run.id}
+          snapshot={runs[0]}
+          position={startPosition}
+          completed={completed}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="-mx-1 overflow-x-auto pb-2">
+      <div className="flex min-w-full gap-4 px-1">
+        {runs.map((snapshot, index) => (
+          <CompactCourseCard
+            key={snapshot.run.id}
+            snapshot={snapshot}
+            position={startPosition + index}
+            completed={completed}
+            className="w-[320px] min-w-[320px] md:w-[340px] md:min-w-[340px]"
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -533,7 +510,7 @@ function LoadingState() {
       <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full border-2 border-nb-black bg-white shadow-[3px_3px_0_#0e0e0e]">
         <Sparkles className="h-7 w-7 animate-pulse text-nb-orange" />
       </div>
-      <p className="font-display text-sm text-[#667085] [letter-spacing:0]">Melon đang vẽ lộ trình...</p>
+      <p className="font-display text-sm text-[#667085] [letter-spacing:0]">Đang tải</p>
     </div>
   );
 }
@@ -544,7 +521,7 @@ function EmptyState() {
       <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full border-2 border-nb-black bg-white shadow-[3px_3px_0_#0e0e0e]">
         <BookOpen className="h-7 w-7 text-nb-blue" />
       </div>
-      <p className="font-display text-sm text-[#667085] [letter-spacing:0]">Chưa có nhiệm vụ phù hợp</p>
+      <p className="font-display text-sm text-[#667085] [letter-spacing:0]">Chưa có khóa học</p>
     </div>
   );
 }
@@ -555,6 +532,9 @@ export default function LessonsPage() {
   const [authOpen, setAuthOpen] = useState(false);
   const [runs, setRuns] = useState<CourseRunSnapshot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showMoreCourses, setShowMoreCourses] = useState(false);
+  const [moreCoursesTab, setMoreCoursesTab] = useState<"next" | "review" | "completed">("next");
+  const moreCoursesRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!userUid) return;
@@ -586,16 +566,43 @@ export default function LessonsPage() {
   }, [userUid]);
 
   const activeRuns = useMemo(
-    () => runs.filter((snapshot) => snapshot.run.status === "active"),
+    () => sortRunsForLearning(runs.filter((snapshot) => snapshot.run.status === "active")),
+    [runs]
+  );
+  const pausedRuns = useMemo(
+    () => sortRunsForLearning(runs.filter((snapshot) => snapshot.run.status === "paused")),
     [runs]
   );
   const completedRuns = useMemo(
-    () => runs.filter((snapshot) => snapshot.run.status === "completed"),
+    () => [...runs.filter((snapshot) => snapshot.run.status === "completed")].sort(
+      (left, right) => (left.course.recommendedOrder - right.course.recommendedOrder)
+        || left.course.title.localeCompare(right.course.title, "vi")
+    ),
     [runs]
   );
   const currentRun = useMemo(() => activeRuns[0] ?? null, [activeRuns]);
   const queuedRuns = useMemo(() => activeRuns.slice(1), [activeRuns]);
+  const nextRuns = useMemo(() => queuedRuns.filter((snapshot) => !reviewNeeded(snapshot)), [queuedRuns]);
+  const reviewRuns = useMemo(() => queuedRuns.filter((snapshot) => reviewNeeded(snapshot)), [queuedRuns]);
+  const showcaseNextRuns = useMemo(() => fillShowcaseRuns(nextRuns, pausedRuns, 3), [nextRuns, pausedRuns]);
+  const showcaseReviewRuns = useMemo(() => fillShowcaseRuns(reviewRuns, pausedRuns, 3), [pausedRuns, reviewRuns]);
   const allFinished = runs.length > 0 && activeRuns.length === 0;
+  const hasMoreCourses = nextRuns.length > 0 || reviewRuns.length > 0 || completedRuns.length > 0;
+  const availableTabs = useMemo(() => {
+    const tabs: Array<"next" | "review" | "completed"> = [];
+    if (nextRuns.length > 0) tabs.push("next");
+    if (reviewRuns.length > 0) tabs.push("review");
+    if (completedRuns.length > 0) tabs.push("completed");
+    return tabs;
+  }, [completedRuns.length, nextRuns.length, reviewRuns.length]);
+  const activeMoreCoursesTab = availableTabs.includes(moreCoursesTab)
+    ? moreCoursesTab
+    : (availableTabs[0] ?? "next");
+
+  useEffect(() => {
+    if (!showMoreCourses) return;
+    moreCoursesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [showMoreCourses]);
 
   return (
     <KidShell
@@ -607,26 +614,13 @@ export default function LessonsPage() {
       <KidOnlyGuard>
         <SectionContainer className="space-y-7">
           <section className="rounded-lg border-4 border-nb-black bg-white p-5 shadow-[6px_6px_0_#0e0e0e]">
-            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div>
-                <div className="mb-3 flex flex-wrap items-center gap-2">
-                  <NbPill color="orange" icon={<BookOpen className="h-3 w-3" />}>
-                    {runs.length} khóa
-                  </NbPill>
-                  <NbPill color="blue" icon={<Sparkles className="h-3 w-3" />}>
-                    Lộ trình riêng
-                  </NbPill>
-                </div>
-                <h1 className="text-2xl font-black leading-tight text-[#243042] sm:text-3xl">
-                  Hành trình hôm nay của {user?.displayName ?? "mình"}
-                </h1>
-                <p className="mt-2 max-w-[680px] text-sm font-semibold leading-relaxed text-[#475467]">
-                  Melon đã sắp đường học theo điểm mạnh, điểm vướng và nhịp làm bài gần đây của mình.
-                </p>
-              </div>
-              <MelonMascotBubble compact>
-                Không ai học giống ai. Melon sẽ mở đúng chặng mình cần nhất hôm nay.
-              </MelonMascotBubble>
+            <div className="flex flex-wrap items-center gap-2">
+              <NbPill color="orange" icon={<BookOpen className="h-3 w-3" />}>
+                {runs.length} khóa
+              </NbPill>
+              <NbPill color="blue" icon={<Sparkles className="h-3 w-3" />}>
+                Đang học
+              </NbPill>
             </div>
           </section>
 
@@ -638,43 +632,92 @@ export default function LessonsPage() {
             <div className="flex flex-col gap-8">
               {currentRun ? (
                 <section className="space-y-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Target className="h-5 w-5 text-nb-orange" />
-                        <h2 className="font-display text-sm text-[#243042] [letter-spacing:0]">
-                          Mục tiêu ưu tiên
-                        </h2>
-                      </div>
-                      <p className="mt-1 text-sm font-semibold text-[#667085]">
-                        Khóa Melon đang đẩy lên đầu tiên cho hôm nay.
-                      </p>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <Target className="h-5 w-5 text-nb-orange" />
+                    <h2 className="font-display text-sm text-[#243042] [letter-spacing:0]">Mục tiêu ưu tiên</h2>
                   </div>
                   <PriorityCourseCard snapshot={currentRun} />
+                  {hasMoreCourses ? (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowMoreCourses((value) => !value)}
+                        className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border-2 border-nb-black bg-white px-4 py-2 text-xs font-black text-[#243042] shadow-[3px_3px_0_#0e0e0e] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-nb-orange"
+                        aria-expanded={showMoreCourses}
+                        aria-controls="more-courses"
+                      >
+                        {showMoreCourses ? "Thu gọn" : "Xem thêm"}
+                        <ArrowRight className={cn("h-4 w-4 transition-transform", showMoreCourses && "rotate-90")} />
+                      </button>
+                    </div>
+                  ) : null}
                 </section>
               ) : null}
 
-              {queuedRuns.length > 0 ? (
-                <section className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <NbPill color="purple" icon={<Sparkles className="h-3 w-3" />}>
-                      Sắp tới
-                    </NbPill>
-                    <p className="text-sm font-semibold text-[#667085]">
-                      Những nhiệm vụ đang chờ sau khi mình xong mục tiêu chính.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                    {queuedRuns.map((snapshot, index) => (
-                      <CompactCourseCard
-                        key={snapshot.run.id}
-                        snapshot={snapshot}
-                        position={index + 1}
-                      />
-                    ))}
-                  </div>
-                </section>
+              {showMoreCourses && hasMoreCourses ? (
+                <div ref={moreCoursesRef} id="more-courses" className="scroll-mt-6 space-y-8">
+                  <section className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {nextRuns.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setMoreCoursesTab("next")}
+                          className={cn(
+                            "inline-flex min-h-10 items-center justify-center gap-2 rounded-full border-2 px-4 py-2 text-xs font-black shadow-[3px_3px_0_#0e0e0e] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5",
+                            activeMoreCoursesTab === "next"
+                              ? "border-nb-black bg-nb-purple text-nb-black"
+                              : "border-nb-black bg-white text-[#243042]"
+                          )}
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Học tiếp theo
+                        </button>
+                      ) : null}
+                      {reviewRuns.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setMoreCoursesTab("review")}
+                          className={cn(
+                            "inline-flex min-h-10 items-center justify-center gap-2 rounded-full border-2 px-4 py-2 text-xs font-black shadow-[3px_3px_0_#0e0e0e] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5",
+                            activeMoreCoursesTab === "review"
+                              ? "border-nb-black bg-nb-blue text-nb-black"
+                              : "border-nb-black bg-white text-[#243042]"
+                          )}
+                        >
+                          <Shield className="h-3.5 w-3.5" />
+                          Ôn lại sau đó
+                        </button>
+                      ) : null}
+                      {completedRuns.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setMoreCoursesTab("completed")}
+                          className={cn(
+                            "inline-flex min-h-10 items-center justify-center gap-2 rounded-full border-2 px-4 py-2 text-xs font-black shadow-[3px_3px_0_#0e0e0e] transition-transform hover:-translate-x-0.5 hover:-translate-y-0.5",
+                            activeMoreCoursesTab === "completed"
+                              ? "border-nb-black bg-nb-yellow text-nb-black"
+                              : "border-nb-black bg-white text-[#243042]"
+                          )}
+                        >
+                          <Trophy className="h-3.5 w-3.5" />
+                          Đã hoàn thành
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {activeMoreCoursesTab === "next" && nextRuns.length > 0 ? (
+                      <CourseStrip runs={showcaseNextRuns} startPosition={1} />
+                    ) : null}
+
+                    {activeMoreCoursesTab === "review" && reviewRuns.length > 0 ? (
+                      <CourseStrip runs={showcaseReviewRuns} startPosition={nextRuns.length + 1} />
+                    ) : null}
+
+                    {activeMoreCoursesTab === "completed" && completedRuns.length > 0 ? (
+                      <CourseStrip runs={completedRuns} startPosition={activeRuns.length} completed />
+                    ) : null}
+                  </section>
+                </div>
               ) : null}
 
               {allFinished ? (
@@ -684,12 +727,7 @@ export default function LessonsPage() {
                       <NbPill color="yellow" icon={<CheckCircle2 className="h-3 w-3" />}>
                         Đã hoàn thành hết
                       </NbPill>
-                      <h2 className="mt-3 text-xl font-black leading-tight text-[#243042]">
-                        Mình đã đi hết các khóa hiện có.
-                      </h2>
-                      <p className="mt-2 text-sm font-semibold leading-relaxed text-[#667085]">
-                        Melon mở chế độ luyện đề để mình giữ phong độ và gom thêm huy hiệu.
-                      </p>
+                      <h2 className="mt-3 text-xl font-black leading-tight text-[#243042]">Hoàn thành tất cả khóa hiện có</h2>
                     </div>
                     <Link
                       href="/practice"
@@ -698,29 +736,6 @@ export default function LessonsPage() {
                       Sang luyện đề
                       <ArrowRight className="h-5 w-5" />
                     </Link>
-                  </div>
-                </section>
-              ) : null}
-
-              {completedRuns.length > 0 ? (
-                <section className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <NbPill color="yellow" icon={<Trophy className="h-3 w-3" />}>
-                      Đã hoàn thành
-                    </NbPill>
-                    <p className="text-sm font-semibold text-[#667085]">
-                      Huy hiệu đã nhận sẽ nằm ở đây, không tranh chỗ với mục tiêu hôm nay.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-                    {completedRuns.map((snapshot, index) => (
-                      <CompactCourseCard
-                        key={snapshot.run.id}
-                        snapshot={snapshot}
-                        position={activeRuns.length + index}
-                        completed
-                      />
-                    ))}
                   </div>
                 </section>
               ) : null}

@@ -28,7 +28,6 @@ export default function PracticePage() {
           {!exerciseActive && (
             <SectionHeader
               title="Luyện đề Toán"
-              subtitle="Chọn một đề trọn vẹn, làm trong khoảng 40-60 phút và giữ nhịp như khi làm bài kiểm tra thật."
               badge={<NbPill color="green">Lớp 4-5</NbPill>}
             />
           )}
@@ -43,7 +42,6 @@ export default function PracticePage() {
             <div className="mt-10">
               <SectionHeader
                 title="Gửi đề riêng"
-                subtitle="Upload ảnh, PDF hoặc paste đề để Melon đọc câu hỏi và đáp án."
                 badge={<NbPill color="orange">Tùy chọn</NbPill>}
               />
               <ProblemParserPanel mode="student" uid={user?.uid} />
