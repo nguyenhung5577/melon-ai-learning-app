@@ -46,6 +46,23 @@
   //     ]
   //   },
   // ]
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "studentExerciseAttempts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "childUid", "order": "ASCENDING" },
+        { "fieldPath": "submittedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "studentPersonalizedPlans",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "childUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

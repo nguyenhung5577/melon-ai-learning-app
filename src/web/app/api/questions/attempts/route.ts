@@ -201,11 +201,16 @@ export async function POST(req: NextRequest) {
     }
 
     const questionSnap = await db.collection("questionBank").doc(body.data.questionId).get();
+    let question = questionSnap.data() ?? {};
     if (!questionSnap.exists) {
-      return NextResponse.json({ error: "Question not found." }, { status: 404 });
+      // Also check AI-generated questions
+      const genSnap = await db.collection("generatedQuestions").doc(body.data.questionId).get();
+      if (genSnap.exists) {
+        question = genSnap.data() ?? {};
+      } else {
+        return NextResponse.json({ error: "Question not found." }, { status: 404 });
+      }
     }
-
-    const question = questionSnap.data() ?? {};
     const now = new Date().toISOString();
     const kidQuestionKey = `${kidUid}_${body.data.questionId}`;
     const attemptId = `${kidQuestionKey}_${Date.now()}`;

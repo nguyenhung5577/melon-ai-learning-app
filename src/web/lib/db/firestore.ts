@@ -6,6 +6,8 @@ import type { Lesson } from "@/lib/lessons/lesson-store";
 import type { GamificationData } from "@/lib/gamification/gamification-store";
 import type { ActivityEvent } from "@/lib/activity";
 import type {
+  GeneratedQuestion,
+  GeneratedQuestionSet,
   KidQuestionStats,
   ParseJob,
   ParsedQuestion,
@@ -55,6 +57,8 @@ export const collections = {
   get courses() { return createCollection<CourseDefinition>("courses"); },
   get coursePipelines() { return createCollection<CoursePipelineDefinition>("coursePipelines"); },
   get studentCourseRuns() { return createCollection<StudentCourseRunRecord>("studentCourseRuns"); },
+  get generatedQuestionSets() { return createCollection<GeneratedQuestionSet>("generatedQuestionSets"); },
+  get generatedQuestions() { return createCollection<GeneratedQuestion>("generatedQuestions"); },
 };
 
 // Subcollections
