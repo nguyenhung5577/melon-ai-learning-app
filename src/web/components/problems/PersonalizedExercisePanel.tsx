@@ -49,11 +49,27 @@ type FractionValue = {
   denominator: string;
 };
 
+type SessionCompletionStats = {
+  attempts: number;
+  correct: number;
+  xp: number;
+  timeSpentMs: number;
+  concepts: string[];
+  skills: string[];
+};
+
+type QuestionSelectionContext = {
+  rotationSeed: string;
+  globallyAttemptedIds: Set<string>;
+  globallyAttemptedFingerprints: Set<string>;
+  sourceUsageCounts: Map<string, number>;
+};
+
 const fallbackAction: PersonalizedNextAction = {
   id: "balanced",
   priority: 1,
   title: "Luyện cân bằng",
-  description: "Làm một cụm câu vừa sức để hệ thống hiểu con hơn.",
+  description: "Làm vài câu để bắt đầu.",
   actionType: "mixed_practice",
   concepts: [],
   rubricLevels: ["thong_hieu", "van_dung"],
@@ -72,8 +88,167 @@ const conceptLabels: Record<string, string> = {
   mixed_exams: "Đề tổng hợp",
 };
 
+const mojibakeWindows1252Bytes: Record<string, number> = {
+  "€": 0x80,
+  "‚": 0x82,
+  "ƒ": 0x83,
+  "„": 0x84,
+  "…": 0x85,
+  "†": 0x86,
+  "‡": 0x87,
+  "ˆ": 0x88,
+  "‰": 0x89,
+  "Š": 0x8a,
+  "‹": 0x8b,
+  "Œ": 0x8c,
+  "Ž": 0x8e,
+  "‘": 0x91,
+  "’": 0x92,
+  "“": 0x93,
+  "”": 0x94,
+  "•": 0x95,
+  "–": 0x96,
+  "—": 0x97,
+  "˜": 0x98,
+  "™": 0x99,
+  "š": 0x9a,
+  "›": 0x9b,
+  "œ": 0x9c,
+  "ž": 0x9e,
+  "Ÿ": 0x9f,
+};
+
 function conceptLabel(concept: string) {
   return conceptLabels[concept] ?? concept.replace(/[_-]+/g, " ");
+}
+
+function mojibakeScore(value: string) {
+  const suspicious = value.match(/[ÃÂÄÅÆÐðÑÒÓÔÕÙÝÞáºá»à¸à¹]/g)?.length ?? 0;
+  const replacement = value.match(/\uFFFD/g)?.length ?? 0;
+  const vietnamese = value.match(/[ăâđêôơưáàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]/giu)?.length ?? 0;
+  return suspicious * 3 + replacement * 6 - vietnamese;
+}
+
+function encodeWindows1252Mojibake(value: string): Uint8Array | null {
+  const bytes: number[] = [];
+
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (code <= 0xff) {
+      bytes.push(code);
+      continue;
+    }
+
+    const mapped = mojibakeWindows1252Bytes[char];
+    if (mapped === undefined) return null;
+    bytes.push(mapped);
+  }
+
+  return new Uint8Array(bytes);
+}
+
+function repairMojibake(value: string) {
+  if (!/[ÃÂÄÅÆÐðÑÒÓÔÕÙÝÞáºá»à¸à¹]/.test(value)) return value;
+
+  const encoded = encodeWindows1252Mojibake(value);
+  if (!encoded) return value;
+
+  try {
+    const repaired = new TextDecoder("utf-8", { fatal: true }).decode(encoded);
+    return mojibakeScore(repaired) < mojibakeScore(value) ? repaired : value;
+  } catch {
+    return value;
+  }
+}
+
+function cleanQuestionText(value: unknown) {
+  return repairMojibake(textValue(value))
+    .replace(/\r\n?/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function cleanQuestion(question: QuestionBankQuestion): QuestionBankQuestion {
+  return {
+    ...question,
+    stem: cleanQuestionText(question.stem),
+    stemMarkdown: cleanQuestionText(question.stemMarkdown),
+    section: cleanQuestionText(question.section),
+    answer: cleanQuestionText(question.answer),
+    answerText: cleanQuestionText(question.answerText),
+    answerTextMarkdown: cleanQuestionText(question.answerTextMarkdown),
+    explanation: cleanQuestionText(question.explanation),
+    visualDescription: cleanQuestionText(question.visualDescription),
+    visualDescriptionMarkdown: cleanQuestionText(question.visualDescriptionMarkdown),
+    rawText: cleanQuestionText(question.rawText),
+    rawTextMarkdown: cleanQuestionText(question.rawTextMarkdown),
+    sourceTitle: cleanQuestionText(question.sourceTitle),
+    choices: (question.choices ?? []).map((choice) => ({
+      ...choice,
+      key: cleanQuestionText(choice.key),
+      text: cleanQuestionText(choice.text),
+      textMarkdown: cleanQuestionText(choice.textMarkdown),
+    })),
+    subQuestions: (question.subQuestions ?? []).map((subQuestion) => ({
+      ...subQuestion,
+      label: cleanQuestionText(subQuestion.label),
+      stem: cleanQuestionText(subQuestion.stem),
+      stemMarkdown: cleanQuestionText(subQuestion.stemMarkdown),
+      answerText: cleanQuestionText(subQuestion.answerText),
+      answerTextMarkdown: cleanQuestionText(subQuestion.answerTextMarkdown),
+      explanation: cleanQuestionText(subQuestion.explanation),
+    })),
+    concepts: (question.concepts ?? []).map(cleanQuestionText).filter(Boolean),
+    skills: (question.skills ?? []).map(cleanQuestionText).filter(Boolean),
+  };
+}
+
+function qualityFingerprint(question: QuestionBankQuestion) {
+  return searchableText([
+    question.stem,
+    question.choices?.map((choice) => choice.text).join(" "),
+    question.answerText || question.answer,
+  ].join(" "))
+    .replace(/\b(cau|bai)\s*\d+[\.:)]?/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function questionQualityScore(question: QuestionBankQuestion) {
+  let score = 0;
+  const stem = cleanQuestionText(question.stem);
+  const answer = cleanQuestionText(question.answerText || question.answer);
+
+  if (stem.length >= 12) score += 20;
+  if (stem.length > 220) score -= 6;
+  if (answer) score += 16;
+  if (question.type === "multiple_choice" && hasValidChoices(question)) score += 14;
+  if (question.type === "short_answer") score += 8;
+  if (Number(question.confidence ?? 0) > 0) score += Math.round(Number(question.confidence) * 8);
+  if (hasQuestionVisual(question)) score += 4;
+  if (questionReferencesVisual(question) && !hasQuestionImage(question)) score -= 35;
+  score -= Math.max(0, mojibakeScore(stem));
+
+  return score;
+}
+
+function normalizeQuestionBank(questions: QuestionBankQuestion[]) {
+  const bestByFingerprint = new Map<string, QuestionBankQuestion>();
+
+  for (const rawQuestion of questions) {
+    const question = cleanQuestion(rawQuestion);
+    if (!readyMathQuestion(question)) continue;
+
+    const fingerprint = qualityFingerprint(question);
+    if (fingerprint.length < 12) continue;
+
+    const current = bestByFingerprint.get(fingerprint);
+    if (!current || questionQualityScore(question) > questionQualityScore(current)) {
+      bestByFingerprint.set(fingerprint, question);
+    }
+  }
+
+  return Array.from(bestByFingerprint.values());
 }
 
 function normalizeAnswer(value: unknown) {
@@ -184,6 +359,59 @@ function formatCompoundAnswer(parts: CompoundPart[], answers: Record<string, str
     .join("; ");
 }
 
+function parseLabeledAnswerParts(value: unknown, labels: string[]): Record<string, string> | null {
+  const text = cleanQuestionText(value);
+  if (!text) return null;
+
+  const matches = Array.from(text.matchAll(/([a-z])\s*[\).:]\s*/giu))
+    .filter((match) => match.index !== undefined);
+
+  if (matches.length > 0) {
+    const parts: Record<string, string> = {};
+    for (let index = 0; index < matches.length; index += 1) {
+      const label = matches[index][1].toLowerCase();
+      const start = (matches[index].index ?? 0) + matches[index][0].length;
+      const end = matches[index + 1]?.index ?? text.length;
+      const answer = text.slice(start, end).trim().replace(/^[\s;,-]+|[\s;,-]+$/g, "");
+      if (labels.includes(label) && answer) parts[label] = answer;
+    }
+
+    return Object.keys(parts).length > 0 ? parts : null;
+  }
+
+  const chunks = text
+    .split(/\s*(?:;|\n|\|)\s*/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (chunks.length !== labels.length) return null;
+
+  return labels.reduce<Record<string, string>>((items, label, index) => {
+    items[label] = chunks[index];
+    return items;
+  }, {});
+}
+
+function compoundAnswerResults(
+  question: QuestionBankQuestion,
+  parts: CompoundPart[],
+  answers: Record<string, string>
+): Record<string, boolean> | null {
+  const labels = parts.map((part) => part.label);
+  const expected =
+    parseLabeledAnswerParts(question.answerText, labels) ??
+    parseLabeledAnswerParts(question.answer, labels) ??
+    parseLabeledAnswerParts(question.explanation, labels);
+
+  if (!expected) return null;
+
+  return labels.reduce<Record<string, boolean>>((items, label) => {
+    const submitted = normalizeAnswer(answers[label]);
+    const correct = normalizeAnswer(expected[label]);
+    if (correct) items[label] = submitted === correct;
+    return items;
+  }, {});
+}
+
 function parseFractionValue(value: string, allowSpacePair = false): FractionValue | null {
   const text = value.trim().replace(/\s+/g, " ");
   const slashMatch = text.match(/^(-?\d+)\s*\/\s*(-?\d+)$/);
@@ -278,6 +506,17 @@ function hasValidChoices(question: QuestionBankQuestion) {
     choices.every((choice) => textValue(choice.key).trim() && textValue(choice.text).trim());
 }
 
+function emptySessionStats(): SessionCompletionStats {
+  return {
+    attempts: 0,
+    correct: 0,
+    xp: 0,
+    timeSpentMs: 0,
+    concepts: [],
+    skills: [],
+  };
+}
+
 function isPracticeReadyQuestion(question: QuestionBankQuestion) {
   if (!textValue(question.stem).trim()) return false;
   if (!hasAnswerData(question)) return false;
@@ -313,7 +552,37 @@ function MathText({ value, renderSpacePairAsFraction = false }: { value: string;
     return <FractionDisplay {...fraction} />;
   }
 
-  return <>{value}</>;
+  if (!value.includes("$$")) return <>{value}</>;
+  const chunks = value.split(/(\$\$.*?\$\$)/g).filter((chunk) => chunk.length > 0);
+
+  return (
+    <>
+      {chunks.map((chunk, index) => {
+        const inlineMath = chunk.match(/^\$\$([\s\S]*)\$\$$/)?.[1]?.trim();
+        if (!inlineMath) return <span key={`${chunk}-${index}`}>{chunk}</span>;
+
+        const fractionMatch = inlineMath.match(/^\\frac\{(-?\d+)\}\{(-?\d+)\}$/);
+        if (fractionMatch) {
+          return <FractionDisplay key={`${chunk}-${index}`} numerator={fractionMatch[1]} denominator={fractionMatch[2]} />;
+        }
+
+        const exponentMatch = inlineMath.match(/^(-?\d+)\^\{(-?\d+)\}$/);
+        if (exponentMatch) {
+          return (
+            <span key={`${chunk}-${index}`}>
+              {exponentMatch[1]}
+              <sup>{exponentMatch[2]}</sup>
+            </span>
+          );
+        }
+
+        if (inlineMath === "\\le") return <span key={`${chunk}-${index}`}>≤</span>;
+        if (inlineMath === "\\ge") return <span key={`${chunk}-${index}`}>≥</span>;
+
+        return <span key={`${chunk}-${index}`}>{inlineMath}</span>;
+      })}
+    </>
+  );
 }
 
 function isLocallyCorrect(question: QuestionBankQuestion, answer: string) {
@@ -348,51 +617,239 @@ function readyMathQuestion(question: QuestionBankQuestion) {
   return question.subject === "math" && isPracticeReadyQuestion(question);
 }
 
-function questionSortScore(question: QuestionBankQuestion, action: PersonalizedNextAction) {
-  const concepts = inferQuestionConcepts(question);
-  const conceptHit = action.concepts.length === 0 ||
-    concepts.some((concept) => action.concepts.includes(concept));
-  const rubricHit = rubricMatchesQuestion(question, action);
+function questionSourceKey(question: QuestionBankQuestion) {
+  return question.sourceSetId || question.questionSetId || question.sourceTitle || "unknown";
+}
+
+function questionNumber(question: QuestionBankQuestion) {
+  return Number(question.questionNumber ?? 0) || 0;
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function buildSelectionContext(
+  courseRuns: CourseRunSnapshot[],
+  currentRunId?: string,
+  stageId?: string,
+  actionId?: string
+): QuestionSelectionContext {
+  const globallyAttemptedIds = new Set<string>();
+  const globallyAttemptedFingerprints = new Set<string>();
+  const sourceUsageCounts = new Map<string, number>();
+
+  for (const snapshot of courseRuns) {
+    if (snapshot.run.id === currentRunId) continue;
+    for (const questionId of snapshot.attemptedQuestionIds ?? []) {
+      globallyAttemptedIds.add(questionId);
+    }
+  }
+
+  const rotationSeed = [currentRunId ?? "action", stageId ?? actionId ?? "default"].join(":");
 
   return {
-    concept: conceptHit ? 0 : 1,
-    rubric: rubricHit ? 0 : 1,
-    number: Number(question.questionNumber ?? 0) || 0,
+    rotationSeed,
+    globallyAttemptedIds,
+    globallyAttemptedFingerprints,
+    sourceUsageCounts,
   };
 }
 
-function sortQuestionsForAction(items: QuestionBankQuestion[], action: PersonalizedNextAction) {
-  return [...items].sort((a, b) => {
-    const aScore = questionSortScore(a, action);
-    const bScore = questionSortScore(b, action);
-    if (aScore.concept !== bScore.concept) return aScore.concept - bScore.concept;
-    if (aScore.rubric !== bScore.rubric) return aScore.rubric - bScore.rubric;
-    if (aScore.number !== bScore.number) return aScore.number - bScore.number;
-    return a.id.localeCompare(b.id);
-  });
+function enrichSelectionContext(
+  context: QuestionSelectionContext,
+  readyQuestions: QuestionBankQuestion[]
+) {
+  for (const question of readyQuestions) {
+    if (!context.globallyAttemptedIds.has(question.id)) continue;
+    context.globallyAttemptedFingerprints.add(qualityFingerprint(question));
+    const source = questionSourceKey(question);
+    context.sourceUsageCounts.set(source, (context.sourceUsageCounts.get(source) ?? 0) + 1);
+  }
+  return context;
 }
 
-function selectQuestionsForAction(questions: QuestionBankQuestion[], action: PersonalizedNextAction) {
+function diversityScore(question: QuestionBankQuestion, context?: QuestionSelectionContext) {
+  if (!context) return 0;
+
+  const fingerprint = qualityFingerprint(question);
+  const source = questionSourceKey(question);
+  const sourceUsage = context.sourceUsageCounts.get(source) ?? 0;
+  const globallySeen =
+    context.globallyAttemptedIds.has(question.id) || context.globallyAttemptedFingerprints.has(fingerprint);
+  const rotation = (hashString(`${context.rotationSeed}:${question.id}`) % 17) - 8;
+
+  let score = 0;
+  if (!globallySeen) score += 36;
+  else score -= 28;
+  score -= sourceUsage * 7;
+  score += rotation;
+
+  return score;
+}
+
+function rubricScore(question: QuestionBankQuestion, desiredRubrics: string[]) {
+  if (desiredRubrics.length === 0) return 12;
+  if (desiredRubrics.includes(question.rubricLevel)) return 18;
+  if (question.rubricLevel === "unclassified") return 6;
+  return -10;
+}
+
+function conceptScore(question: QuestionBankQuestion, desiredConcepts: string[]) {
+  if (desiredConcepts.length === 0) return 8;
+  const concepts = inferQuestionConcepts(question);
+  if (concepts.length === 0) return -8;
+  const hits = concepts.filter((concept) => desiredConcepts.includes(concept)).length;
+  return hits > 0 ? 28 + (hits * 4) : -14;
+}
+
+function keywordScore(question: QuestionBankQuestion, keywords: string[]) {
+  if (keywords.length === 0) return 8;
+  const text = searchableText([
+    textValue(question.stem),
+    textValue(question.sourceTitle),
+    textValue(question.section),
+    textValue(question.visualDescription),
+    textValue(question.rawText),
+  ].join(" "));
+  const hits = keywords.filter((keyword) => text.includes(searchableText(keyword))).length;
+  return hits > 0 ? 22 + (hits * 4) : -18;
+}
+
+function questionDifficultyRank(question: QuestionBankQuestion) {
+  const order: Record<string, number> = {
+    nhan_biet: 1,
+    thong_hieu: 2,
+    van_dung: 3,
+    van_dung_cao: 4,
+    unclassified: 2,
+  };
+  return order[question.rubricLevel] ?? 2;
+}
+
+function stageQuestionScore(
+  question: QuestionBankQuestion,
+  filter: CourseQuestionFilter,
+  courseConcept: string,
+  context?: QuestionSelectionContext
+) {
+  let score = questionQualityScore(question);
+  score += question.subject === filter.subject ? 18 : -60;
+  score += Number(question.grade ?? 0) === filter.grade ? 20 : -35;
+  score += rubricScore(question, filter.rubricLevels);
+  score += keywordScore(question, filter.keywords);
+  score += conceptScore(question, [courseConcept]);
+  score += diversityScore(question, context);
+
+  return score;
+}
+
+function actionQuestionScore(
+  question: QuestionBankQuestion,
+  action: PersonalizedNextAction,
+  context?: QuestionSelectionContext
+) {
+  let score = questionQualityScore(question);
+  score += rubricScore(question, action.rubricLevels);
+  score += conceptScore(question, action.concepts);
+  score += diversityScore(question, context);
+  return score;
+}
+
+function pickRankedQuestions(
+  questions: QuestionBankQuestion[],
+  targetCount: number,
+  scoreQuestion: (question: QuestionBankQuestion) => number,
+  options?: { minScore?: number }
+) {
+  const ranked = questions
+    .map((question) => ({ question, score: scoreQuestion(question) }))
+    .filter((item) => item.score >= (options?.minScore ?? -Infinity))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const difficultyDelta = questionDifficultyRank(a.question) - questionDifficultyRank(b.question);
+      if (difficultyDelta !== 0) return difficultyDelta;
+      const sourceDelta = questionSourceKey(a.question).localeCompare(questionSourceKey(b.question), "vi");
+      if (sourceDelta !== 0) return sourceDelta;
+      if (questionNumber(a.question) !== questionNumber(b.question)) return questionNumber(a.question) - questionNumber(b.question);
+      return a.question.id.localeCompare(b.question.id);
+    });
+
+  const selected: QuestionBankQuestion[] = [];
+  const usedIds = new Set<string>();
+  const sourceCounts = new Map<string, number>();
+  const takeQuestion = (question: QuestionBankQuestion) => {
+    selected.push(question);
+    usedIds.add(question.id);
+    const source = questionSourceKey(question);
+    sourceCounts.set(source, (sourceCounts.get(source) ?? 0) + 1);
+  };
+
+  for (const { question } of ranked) {
+    if (selected.length >= targetCount) break;
+    const source = questionSourceKey(question);
+    if ((sourceCounts.get(source) ?? 0) >= 2 && ranked.length > targetCount) continue;
+    takeQuestion(question);
+  }
+
+  for (const { question } of ranked) {
+    if (selected.length >= targetCount) break;
+    if (!usedIds.has(question.id)) takeQuestion(question);
+  }
+
+  return selected;
+}
+
+function selectQuestionsForAction(
+  questions: QuestionBankQuestion[],
+  action: PersonalizedNextAction,
+  courseRuns: CourseRunSnapshot[] = []
+) {
   const targetCount = Math.max(1, action.questionCount);
-  const readyQuestions = questions.filter(readyMathQuestion);
-  const primary = sortQuestionsForAction(
-    readyQuestions.filter((question) => rubricMatchesQuestion(question, action) && conceptMatches(question, action)),
-    action
+  const readyQuestions = normalizeQuestionBank(questions);
+  const context = enrichSelectionContext(buildSelectionContext(courseRuns, undefined, undefined, action.id), readyQuestions);
+  const globallyFresh = readyQuestions.filter((question) => (
+    !context.globallyAttemptedIds.has(question.id) &&
+    !context.globallyAttemptedFingerprints.has(qualityFingerprint(question))
+  ));
+  const strict = globallyFresh.filter((question) => rubricMatchesQuestion(question, action) && conceptMatches(question, action));
+  const selected = pickRankedQuestions(
+    strict,
+    targetCount,
+    (question) => actionQuestionScore(question, action, context),
+    { minScore: 30 }
   );
-  const selected = primary.slice(0, targetCount);
 
   if (selected.length >= targetCount) return selected;
 
   const selectedIds = new Set(selected.map((question) => question.id));
-  const fallback = sortQuestionsForAction(
-    readyQuestions.filter((question) => !selectedIds.has(question.id)),
-    action
+  const strictFallback = readyQuestions.filter((question) => (
+    !selectedIds.has(question.id) &&
+    rubricMatchesQuestion(question, action) &&
+    conceptMatches(question, action)
+  ));
+  const extraStrict = pickRankedQuestions(
+    strictFallback,
+    targetCount - selected.length,
+    (question) => actionQuestionScore(question, action, context)
+  );
+  const strictSelected = [...selected, ...extraStrict];
+
+  if (strictSelected.length >= targetCount) return strictSelected;
+
+  const strictIds = new Set(strictSelected.map((question) => question.id));
+  const fallback = pickRankedQuestions(
+    readyQuestions.filter((question) => !strictIds.has(question.id)),
+    targetCount - strictSelected.length,
+    (question) => actionQuestionScore(question, action, context)
   );
 
-  return [
-    ...selected,
-    ...fallback.slice(0, targetCount - selected.length),
-  ];
+  return [...strictSelected, ...fallback];
 }
 
 function keywordMatchesQuestion(question: QuestionBankQuestion, filter: CourseQuestionFilter) {
@@ -419,11 +876,44 @@ function stageMatchesQuestion(question: QuestionBankQuestion, filter: CourseQues
 
 function selectQuestionsForStage(
   questions: QuestionBankQuestion[],
-  snapshot: CourseRunSnapshot
+  snapshot: CourseRunSnapshot,
+  courseRuns: CourseRunSnapshot[] = []
 ) {
-  const targetCount = Math.max(1, snapshot.currentStage.questionFilter.questionCount);
-  const primary = questions.filter((question) => stageMatchesQuestion(question, snapshot.currentStage.questionFilter));
-  const selected = primary.slice(0, targetCount);
+  const currentProgress = snapshot.run.stageProgress[snapshot.currentStage.id];
+  const remainingAttempts = currentProgress?.status === "retry_required"
+    ? snapshot.currentStage.minAttempts
+    : Math.max(1, snapshot.currentStage.minAttempts - Number(currentProgress?.attempts ?? 0));
+  const targetCount = Math.max(
+    1,
+    Math.min(snapshot.currentStage.questionFilter.questionCount, remainingAttempts)
+  );
+  const filter = snapshot.currentStage.questionFilter;
+  const readyQuestions = normalizeQuestionBank(questions);
+  const context = enrichSelectionContext(
+    buildSelectionContext(courseRuns, snapshot.run.id, snapshot.currentStage.id),
+    readyQuestions
+  );
+  const attemptedQuestionIds = new Set(snapshot.attemptedQuestionIds ?? []);
+  const attemptedFingerprints = new Set(
+    readyQuestions
+      .filter((question) => attemptedQuestionIds.has(question.id))
+      .map(qualityFingerprint)
+  );
+  const isFreshQuestion = (question: QuestionBankQuestion) => (
+    !attemptedQuestionIds.has(question.id) && !attemptedFingerprints.has(qualityFingerprint(question))
+  );
+  const freshQuestions = readyQuestions.filter(isFreshQuestion);
+  const globallyFreshStrict = freshQuestions.filter((question) => (
+    !context.globallyAttemptedIds.has(question.id) &&
+    !context.globallyAttemptedFingerprints.has(qualityFingerprint(question)) &&
+    stageMatchesQuestion(question, filter)
+  ));
+  const selected = pickRankedQuestions(
+    globallyFreshStrict,
+    targetCount,
+    (question) => stageQuestionScore(question, filter, snapshot.course.primaryConcept, context),
+    { minScore: 45 }
+  );
 
   if (selected.length >= targetCount) return selected;
 
@@ -441,15 +931,46 @@ function selectQuestionsForStage(
     uiMode: snapshot.currentStage.uiMode,
   };
   const selectedIds = new Set(selected.map((question) => question.id));
-  const fallback = sortQuestionsForAction(
-    questions.filter((question) => readyMathQuestion(question) && !selectedIds.has(question.id)),
-    fallbackAction
+  const localFreshStrict = pickRankedQuestions(
+    freshQuestions.filter((question) => !selectedIds.has(question.id) && stageMatchesQuestion(question, filter)),
+    targetCount - selected.length,
+    (question) => stageQuestionScore(question, filter, snapshot.course.primaryConcept, context)
+  );
+  const strictSelected = [...selected, ...localFreshStrict];
+  const strictIds = new Set(strictSelected.map((question) => question.id));
+
+  if (strictSelected.length >= targetCount) {
+    return strictSelected;
+  }
+
+  const relaxedSameGrade = pickRankedQuestions(
+    freshQuestions.filter((question) => Number(question.grade ?? 0) === filter.grade && !strictIds.has(question.id)),
+    targetCount - strictSelected.length,
+    (question) => stageQuestionScore(question, filter, snapshot.course.primaryConcept, context)
+  );
+  const relaxedIds = new Set([...strictIds, ...relaxedSameGrade.map((question) => question.id)]);
+
+  if (strictSelected.length + relaxedSameGrade.length >= targetCount) {
+    return [...strictSelected, ...relaxedSameGrade];
+  }
+
+  const fallback = pickRankedQuestions(
+    freshQuestions.filter((question) => !relaxedIds.has(question.id)),
+    targetCount - strictSelected.length - relaxedSameGrade.length,
+    (question) => actionQuestionScore(question, fallbackAction, context)
   );
 
-  return [
-    ...selected,
-    ...fallback.slice(0, targetCount - selected.length),
-  ];
+  const freshSelected = [...strictSelected, ...relaxedSameGrade, ...fallback];
+  if (freshSelected.length >= targetCount) return freshSelected;
+
+  const freshSelectedIds = new Set(freshSelected.map((question) => question.id));
+  const repeatFallback = pickRankedQuestions(
+    readyQuestions.filter((question) => !freshSelectedIds.has(question.id)),
+    targetCount - freshSelected.length,
+    (question) => stageQuestionScore(question, filter, snapshot.course.primaryConcept, context)
+  );
+
+  return [...freshSelected, ...repeatFallback];
 }
 
 function feedbackText(state: AnswerState, wrongCount: number, action: PersonalizedNextAction) {
@@ -457,7 +978,7 @@ function feedbackText(state: AnswerState, wrongCount: number, action: Personaliz
     if (action.actionType === "micro_lesson_then_guided_retry") {
       return "Đúng rồi! Con đã sửa được bước khó nhất.";
     }
-    return "Đúng rồi! Con đang tiến gần hơn đến mục tiêu hôm nay.";
+    return "Đúng rồi!";
   }
 
   if (state === "wrong" && wrongCount >= 2) {
@@ -492,6 +1013,7 @@ export function PersonalizedExercisePanel({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [partAnswers, setPartAnswers] = useState<Record<string, string>>({});
+  const [partResults, setPartResults] = useState<Record<string, boolean>>({});
   const [answerState, setAnswerState] = useState<AnswerState>("idle");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [hintText, setHintText] = useState("");
@@ -504,6 +1026,8 @@ export function PersonalizedExercisePanel({
   const [planReloadKey, setPlanReloadKey] = useState(0);
   const questionStartedAtRef = useRef(0);
   const autoStartConsumedRef = useRef(false);
+  const sessionStatsRef = useRef<SessionCompletionStats>(emptySessionStats());
+  const finishingSessionRef = useRef(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -610,15 +1134,16 @@ export function PersonalizedExercisePanel({
 
   const sessionQuestions = useMemo(() => {
     if (activeCourseRun) {
-      return selectQuestionsForStage(questions, activeCourseRun);
+      return selectQuestionsForStage(questions, activeCourseRun, courseRuns);
     }
-    return selectQuestionsForAction(questions, activeAction);
-  }, [activeAction, activeCourseRun, questions]);
+    return selectQuestionsForAction(questions, activeAction, courseRuns);
+  }, [activeAction, activeCourseRun, courseRuns, questions]);
 
   const currentQuestion = sessionQuestions[currentIndex] ?? null;
+  const displayStem = currentQuestion?.stemMarkdown || currentQuestion?.stem || "";
   const compoundPrompt = useMemo(
-    () => splitCompoundPrompt(currentQuestion?.stem ?? ""),
-    [currentQuestion?.stem]
+    () => splitCompoundPrompt(displayStem),
+    [displayStem]
   );
   const currentQuestionConcepts = useMemo(
     () => currentQuestion ? inferQuestionConcepts(currentQuestion) : [],
@@ -668,6 +1193,7 @@ export function PersonalizedExercisePanel({
   const resetQuestionState = useCallback(() => {
     setAnswer("");
     setPartAnswers({});
+    setPartResults({});
     setAnswerState("idle");
     setFeedbackMessage("");
     setHintText("");
@@ -675,13 +1201,65 @@ export function PersonalizedExercisePanel({
     questionStartedAtRef.current = Date.now();
   }, []);
 
-  const finishSession = useCallback(() => {
+  const saveSessionCompletion = useCallback(async () => {
+    const stats = sessionStatsRef.current;
+    if (!uid || stats.attempts === 0 || finishingSessionRef.current) return;
+
+    finishingSessionRef.current = true;
+    const scorePercent = Math.round((stats.correct / stats.attempts) * 100);
+    const lessonId = activeCourseRun
+      ? `${activeCourseRun.run.id}_${activeCourseRun.currentStage.id}`
+      : currentCoachingAction.id;
+    const lessonTitle = activeCourseRun
+      ? `${activeCourseRun.course.title} - ${activeCourseRun.currentStage.title}`
+      : currentCoachingAction.title;
+    const concepts = activeCourseRun
+      ? [activeCourseRun.course.primaryConcept, ...stats.concepts]
+      : stats.concepts;
+
+    try {
+      const res = await fetch("/api/v1/progress/lesson-completion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          childUid: uid,
+          lessonId,
+          lessonTitle,
+          subject: "math",
+          scorePercent,
+          quizCorrect: stats.correct,
+          quizTotal: stats.attempts,
+          xpEarned: stats.xp,
+          timeOnTaskSeconds: Math.max(1, Math.round(stats.timeSpentMs / 1000)),
+          concepts: Array.from(new Set(concepts.filter(Boolean))),
+          skills: Array.from(new Set(stats.skills.filter(Boolean))),
+          completedAt: new Date().toISOString(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Không lưu được tiến độ phiên học.");
+      }
+    } finally {
+      finishingSessionRef.current = false;
+    }
+  }, [activeCourseRun, currentCoachingAction.id, currentCoachingAction.title, uid]);
+
+  const finishSession = useCallback(async () => {
+    try {
+      await saveSessionCompletion();
+    } catch (error) {
+      setPlanError(error instanceof Error ? error.message : "Không lưu được tiến độ phiên học.");
+      return;
+    }
+
     setSessionStarted(false);
     setCurrentIndex(0);
     resetQuestionState();
+    sessionStatsRef.current = emptySessionStats();
     setPlanReloadKey((current) => current + 1);
     router.replace("/lessons");
-  }, [resetQuestionState, router]);
+  }, [resetQuestionState, router, saveSessionCompletion]);
 
   const startSession = useCallback((actionId?: string) => {
     if (actionId) setActiveActionId(actionId);
@@ -689,6 +1267,7 @@ export function PersonalizedExercisePanel({
     setCurrentIndex(0);
     setSessionXp(0);
     setWrongCounts({});
+    sessionStatsRef.current = emptySessionStats();
     resetQuestionState();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [resetQuestionState]);
@@ -713,7 +1292,7 @@ export function PersonalizedExercisePanel({
 
   function nextQuestion() {
     if (currentIndex >= sessionQuestions.length - 1) {
-      finishSession();
+      void finishSession();
       return;
     }
 
@@ -725,7 +1304,7 @@ export function PersonalizedExercisePanel({
     if (!currentQuestion || hintLoading) return;
 
     setHintLoading(true);
-    setHintText("Cosmo đang tách bài thành các bước nhỏ...");
+    setHintText("Đang mở gợi ý...");
 
     try {
       let token = await auth?.currentUser?.getIdToken();
@@ -757,9 +1336,9 @@ export function PersonalizedExercisePanel({
       if (!res.ok) {
         throw new Error(data.error ?? "Không tạo được gợi ý.");
       }
-      setHintText(data.guidance || "Gợi ý: đọc lại đề hỏi gì, gạch dữ kiện quan trọng, rồi chọn phép tính phù hợp.");
+setHintText(data.guidance || "Đọc lại đề rồi làm từng bước.");
     } catch (err: any) {
-      setHintText(err.message || "Gợi ý: đọc lại đề hỏi gì, tìm dữ kiện cần dùng, rồi thử giải bằng một phép tính đơn giản trước.");
+      setHintText(err.message || "Đọc lại đề rồi làm từng bước.");
     } finally {
       setHintLoading(false);
     }
@@ -817,8 +1396,52 @@ export function PersonalizedExercisePanel({
       }
 
       setAnswerState(isCorrect ? "correct" : "wrong");
-      setFeedbackMessage(feedbackText(isCorrect ? "correct" : "wrong", nextWrongCount, currentCoachingAction));
-      setSessionXp((xp) => xp + (isCorrect ? 10 : 2));
+      const nextPartResults = compoundPrompt.parts.length > 0
+        ? compoundAnswerResults(currentQuestion, compoundPrompt.parts, partAnswers)
+        : null;
+
+      if (nextPartResults) {
+        setPartResults(nextPartResults);
+        const correctPartCount = Object.values(nextPartResults).filter(Boolean).length;
+        setFeedbackMessage(
+          isCorrect
+            ? "Đúng hết rồi!"
+            : `Đúng ${correctPartCount}/${compoundPrompt.parts.length} ý. Mình sửa những ý còn đỏ nhé.`
+        );
+      } else {
+        setPartResults({});
+        setFeedbackMessage(feedbackText(isCorrect ? "correct" : "wrong", nextWrongCount, currentCoachingAction));
+      }
+      const earnedXp = isCorrect ? 10 : 2;
+      const questionConcepts = currentQuestion.concepts?.length
+        ? currentQuestion.concepts
+        : inferQuestionConcepts(currentQuestion);
+      const questionSkills = currentQuestion.skills ?? [];
+
+      sessionStatsRef.current = {
+        attempts: sessionStatsRef.current.attempts + 1,
+        correct: sessionStatsRef.current.correct + (isCorrect ? 1 : 0),
+        xp: sessionStatsRef.current.xp + earnedXp,
+        timeSpentMs: sessionStatsRef.current.timeSpentMs + timeSpentMs,
+        concepts: Array.from(new Set([...sessionStatsRef.current.concepts, ...questionConcepts])),
+        skills: Array.from(new Set([...sessionStatsRef.current.skills, ...questionSkills])),
+      };
+      setSessionXp((xp) => xp + earnedXp);
+
+      const nextCourseRun = data.courseRun as { status?: string; currentStageId?: string } | undefined;
+      const courseRunMoved = Boolean(
+        activeCourseRun &&
+          nextCourseRun &&
+          (nextCourseRun.status === "completed" || nextCourseRun.currentStageId !== activeCourseRun.currentStage.id)
+      );
+
+      if (courseRunMoved) {
+        setFeedbackMessage(nextCourseRun?.status === "completed" ? "Hoàn thành khóa." : "Hoàn thành chặng.");
+        window.setTimeout(() => {
+          void finishSession();
+        }, 900);
+        return;
+      }
 
       if (!isCorrect && (currentCoachingAction.hintMode === "step_by_step" || nextWrongCount >= 2)) {
         void loadHint(answerToSubmit);
@@ -866,7 +1489,7 @@ export function PersonalizedExercisePanel({
             type="button"
             variant="danger"
             size="sm"
-            onClick={finishSession}
+            onClick={() => void finishSession()}
             icon={<ArrowLeft className="h-3.5 w-3.5" />}
           >
             Thoát
@@ -906,8 +1529,8 @@ export function PersonalizedExercisePanel({
               <div className="mb-2 font-display text-[0.7rem] uppercase tracking-widest text-[#888]">
                 Câu hỏi
               </div>
-              <h2 className="max-w-5xl font-display text-[clamp(1.15rem,2.2vw,1.65rem)] leading-relaxed text-nb-black">
-                {compoundPrompt.parts.length > 0 ? compoundPrompt.lead : currentQuestion.stem}
+              <h2 className="max-w-5xl whitespace-pre-line break-words font-body text-[clamp(1.15rem,2.2vw,1.65rem)] font-black leading-relaxed text-nb-black [overflow-wrap:anywhere]">
+                <MathText value={compoundPrompt.parts.length > 0 ? compoundPrompt.lead : displayStem} renderSpacePairAsFraction={isFractionQuestion} />
               </h2>
               {compoundPrompt.parts.length > 0 && (
                 <div className="mt-5 grid grid-cols-1 gap-3">
@@ -930,9 +1553,7 @@ export function PersonalizedExercisePanel({
                   <div className="font-display text-[0.7rem] uppercase tracking-widest text-[#777]">
                     Cần hình minh họa
                   </div>
-                  <p className="mt-2 text-sm font-bold leading-relaxed text-nb-black">
-                    Câu này nhắc tới hình ở trên, nhưng hệ thống chưa nhận được ảnh/hình rõ ràng. Con nên mở gợi ý hoặc báo lại để thêm hình.
-                  </p>
+                  <p className="mt-2 text-sm font-bold leading-relaxed text-nb-black">Câu này cần hình minh họa.</p>
                 </div>
               )}
             </div>
@@ -978,7 +1599,7 @@ export function PersonalizedExercisePanel({
                       {isCorrectChoice ? <Check className="h-4 w-4" /> : isWrongChoice ? <X className="h-4 w-4 text-white" /> : letter}
                     </span>
                     <span className="font-body flex-1 text-base font-bold leading-snug">
-                      <MathText value={choice.text} renderSpacePairAsFraction={isFractionQuestion} />
+                      <MathText value={choice.textMarkdown || choice.text} renderSpacePairAsFraction={isFractionQuestion} />
                     </span>
                   </button>
                 );
@@ -986,21 +1607,38 @@ export function PersonalizedExercisePanel({
             </div>
           ) : compoundPrompt.parts.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {compoundPrompt.parts.map((part) => (
-                <label key={part.label} className="flex flex-col gap-2">
-                  <span className="text-xs font-black uppercase">Đáp án {part.label})</span>
-                  <input
-                    className="nb-input text-base"
-                    value={partAnswers[part.label] ?? ""}
-                    disabled={answerState === "correct"}
-                    onChange={(event) => {
-                      setPartAnswers((items) => ({ ...items, [part.label]: event.target.value }));
-                      if (canRetry) setAnswerState("idle");
-                    }}
-                    placeholder={`Nhập đáp án ${part.label})`}
-                  />
-                </label>
-              ))}
+              {compoundPrompt.parts.map((part) => {
+                const partResult = partResults[part.label];
+                const hasPartResult = partResult !== undefined;
+
+                return (
+                  <label key={part.label} className="flex flex-col gap-2">
+                    <span className="text-xs font-black uppercase">Đáp án {part.label})</span>
+                    <input
+                      className={cn(
+                        "nb-input text-base",
+                        hasPartResult && partResult && "border-nb-green bg-[#e9fff1]",
+                        hasPartResult && !partResult && "border-nb-red bg-[#fff0c8]"
+                      )}
+                      value={partAnswers[part.label] ?? ""}
+                      disabled={answerState === "correct"}
+                      onChange={(event) => {
+                        setPartAnswers((items) => ({ ...items, [part.label]: event.target.value }));
+                        if (canRetry) {
+                          setAnswerState("idle");
+                          setPartResults({});
+                        }
+                      }}
+                      placeholder={`Nhập đáp án ${part.label})`}
+                    />
+                    {hasPartResult ? (
+                      <span className={cn("text-xs font-black", partResult ? "text-nb-green" : "text-nb-red")}>
+                        {partResult ? "Đúng rồi" : "Chưa đúng"}
+                      </span>
+                    ) : null}
+                  </label>
+                );
+              })}
             </div>
           ) : expectsFractionAnswer ? (
             <div className="max-w-md">
@@ -1095,7 +1733,15 @@ export function PersonalizedExercisePanel({
                     </NbButton>
                   )}
                   {answerState === "wrong" && (
-                    <NbButton type="button" variant="ghost" size="sm" onClick={() => setAnswerState("idle")}>
+                    <NbButton
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setAnswerState("idle");
+                        setPartResults({});
+                      }}
+                    >
                       <RotateCcw className="h-4 w-4" />
                       Thử lại
                     </NbButton>
@@ -1117,12 +1763,12 @@ export function PersonalizedExercisePanel({
                 type="button"
                 onClick={() => void loadHint()}
                 className="ai-float flex h-16 w-16 cursor-pointer items-center justify-center rounded-full bg-gradient-to-br from-nb-purple to-nb-blue text-3xl [border:4px_solid_var(--nb-black)] [box-shadow:4px_4px_0_var(--nb-black)]"
-                aria-label="Gợi ý Cosmo"
+                aria-label="Mở gợi ý"
               >
                 🍈
               </button>
               <span className="whitespace-nowrap rounded bg-nb-black px-1.5 py-0.5 font-display text-[0.55rem] text-nb-yellow">
-                Cosmo
+                Gợi ý
               </span>
             </div>
 
@@ -1140,12 +1786,12 @@ export function PersonalizedExercisePanel({
                   )}
                 />
                 <span className="font-display text-[0.65rem] uppercase tracking-widest text-[#888]">
-                  {hintText ? "Hint" : "Cosmo"}
+                  {hintText ? "Gợi ý" : "Trợ giúp"}
                 </span>
               </div>
 
               <p className="mt-3 text-sm font-semibold leading-relaxed text-[#555]">
-                {hintText || "Cần gợi ý thì hỏi Cosmo nhé!"}
+                {hintText || "Bấm gợi ý khi cần"}
               </p>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -1207,8 +1853,8 @@ export function PersonalizedExercisePanel({
           {planError
             ? planError
             : waitingForSession
-              ? "Melon đang chuẩn bị câu hỏi đầu tiên cho mình."
-              : "Chưa có câu hỏi phù hợp cho chặng này. Ba mẹ hoặc admin cần bổ sung thêm câu trong kho đề."}
+              ? "Đang mở bài..."
+              : "Chưa có câu hỏi cho chặng này."}
         </p>
       </div>
     </div>

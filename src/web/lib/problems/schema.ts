@@ -3,12 +3,15 @@ import { z } from "zod";
 export const ParsedChoiceSchema = z.object({
   key: z.string(),
   text: z.string(),
+  textMarkdown: z.string().optional(),
 });
 
 export const ParsedSubQuestionSchema = z.object({
   label: z.string(),
   stem: z.string(),
+  stemMarkdown: z.string().optional(),
   answerText: z.string().optional(),
+  answerTextMarkdown: z.string().optional(),
   explanation: z.string().optional(),
 });
 
@@ -30,15 +33,19 @@ export const ParsedQuestionSchema = z.object({
   questionNumber: z.number().int().min(1),
   type: z.enum(["multiple_choice", "short_answer", "essay"]),
   stem: z.string(),
+  stemMarkdown: z.string().optional(),
   choices: z.array(ParsedChoiceSchema),
   subQuestions: z.array(ParsedSubQuestionSchema),
   answer: z.string(),
   answerText: z.string(),
+  answerTextMarkdown: z.string().optional(),
   answerSource: z.enum(["provided", "generated", "unknown"]),
   explanation: z.string(),
   imageUrls: z.array(z.string()),
   visualDescription: z.string(),
+  visualDescriptionMarkdown: z.string().optional(),
   rawText: z.string(),
+  rawTextMarkdown: z.string().optional(),
   confidence: z.number().min(0).max(1),
   concepts: z.array(z.string()).optional(),
   skills: z.array(z.string()).optional(),

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { FileText, Languages, Save, Upload, AlertCircle } from "lucide-react";
@@ -315,7 +315,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
     <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
       <div className="nb-card rounded-2xl bg-white p-6 flex flex-col gap-5">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="font-display text-sm">Nguồn đề</h3>
+          <h3 className="font-display text-sm">T?o ??</h3>
           <NbPill color={mode === "admin" ? "orange" : "green"}>
             {mode === "admin" ? "Kho đề" : "Học sinh"}
           </NbPill>
@@ -355,7 +355,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
             onChange={handleFileChange}
             disabled={!canParse}
           />
-          {!canParse ? (
+{!canParse ? (
             <div
               className={cn(
                 "w-full min-h-28 border-2 border-dashed border-nb-red rounded-xl",
@@ -379,7 +379,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
               )}
             >
               <Upload className="w-6 h-6" />
-              <span className="text-sm font-bold">Upload PDF, DOCX hoặc ảnh nhiều trang</span>
+              <span className="text-sm font-bold">Tải tệp lên</span>
               <span className="text-[0.7rem] text-[#555]">
                 {files.length > 0 ? `Đã chọn ${files.length} file` : "JPG, PNG, PDF, DOCX, TXT"}
               </span>
@@ -482,9 +482,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
         </div>
 
         {!result ? (
-          <div className="nb-card rounded-2xl bg-white p-8 text-center text-sm font-bold text-[#666]">
-            Upload file hoặc paste text để xem kết quả đọc đề ở đây.
-          </div>
+          <div className="nb-card rounded-2xl bg-white p-8 text-center text-sm font-bold text-[#666]">Chưa có dữ liệu</div>
         ) : (
           <div className="flex flex-col gap-4">
             {results.length > 1 && (

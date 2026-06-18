@@ -191,7 +191,7 @@ export default function LessonPlayerPage({
   const [totalXp, setTotalXp] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [hintShown, setHintShown] = useState(false);
-  const [hintText, setHintText] = useState("Cần gợi ý thì hỏi Cosmo nhé!");
+  const [hintText, setHintText] = useState("Bấm gợi ý khi cần");
   const [hintLoading, setHintLoading] = useState(false);
   const lessonStartedAtRef = useRef(0);
   const quizCorrectRef = useRef(0);
@@ -235,7 +235,7 @@ export default function LessonPlayerPage({
       const newXp = totalXp + xp;
       setTotalXp(newXp);
       setHintShown(false);
-      setHintText("Cần gợi ý thì hỏi Cosmo nhé!");
+      setHintText("Bấm gợi ý khi cần");
 
       if (currentSlideIdx < (lesson?.slides.length ?? 0) - 1) {
         setCurrentSlideIdx((i) => i + 1);
@@ -294,7 +294,7 @@ export default function LessonPlayerPage({
     if (hintLoading || !slide) return;
     setHintShown(true);
     setHintLoading(true);
-    setHintText("Cosmo đang chuẩn bị gợi ý từng bước...");
+    setHintText("Đang mở gợi ý...");
     try {
       let token = await auth?.currentUser?.getIdToken();
       if (!token) {
@@ -324,7 +324,8 @@ export default function LessonPlayerPage({
       if (!res.ok) {
         throw new Error(data.error ?? "Không tạo được gợi ý");
       }
-      setHintText(data.guidance || "Gợi ý: đọc lại đề hỏi gì, gạch dữ kiện quan trọng, rồi chọn phép tính phù hợp. Con làm được mà!");
+const guidance = (data.guidance as string) || "Làm từng bước nhé.";
+      setHintText(guidance);
 
       if (lesson?.audioEnabled && data.audioUrl) {
         const audio = new Audio(data.audioUrl as string);
@@ -332,8 +333,8 @@ export default function LessonPlayerPage({
           /* Ignore autoplay restrictions in browsers */
         });
       }
-    } catch (err: any) {
-      setHintText(err.message || "Gợi ý: đọc lại đề hỏi gì, gạch dữ kiện quan trọng, rồi chọn phép tính phù hợp. Con làm được mà!");
+} catch (err: any) {
+      setHintText(err.message || "Đọc lại đề, tìm dữ kiện, rồi làm từng bước.");
     } finally {
       setHintLoading(false);
     }
@@ -345,7 +346,7 @@ export default function LessonPlayerPage({
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
           <div className="text-6xl">🚧</div>
           <p className="font-display text-lg">Bài học này đang được chuẩn bị.</p>
-          <p className="text-sm text-[#666] max-w-xs text-center">Melon chưa có đủ nội dung cho bài này. Con quay lại danh sách bài học nhé.</p>
+          <p className="text-sm text-[#666] max-w-xs text-center">Chưa có nội dung cho bài này.</p>
           <NbButton variant="secondary" onClick={() => router.push("/lessons")}>
             Quay lại bài học
           </NbButton>
@@ -484,12 +485,12 @@ export default function LessonPlayerPage({
                   )}
                   onClick={handleHint}
                   role="button"
-                  aria-label="Ask Cosmo for a hint"
+                  aria-label="Mở gợi ý"
                 >
                   🍈
                 </div>
                 <span className="font-display text-[0.55rem] bg-nb-black text-nb-yellow px-1.5 py-0.5 rounded whitespace-nowrap">
-                  Cosmo
+                  Gợi ý
                 </span>
               </div>
 
@@ -510,7 +511,7 @@ export default function LessonPlayerPage({
                     )}
                   />
                   <span className="font-display text-[0.65rem] text-[#888] uppercase tracking-widest">
-                    {hintShown ? "Hint" : "Cosmo"}
+                    {hintShown ? "Gợi ý" : "Trợ giúp"}
                   </span>
                 </div>
 

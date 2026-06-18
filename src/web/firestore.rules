@@ -186,5 +186,18 @@ service cloud.firestore {
         && (resource.data.childUid == request.auth.uid || isParentOfChild(resource.data.childUid) || isAdmin());
       allow write: if isAdmin();
     }
+
+    // AI-generated smart exam sets and questions (written by server API)
+    match /generatedQuestionSets/{setId} {
+      allow read: if isAuthenticated()
+        && (resource.data.childUid == request.auth.uid || isParentOfChild(resource.data.childUid) || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /generatedQuestions/{questionId} {
+      allow read: if isAuthenticated()
+        && (resource.data.childUid == request.auth.uid || isParentOfChild(resource.data.childUid) || isAdmin());
+      allow write: if isAdmin();
+    }
   }
 }

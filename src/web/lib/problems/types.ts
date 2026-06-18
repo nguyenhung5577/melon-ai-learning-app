@@ -12,12 +12,15 @@ export type RubricLevel =
 export interface ParsedChoice {
   key: string;
   text: string;
+  textMarkdown?: string;
 }
 
 export interface ParsedSubQuestion {
   label: string;
   stem: string;
+  stemMarkdown?: string;
   answerText?: string;
+  answerTextMarkdown?: string;
   explanation?: string;
 }
 
@@ -30,7 +33,9 @@ export interface QuestionSet {
   sourceFiles: string[];
   createdAt?: string;
   updatedAt?: string;
+  isAiGenerated?: boolean;
 }
+
 
 export interface ParsedQuestion {
   id: string;
@@ -41,15 +46,19 @@ export interface ParsedQuestion {
   questionNumber: number;
   type: ProblemType;
   stem: string;
+  stemMarkdown?: string;
   choices: ParsedChoice[];
   subQuestions: ParsedSubQuestion[];
   answer: string;
   answerText: string;
+  answerTextMarkdown?: string;
   answerSource: AnswerSource;
   explanation: string;
   imageUrls: string[];
   visualDescription: string;
+  visualDescriptionMarkdown?: string;
   rawText: string;
+  rawTextMarkdown?: string;
   confidence: number;
   concepts?: string[];
   skills?: string[];
@@ -76,6 +85,36 @@ export interface QuestionBankMeta {
   questionCount: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface GenerationMeta {
+  basedOnPlanId: string | null;
+  targetConcepts: string[];
+  rubricDistribution: Record<string, number>;
+  exerciseAccuracyAtGen: number;
+  sourceQuestionIds: string[];
+  generatedAt: string;
+}
+
+export interface GeneratedQuestionSet {
+  id: string;
+  childUid: string;
+  title: string;
+  grade: number;
+  subject: "math";
+  questionIds: string[];
+  questionCount: number;
+  status: "ready" | "in_progress" | "completed";
+  createdAt: string;
+  updatedAt: string;
+  generationMeta: GenerationMeta;
+}
+
+export interface GeneratedQuestion extends ParsedQuestion {
+  childUid: string;
+  generatedSetId: string;
+  rubricLevel: RubricLevel;
+  sourceQuestionId?: string;
 }
 
 export interface QuestionAttempt {
