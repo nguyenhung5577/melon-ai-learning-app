@@ -25,12 +25,42 @@ const MASTERED_ACCURACY_THRESHOLD = 85;
 const MIN_CONCEPT_ATTEMPTS = 3;
 
 type LearningPreferences = {
+  primaryGoal?: "improve_math_score" | "specialized_school_exam" | "strengthen_current_grade";
   gradeLevel?: "grade_4" | "grade_5";
+  currentScore?: number;
+  targetScore?: number;
   weakTopics?: string[];
+  practiceSource?: "school_lessons" | "past_exams" | "both";
+  sessionMinutes?: 15 | 30 | 45 | 60;
+  sessionsPerWeek?: 2 | 3 | 5 | 7;
 };
 
 type ChildDocument = {
   learningPreferences?: LearningPreferences;
+};
+
+type ConceptDiagnostic = {
+  concept: string;
+  label: string;
+  attempts: number;
+  accuracy: number;
+  recentAttempts: number;
+  recentAccuracy: number;
+  lessonCompletions: number;
+  lessonAverageScore: number;
+  masteryState: MasteryState;
+  masteryEstimate: number;
+  reviewUrgency: number;
+  frictionScore: number;
+  trendScore: number;
+  evidenceScore: number;
+  priorityScore: number;
+  lastPracticedAt?: string;
+  daysSincePractice: number;
+  rubricLevels: string[];
+  needsAttention: boolean;
+  preferenceRank?: number;
+  goalRank?: number;
 };
 
 function clampPercent(value: number): number {
@@ -78,6 +108,33 @@ function average(values: number[]): number {
   const valid = values.filter((value) => Number.isFinite(value));
   if (valid.length === 0) return 0;
   return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
+}
+
+function averageFloat(values: number[]): number {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (valid.length === 0) return 0;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function clampUnit(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
+}
+
+function median(values: number[]): number {
+  const valid = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  if (valid.length === 0) return 0;
+  const middle = Math.floor(valid.length / 2);
+  if (valid.length % 2 === 0) return (valid[middle - 1] + valid[middle]) / 2;
+  return valid[middle];
+}
+
+function daysSince(timestamp: string | undefined, now: string): number {
+  if (!timestamp) return 999;
+  const target = Date.parse(timestamp);
+  const current = Date.parse(now);
+  if (!Number.isFinite(target) || !Number.isFinite(current)) return 999;
+  return Math.max(0, Math.round((current - target) / (1000 * 60 * 60 * 24)));
 }
 
 function unique(values: Array<string | undefined | null>): string[] {
@@ -263,8 +320,22 @@ function demoRecords(childUid: string): LessonCompletionRecord[] {
 
 function weakConceptsFrom(progress: StudentProgressRecord, child?: ChildDocument): string[] {
   const weakFromStats = Object.entries(progress.conceptStats ?? {})
-    .filter(([, stats]) => Number(stats.attempts ?? 0) >= MIN_CONCEPT_ATTEMPTS && Number(stats.accuracy ?? 0) < WEAK_ACCURACY_THRESHOLD)
-    .map(([concept]) => concept);
+    .map(([concept, stats]) => {
+      const attempts = Math.max(0, Number(stats?.attempts ?? 0));
+      const accuracy = clampPercent(Number(stats?.accuracy ?? 0));
+      const staleDays = daysSince(stats?.lastPracticedAt, progress.updatedAt);
+      const needsAttention =
+        (attempts < MIN_CONCEPT_ATTEMPTS && accuracy < MASTERED_ACCURACY_THRESHOLD) ||
+        accuracy < 78 ||
+        (stats?.masteryState === "mastered" && staleDays >= 35);
+      return { concept, attempts, accuracy, needsAttention };
+    })
+    .filter((item) => item.needsAttention)
+    .sort((a, b) => {
+      if (a.attempts !== b.attempts) return a.attempts - b.attempts;
+      return a.accuracy - b.accuracy;
+    })
+    .map((item) => item.concept);
 
   if (progress.totalExerciseAttempts === 0 && weakFromStats.length === 0) {
     return unique(child?.learningPreferences?.weakTopics ?? []);
@@ -292,6 +363,83 @@ function conceptLabel(concept: string): string {
   return conceptLabels[concept] ?? concept.replace(/[_-]+/g, " ");
 }
 
+function curriculumConceptsForGrade(child?: ChildDocument): string[] {
+  if (child?.learningPreferences?.gradeLevel === "grade_5") {
+    return ["arithmetic", "fractions", "geometry", "word_problems", "mixed_exams"];
+  }
+  return ["arithmetic", "fractions", "geometry", "word_problems"];
+}
+
+function goalPriorityConcepts(child?: ChildDocument): string[] {
+  const prefs = child?.learningPreferences;
+  const weakTopics = unique(prefs?.weakTopics ?? []);
+  const curriculum = curriculumConceptsForGrade(child);
+  const currentScore = Number(prefs?.currentScore ?? 0);
+  const targetScore = Number(prefs?.targetScore ?? currentScore);
+  const scoreGap = Math.max(0, targetScore - currentScore);
+
+  if (prefs?.primaryGoal === "specialized_school_exam") {
+    return unique([
+      ...weakTopics,
+      "mixed_exams",
+      "logic",
+      "word_problems",
+      "arithmetic",
+      "geometry",
+      "fractions",
+      ...curriculum,
+    ]);
+  }
+
+  if (prefs?.primaryGoal === "strengthen_current_grade") {
+    return unique([
+      ...weakTopics,
+      ...curriculum,
+      "word_problems",
+      "arithmetic",
+      "geometry",
+      "fractions",
+    ]);
+  }
+
+  if (scoreGap >= 2) {
+    return unique([
+      ...weakTopics,
+      "arithmetic",
+      "word_problems",
+      "fractions",
+      "geometry",
+      ...curriculum,
+    ]);
+  }
+
+  return unique([
+    ...weakTopics,
+    ...curriculum,
+    "mixed_exams",
+  ]);
+}
+
+function goalSummaryText(child?: ChildDocument): string | undefined {
+  const prefs = child?.learningPreferences;
+  if (!prefs?.primaryGoal) return undefined;
+
+  if (prefs.primaryGoal === "specialized_school_exam") {
+    return "ưu tiên mục tiêu điểm cao và bài tổng hợp";
+  }
+  if (prefs.primaryGoal === "strengthen_current_grade") {
+    return "ưu tiên bám chắc chương trình hiện tại";
+  }
+  const currentScore = Number(prefs.currentScore ?? 0);
+  const targetScore = Number(prefs.targetScore ?? currentScore);
+  if (targetScore > currentScore) {
+    return `ưu tiên nâng từ ${currentScore}/10 lên ${targetScore}/10`;
+  }
+  return "ưu tiên cải thiện điểm số";
+}
+
+// Legacy helper retained while the richer rules_v2 plan is rolling out.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function weaknessSummaryFrom(progress: StudentProgressRecord, targetConcepts: string[]): PersonalizedWeaknessSummary[] {
   return targetConcepts.map((concept) => {
     const stats = progress.conceptStats?.[concept];
@@ -309,6 +457,8 @@ function weaknessSummaryFrom(progress: StudentProgressRecord, targetConcepts: st
   });
 }
 
+// Legacy helper retained while the richer rules_v2 plan is rolling out.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function actionForConcept(
   concept: string,
   stats: StatBucket | undefined,
@@ -398,6 +548,282 @@ function actionForConcept(
   };
 }
 
+function rubricLevelsForMastery(masteryEstimate: number, evidenceScore: number): string[] {
+  if (evidenceScore < 0.35) return ["nhan_biet", "thong_hieu"];
+  if (masteryEstimate < 0.45) return ["nhan_biet"];
+  if (masteryEstimate < 0.7) return ["nhan_biet", "thong_hieu"];
+  if (masteryEstimate < 0.85) return ["thong_hieu", "van_dung"];
+  return ["van_dung", "van_dung_cao"];
+}
+
+function buildConceptDiagnostics(
+  progress: StudentProgressRecord,
+  child: ChildDocument | undefined,
+  attempts: StudentExerciseAttemptRecord[],
+  completions: LessonCompletionRecord[],
+  now: string
+): ConceptDiagnostic[] {
+  const goalConcepts = goalPriorityConcepts(child);
+  const conceptSet = new Set<string>();
+  for (const concept of Object.keys(progress.conceptStats ?? {})) conceptSet.add(concept);
+  for (const concept of child?.learningPreferences?.weakTopics ?? []) conceptSet.add(concept);
+  for (const concept of goalConcepts) conceptSet.add(concept);
+  for (const attempt of attempts) {
+    for (const concept of attempt.concepts ?? []) conceptSet.add(concept);
+  }
+  for (const completion of completions) {
+    for (const concept of completion.concepts ?? []) conceptSet.add(concept);
+  }
+
+  const allTimeSamples = attempts
+    .map((attempt) => Number(attempt.timeSpentSeconds ?? 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const learnerTimeBaseline = median(allTimeSamples) || 75;
+  const preferenceOrder = new Map(
+    unique(child?.learningPreferences?.weakTopics ?? []).map((concept, index) => [concept, index] as const)
+  );
+  const goalOrder = new Map(goalConcepts.map((concept, index) => [concept, index] as const));
+
+  return Array.from(conceptSet)
+    .map((concept) => {
+      const stats = progress.conceptStats?.[concept];
+      const conceptAttempts = attempts
+        .filter((attempt) => (attempt.concepts ?? []).includes(concept))
+        .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      const recentAttempts = conceptAttempts.slice(0, 6);
+      const recentWindow = conceptAttempts.slice(0, 3);
+      const previousWindow = conceptAttempts.slice(3, 6);
+      const conceptCompletions = completions
+        .filter((record) => (record.concepts ?? []).includes(concept))
+        .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+      const latestAttemptAt = conceptAttempts[0]?.submittedAt;
+      const latestCompletionAt = conceptCompletions[0]?.completedAt;
+      const lastPracticedAt = [stats?.lastPracticedAt, latestAttemptAt, latestCompletionAt]
+        .filter(Boolean)
+        .sort()
+        .at(-1);
+      const attemptsCount = Math.max(0, Number(stats?.attempts ?? conceptAttempts.length));
+      const accuracy = clampPercent(Number(stats?.accuracy ?? (
+        attemptsCount > 0
+          ? (conceptAttempts.filter((attempt) => attempt.isCorrect).length / Math.max(1, conceptAttempts.length)) * 100
+          : 0
+      )));
+      const recentAccuracy = recentAttempts.length > 0
+        ? clampPercent((recentAttempts.filter((attempt) => attempt.isCorrect).length / recentAttempts.length) * 100)
+        : accuracy;
+      const recentWindowAccuracy = recentWindow.length > 0
+        ? recentWindow.filter((attempt) => attempt.isCorrect).length / recentWindow.length
+        : accuracy / 100;
+      const previousWindowAccuracy = previousWindow.length > 0
+        ? previousWindow.filter((attempt) => attempt.isCorrect).length / previousWindow.length
+        : recentWindowAccuracy;
+      const trendScore = clampUnit(0.5 + ((recentWindowAccuracy - previousWindowAccuracy) / 2));
+      const lessonAverageScore = conceptCompletions.length > 0
+        ? average(conceptCompletions.map((record) => record.scorePercent))
+        : 0;
+      const evidenceScore = clampUnit((attemptsCount / 8) + (Math.min(3, conceptCompletions.length) * 0.12));
+      const signalWeights = [
+        { value: accuracy / 100, weight: attemptsCount > 0 ? 0.45 : 0 },
+        { value: recentAccuracy / 100, weight: recentAttempts.length > 0 ? 0.35 : 0 },
+        { value: lessonAverageScore / 100, weight: conceptCompletions.length > 0 ? 0.2 : 0 },
+      ].filter((signal) => signal.weight > 0);
+      const weightedObserved = signalWeights.length > 0
+        ? signalWeights.reduce((sum, signal) => sum + (signal.value * signal.weight), 0) /
+          signalWeights.reduce((sum, signal) => sum + signal.weight, 0)
+        : 0.65;
+      const evidenceWeight = clampUnit(0.18 + evidenceScore * 0.72);
+      const masteryEstimate = clampUnit(
+        (0.65 * (1 - evidenceWeight)) +
+        (weightedObserved * evidenceWeight) +
+        ((trendScore - 0.5) * 0.12)
+      );
+      const masteryState = stats?.masteryState
+        ?? (masteryEstimate >= 0.82 ? "mastered" : masteryEstimate >= 0.55 ? "developing" : attemptsCount > 0 ? "in_progress" : "not_started");
+      const daysSincePractice = daysSince(lastPracticedAt, now);
+      const reviewUrgency = masteryEstimate >= 0.75
+        ? clampUnit(daysSincePractice / 28) * 0.24
+        : clampUnit(daysSincePractice / 42) * 0.12;
+      const averageTimeSeconds = averageFloat(
+        conceptAttempts.map((attempt) => Number(attempt.timeSpentSeconds ?? 0)).filter((value) => value > 0)
+      );
+      const frictionScore = averageTimeSeconds > 0 && learnerTimeBaseline > 0
+        ? clampUnit((averageTimeSeconds - learnerTimeBaseline) / Math.max(learnerTimeBaseline, 30))
+        : 0;
+      const lowEvidencePenalty = attemptsCount < MIN_CONCEPT_ATTEMPTS
+        ? 0.12 + ((MIN_CONCEPT_ATTEMPTS - attemptsCount) * 0.06)
+        : 0;
+      const recentDropPenalty = recentAttempts.length >= 3 && recentAccuracy + 15 < accuracy ? 0.12 : 0;
+      const preferenceRank = preferenceOrder.get(concept);
+      const preferenceBoost = preferenceRank === undefined ? 0 : Math.max(0.03, 0.18 - (preferenceRank * 0.04));
+      const goalRank = goalOrder.get(concept);
+      const goalBoost = goalRank === undefined ? 0 : Math.max(0.08, 0.28 - (goalRank * 0.03));
+      const masteryGuard = attemptsCount >= 5 && masteryEstimate >= 0.84 && recentAccuracy >= 80 ? 0.14 : 0;
+      const priorityScore = clampUnit(
+        ((1 - masteryEstimate) * 0.42) +
+        reviewUrgency +
+        (frictionScore * 0.08) +
+        lowEvidencePenalty +
+        recentDropPenalty +
+        goalBoost +
+        preferenceBoost -
+        masteryGuard
+      );
+
+      return {
+        concept,
+        label: conceptLabel(concept),
+        attempts: attemptsCount,
+        accuracy,
+        recentAttempts: recentAttempts.length,
+        recentAccuracy,
+        lessonCompletions: conceptCompletions.length,
+        lessonAverageScore,
+        masteryState,
+        masteryEstimate,
+        reviewUrgency,
+        frictionScore,
+        trendScore,
+        evidenceScore,
+        priorityScore,
+        lastPracticedAt,
+        daysSincePractice,
+        rubricLevels: rubricLevelsForMastery(masteryEstimate, evidenceScore),
+        needsAttention: priorityScore >= 0.34,
+        preferenceRank,
+        goalRank,
+      } satisfies ConceptDiagnostic;
+    })
+    .sort((a, b) => {
+      if (a.goalRank !== undefined || b.goalRank !== undefined) {
+        const rankDiff = (a.goalRank ?? 999) - (b.goalRank ?? 999);
+        if (rankDiff !== 0) return rankDiff;
+      }
+      if (b.priorityScore !== a.priorityScore) return b.priorityScore - a.priorityScore;
+      if (a.preferenceRank !== undefined || b.preferenceRank !== undefined) {
+        return (a.preferenceRank ?? 999) - (b.preferenceRank ?? 999);
+      }
+      return a.label.localeCompare(b.label);
+    });
+}
+
+function recommendedConceptsFromProgress(progress: StudentProgressRecord, child?: ChildDocument): string[] {
+  const ranked = Object.entries(progress.conceptStats ?? {})
+    .map(([concept, stats]) => {
+      const attempts = Math.max(0, Number(stats?.attempts ?? 0));
+      const accuracy = clampPercent(Number(stats?.accuracy ?? 0));
+      const staleDays = daysSince(stats?.lastPracticedAt, progress.updatedAt);
+      const score =
+        ((100 - accuracy) * 1.2) +
+        (attempts < MIN_CONCEPT_ATTEMPTS ? 24 : 0) +
+        (stats?.masteryState === "mastered" ? Math.min(18, staleDays / 2) : Math.min(10, staleDays / 4));
+      return { concept, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.concept);
+
+  return unique([
+    ...progress.weakConcepts,
+    ...ranked,
+    ...(child?.learningPreferences?.weakTopics ?? []),
+    ...(progress.recommendedConcepts ?? []),
+  ]);
+}
+
+function weaknessSummaryFromDiagnostics(diagnostics: ConceptDiagnostic[]): PersonalizedWeaknessSummary[] {
+  return diagnostics.map((diagnostic) => ({
+    concept: diagnostic.concept,
+    attempts: diagnostic.attempts,
+    accuracy: diagnostic.accuracy,
+    masteryState: diagnostic.masteryState,
+    needsAttention: diagnostic.needsAttention,
+  }));
+}
+
+function actionForDiagnostic(
+  diagnostic: ConceptDiagnostic,
+  priority: number
+): PersonalizedNextAction {
+  const id = documentId("next", String(priority), diagnostic.concept || "balanced");
+
+  if (diagnostic.evidenceScore < 0.35 || diagnostic.attempts < MIN_CONCEPT_ATTEMPTS) {
+    return {
+      id,
+      priority,
+      title: `Kiểm tra nhanh: ${diagnostic.label}`,
+      description: "Làm một cụm câu ngắn để hệ thống đo đúng mức hiện tại trước khi đẩy sang chặng mới.",
+      actionType: "diagnostic_short_set",
+      concepts: [diagnostic.concept],
+      rubricLevels: ["nhan_biet", "thong_hieu"],
+      questionCount: 3,
+      reason: "Dữ liệu ở mảng này còn mỏng, nên cần chẩn đoán ngắn trước để tránh đẩy vào bài quá dễ hoặc quá khó.",
+      hintMode: "available",
+      uiMode: "normal",
+    };
+  }
+
+  if (diagnostic.masteryEstimate < 0.45 || diagnostic.recentAccuracy < 45) {
+    return {
+      id,
+      priority,
+      title: `Ôn lại từng bước: ${diagnostic.label}`,
+      description: "Đi từ câu nền tảng và mở gợi ý theo bước để vá đúng lỗ hổng đang gây sai nhiều nhất.",
+      actionType: "micro_lesson_then_guided_retry",
+      concepts: [diagnostic.concept],
+      rubricLevels: ["nhan_biet"],
+      questionCount: 4,
+      reason: `Độ nắm vững ước tính mới khoảng ${Math.round(diagnostic.masteryEstimate * 100)}%, nên kéo về dạng nền để làm chắc lại.`,
+      hintMode: "step_by_step",
+      uiMode: "step_by_step",
+    };
+  }
+
+  if (diagnostic.masteryEstimate < 0.7 || diagnostic.priorityScore >= 0.5) {
+    return {
+      id,
+      priority,
+      title: `Luyện bù: ${diagnostic.label}`,
+      description: "Luyện lại các câu cốt lõi và thông hiểu, có hỗ trợ sau lần thử đầu để giữ nhịp tiến bộ.",
+      actionType: "remediation_practice",
+      concepts: [diagnostic.concept],
+      rubricLevels: ["nhan_biet", "thong_hieu"],
+      questionCount: 6,
+      reason: `Mảng này chưa ổn định: đúng gần đây ${diagnostic.recentAccuracy}% và dữ liệu cho thấy vẫn còn khoảng trống cần bù.`,
+      hintMode: "after_first_wrong",
+      uiMode: "slow_down_check_step",
+    };
+  }
+
+  if (diagnostic.reviewUrgency >= 0.14 || diagnostic.daysSincePractice >= 21) {
+    return {
+      id,
+      priority,
+      title: `Ôn xoắn ốc: ${diagnostic.label}`,
+      description: "Đã khá ổn phần này, nhưng nên ôn lại bằng vài câu chọn lọc để tránh quên sau một thời gian.",
+      actionType: "spiral_review_or_challenge",
+      concepts: [diagnostic.concept],
+      rubricLevels: diagnostic.rubricLevels,
+      questionCount: 4,
+      reason: `Phần này không còn yếu rõ ràng, nhưng đã ${diagnostic.daysSincePractice} ngày chưa chạm lại nên cần ôn ngắn để giữ độ chắc.`,
+      hintMode: "after_first_wrong",
+      uiMode: "normal",
+    };
+  }
+
+  return {
+    id,
+    priority,
+    title: `Củng cố nâng nhẹ: ${diagnostic.label}`,
+    description: "Tăng độ linh hoạt bằng vài câu thông hiểu và vận dụng, tránh quay lại nền tảng khi đã vững.",
+    actionType: "mixed_practice",
+    concepts: [diagnostic.concept],
+    rubricLevels: diagnostic.rubricLevels,
+    questionCount: 3,
+    reason: "Độ nắm vững hiện đã khá tốt, nên bài tiếp theo tập trung giữ nhịp và nâng nhẹ độ khó thay vì quay lại ôn nền.",
+    hintMode: "available",
+    uiMode: "normal",
+  };
+}
+
 function balancedAction(priority = 1): PersonalizedNextAction {
   return {
     id: documentId("next", String(priority), "balanced"),
@@ -417,18 +843,28 @@ function balancedAction(priority = 1): PersonalizedNextAction {
 function buildPersonalizedPlan(
   progress: StudentProgressRecord,
   child: ChildDocument | undefined,
-  now: string
+  now: string,
+  attempts: StudentExerciseAttemptRecord[] = [],
+  completions: LessonCompletionRecord[] = []
 ): StudentPersonalizedPlanRecord {
-  const targetConcepts = unique(progress.weakConcepts.length > 0
-    ? progress.weakConcepts
-    : child?.learningPreferences?.weakTopics ?? []);
+  const diagnostics = buildConceptDiagnostics(progress, child, attempts, completions, now);
+  const goalConcepts = goalPriorityConcepts(child);
+  const targetConcepts = unique([
+    ...goalConcepts,
+    ...diagnostics.filter((diagnostic) => diagnostic.needsAttention).map((diagnostic) => diagnostic.concept),
+    ...(child?.learningPreferences?.weakTopics ?? []),
+  ]).slice(0, 4);
   const grade = gradeFromPreferences(child);
-  const nextBestActions = (targetConcepts.length > 0
-    ? targetConcepts
+  const nextBestActions = (diagnostics.length > 0
+    ? diagnostics
+        .filter((diagnostic) =>
+          targetConcepts.includes(diagnostic.concept) ||
+          diagnostic.priorityScore >= 0.45
+        )
         .slice(0, 3)
-        .map((concept, index) => actionForConcept(concept, progress.conceptStats?.[concept], index + 1))
+        .map((diagnostic, index) => actionForDiagnostic(diagnostic, index + 1))
     : [balancedAction()]);
-  const weaknessSummary = weaknessSummaryFrom(progress, targetConcepts);
+  const weaknessSummary = weaknessSummaryFromDiagnostics(diagnostics.slice(0, Math.max(4, targetConcepts.length)));
   const recommendedQuestionFilters: RecommendedQuestionFilter[] = nextBestActions.map((action) =>
     stripUndefined({
       grade,
@@ -450,9 +886,9 @@ function buildPersonalizedPlan(
     nextBestActions,
     weaknessSummary,
     reasonSummary: targetConcepts.length > 0
-      ? `Ưu tiên ${targetConcepts.map(conceptLabel).join(", ")} dựa trên mục tiêu ban đầu và tiến trình làm bài.`
-      : "Tiếp tục luyện Toán cân bằng cho đến khi có đủ dữ liệu để xác định điểm yếu rõ ràng.",
-    source: "rules_v1",
+      ? `Ưu tiên ${targetConcepts.map(conceptLabel).join(", ")} vì ${goalSummaryText(child) ?? "mục tiêu học tập ban đầu"}; tiến trình hiện tại chỉ dùng để chỉnh mức bài và điểm vào phù hợp hơn.`
+      : "Tiếp tục luyện Toán cân bằng cho đến khi có đủ dữ liệu để xác định điểm ưu tiên rõ ràng.",
+    source: "rules_v2",
     createdAt: now,
     updatedAt: now,
   });
@@ -482,9 +918,13 @@ function stageProgressAndPlan(
   now: string
 ) {
   const weakConcepts = weakConceptsFrom(progress, child);
-  const recommendedConcepts = weakConcepts.length > 0
-    ? weakConcepts
-    : unique(child?.learningPreferences?.weakTopics ?? progress.recommendedConcepts ?? []);
+  const recommendedConcepts = recommendedConceptsFromProgress(
+    {
+      ...progress,
+      weakConcepts,
+    },
+    child
+  );
   const nextProgress: StudentProgressRecord = {
     ...progress,
     weakConcepts,
@@ -660,6 +1100,18 @@ export async function getLessonCompletions(childUid: string): Promise<LessonComp
     .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
 }
 
+async function getExerciseAttempts(childUid: string): Promise<StudentExerciseAttemptRecord[]> {
+  if (childUid === "demo-child") {
+    return [];
+  }
+
+  const db = adminDb();
+  const snap = await db.collection("studentExerciseAttempts").where("childUid", "==", childUid).get();
+  return snap.docs
+    .map((doc) => ({ ...doc.data(), id: doc.id }) as StudentExerciseAttemptRecord)
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+}
+
 function summaryFromRecords(childUid: string, records: LessonCompletionRecord[], progress?: StudentProgressRecord): ProgressSummary {
   const totalLessonsCompleted = progress?.totalLessonsCompleted ?? records.length;
   const totalTimeOnTaskSeconds = progress?.totalTimeOnTaskSeconds ?? records.reduce(
@@ -788,14 +1240,16 @@ export async function getPersonalizedPlan(childUid: string): Promise<StudentPers
   }
 
   const db = adminDb();
-  const [childSnap, progressSnap, planSnap] = await Promise.all([
+  const [childSnap, progressSnap, planSnap, completions, attempts] = await Promise.all([
     db.collection("children").doc(childUid).get(),
     db.collection("studentProgress").doc(childUid).get(),
     db.collection("studentPersonalizedPlans").doc(childUid).get(),
+    getLessonCompletions(childUid),
+    getExerciseAttempts(childUid),
   ]);
   const child = childSnap.exists ? childSnap.data() as ChildDocument : undefined;
   const progress = progressFromData(childUid, progressSnap.data(), now, child);
-  const rebuiltPlan = buildPersonalizedPlan(progress, child, now);
+  const rebuiltPlan = buildPersonalizedPlan(progress, child, now, attempts, completions);
 
   if (!planSnap.exists) {
     return rebuiltPlan;

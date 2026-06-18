@@ -10,13 +10,20 @@ import type {
   StudentCourseRunRecord,
   StudentCourseStageProgress,
   StudentExerciseAttemptInput,
+  StudentExerciseAttemptRecord,
   StudentProgressRecord,
 } from "./types";
 
 type LearningPreferences = {
   domain?: string;
+  primaryGoal?: "improve_math_score" | "specialized_school_exam" | "strengthen_current_grade";
   gradeLevel?: "grade_4" | "grade_5";
+  currentScore?: number;
+  targetScore?: number;
   weakTopics?: string[];
+  practiceSource?: "school_lessons" | "past_exams" | "both";
+  sessionMinutes?: 15 | 30 | 45 | 60;
+  sessionsPerWeek?: 2 | 3 | 5 | 7;
 };
 
 type ChildDocument = {
@@ -70,6 +77,41 @@ function weakTopicsFromChild(child?: ChildDocument): string[] {
   return unique(child?.learningPreferences?.weakTopics ?? []);
 }
 
+function goalFocusConcepts(child?: ChildDocument): string[] {
+  const prefs = child?.learningPreferences;
+  const weakTopics = unique(prefs?.weakTopics ?? []);
+  if (prefs?.primaryGoal === "specialized_school_exam") {
+    return unique([...weakTopics, "mixed_exams", "logic", "word_problems", "arithmetic", "geometry"]);
+  }
+  if (prefs?.primaryGoal === "strengthen_current_grade") {
+    return unique([...weakTopics, "arithmetic", "fractions", "geometry", "word_problems"]);
+  }
+  return unique([...weakTopics, "arithmetic", "word_problems", "fractions", "geometry"]);
+}
+
+function goalIntensity(child?: ChildDocument): "recovery" | "standard" | "advanced" {
+  const prefs = child?.learningPreferences;
+  const current = Number(prefs?.currentScore ?? 0);
+  const target = Number(prefs?.targetScore ?? current);
+  if (prefs?.primaryGoal === "specialized_school_exam" || (current >= 8 && target >= 9)) {
+    return "advanced";
+  }
+  if (prefs?.primaryGoal === "improve_math_score" && current < 7 && target > current) {
+    return "recovery";
+  }
+  return "standard";
+}
+
+function activeCourseLimit(child?: ChildDocument): number {
+  const prefs = child?.learningPreferences;
+  const sessionsPerWeek = Number(prefs?.sessionsPerWeek ?? 3);
+  const sessionMinutes = Number(prefs?.sessionMinutes ?? 30);
+
+  if (sessionsPerWeek >= 5 && sessionMinutes >= 30) return 4;
+  if (sessionsPerWeek >= 3) return 3;
+  return 2;
+}
+
 function stageIndex(pipeline: CoursePipelineDefinition, stageId: string): number {
   return Math.max(0, pipeline.stages.findIndex((stage) => stage.id === stageId));
 }
@@ -85,19 +127,80 @@ function firstStageOfType(
   return pipeline.stages.find((stage) => types.includes(stage.stageType)) ?? pipeline.stages[0];
 }
 
+function visibleStageIdsForRun(
+  pipeline: CoursePipelineDefinition,
+  course: CourseDefinition,
+  progress: StudentProgressRecord,
+  child?: ChildDocument
+): string[] {
+  const stat = progress.conceptStats?.[course.primaryConcept];
+  const attempts = Number(stat?.attempts ?? 0);
+  const accuracy = Number(stat?.accuracy ?? 0);
+  const intensity = goalIntensity(child);
+  const visible: string[] = [];
+
+  const pushStageType = (...types: CourseStageType[]) => {
+    const stage = firstStageOfType(pipeline, ...types);
+    if (stage?.id && !visible.includes(stage.id)) {
+      visible.push(stage.id);
+    }
+  };
+
+  if (attempts < 2) {
+    pushStageType("diagnostic");
+  }
+
+  if (intensity === "recovery") {
+    pushStageType("foundation");
+    pushStageType("practice");
+    pushStageType("checkpoint");
+    return visible;
+  }
+
+  if (intensity === "advanced") {
+    if (accuracy < 75 || attempts < 3) {
+      pushStageType("practice");
+    }
+    pushStageType("checkpoint");
+    pushStageType("challenge");
+    return visible;
+  }
+
+  if (accuracy < 60) {
+    pushStageType("foundation");
+  }
+  pushStageType("practice");
+  pushStageType("checkpoint");
+  pushStageType("challenge");
+  return visible;
+}
+
 function priorityScoreForCourse(
   course: CourseDefinition,
   progress: StudentProgressRecord,
   child?: ChildDocument
 ): number {
   const weakTopics = weakTopicsFromChild(child);
+  const goalConcepts = goalFocusConcepts(child);
+  const goalIndex = goalConcepts.indexOf(course.primaryConcept);
   const weakTopicIndex = weakTopics.indexOf(course.primaryConcept);
-  const weakTopicBoost = weakTopicIndex >= 0 ? Math.max(0, 100 - (weakTopicIndex * 20)) : 20;
+  const recommendedIndex = (progress.recommendedConcepts ?? []).indexOf(course.primaryConcept);
+  const weakConceptIndex = (progress.weakConcepts ?? []).indexOf(course.primaryConcept);
+  const goalBoost = goalIndex >= 0 ? Math.max(0, 130 - (goalIndex * 18)) : 0;
+  const weakTopicBoost = weakTopicIndex >= 0 ? Math.max(0, 90 - (weakTopicIndex * 18)) : 12;
+  const recommendedBoost = recommendedIndex >= 0 ? Math.max(0, 120 - (recommendedIndex * 22)) : 0;
+  const weakConceptBoost = weakConceptIndex >= 0 ? Math.max(0, 105 - (weakConceptIndex * 20)) : 0;
   const stat = progress.conceptStats?.[course.primaryConcept];
   const attempts = Number(stat?.attempts ?? 0);
   const accuracy = Number(stat?.accuracy ?? 0);
-  const accuracyBoost = attempts < 3 ? 40 : Math.max(0, 100 - accuracy);
-  return weakTopicBoost + accuracyBoost + Math.max(0, 20 - course.recommendedOrder);
+  const masteryState = stat?.masteryState;
+  const staleDays = stat?.lastPracticedAt
+    ? Math.max(0, Math.round((Date.now() - Date.parse(stat.lastPracticedAt)) / (1000 * 60 * 60 * 24)))
+    : 999;
+  const needBoost = attempts < 3 ? 42 : Math.max(0, 100 - accuracy);
+  const retentionBoost = masteryState === "mastered" ? Math.min(18, staleDays / 2) : Math.min(10, staleDays / 4);
+  const masteryPenalty = masteryState === "mastered" && accuracy >= 85 ? 26 : 0;
+  return goalBoost + weakTopicBoost + recommendedBoost + weakConceptBoost + needBoost + retentionBoost - masteryPenalty + Math.max(0, 20 - course.recommendedOrder);
 }
 
 function courseReasonText(course: CourseDefinition, progress: StudentProgressRecord): string {
@@ -118,22 +221,34 @@ function courseReasonText(course: CourseDefinition, progress: StudentProgressRec
 function startingStageForCourse(
   course: CourseDefinition,
   pipeline: CoursePipelineDefinition,
-  progress: StudentProgressRecord
+  progress: StudentProgressRecord,
+  child?: ChildDocument
 ): CoursePipelineStage {
   const stat = progress.conceptStats?.[course.primaryConcept];
   const attempts = Number(stat?.attempts ?? 0);
   const accuracy = Number(stat?.accuracy ?? 0);
+  const masteryState = stat?.masteryState;
+  const intensity = goalIntensity(child);
 
-  if (attempts < 3) {
+  if (intensity === "advanced" && attempts >= 2 && accuracy >= 75) {
+    return firstStageOfType(pipeline, "checkpoint", "challenge", "practice");
+  }
+  if (attempts < 2) {
     return firstStageOfType(pipeline, "diagnostic", "foundation");
+  }
+  if (masteryState === "mastered" && accuracy >= 85) {
+    return firstStageOfType(pipeline, "checkpoint", "challenge", "practice");
+  }
+  if (intensity === "recovery" && accuracy < 75) {
+    return firstStageOfType(pipeline, "foundation", "practice");
   }
   if (accuracy < 50) {
     return firstStageOfType(pipeline, "foundation", "remedial", "practice");
   }
-  if (accuracy < 70) {
+  if (accuracy < 70 || masteryState === "in_progress") {
     return firstStageOfType(pipeline, "practice", "checkpoint");
   }
-  if (accuracy < 85) {
+  if (accuracy < 85 || masteryState === "developing") {
     return firstStageOfType(pipeline, "checkpoint", "practice", "challenge");
   }
   return firstStageOfType(pipeline, "challenge", "checkpoint");
@@ -154,6 +269,120 @@ function stageProgressRecord(
   };
 }
 
+function reconcileCourseRunState(
+  run: StudentCourseRunRecord,
+  pipeline: CoursePipelineDefinition,
+  now: string
+): StudentCourseRunRecord {
+  let nextRun = { ...run, stageProgress: { ...(run.stageProgress ?? {}) } };
+  let changed = false;
+
+  for (let guard = 0; guard < pipeline.stages.length; guard += 1) {
+    const currentStage = stageById(pipeline, nextRun.currentStageId);
+    const currentProgress = nextRun.stageProgress[currentStage.id];
+
+    const shouldMarkMastered =
+      currentProgress &&
+      currentProgress.status === "in_progress" &&
+      currentProgress.attempts >= currentStage.minAttempts &&
+      currentProgress.accuracy >= currentStage.passAccuracy;
+    const shouldMarkRetry =
+      currentProgress &&
+      currentProgress.status === "in_progress" &&
+      currentProgress.attempts >= currentStage.minAttempts &&
+      currentProgress.accuracy < currentStage.passAccuracy;
+
+    if (shouldMarkMastered) {
+      nextRun = {
+        ...nextRun,
+        stageProgress: {
+          ...nextRun.stageProgress,
+          [currentStage.id]: {
+            ...currentProgress,
+            status: "mastered",
+            completedAt: currentProgress.completedAt ?? now,
+          },
+        },
+      };
+      changed = true;
+      continue;
+    }
+
+    if (shouldMarkRetry) {
+      nextRun = {
+        ...nextRun,
+        stageProgress: {
+          ...nextRun.stageProgress,
+          [currentStage.id]: {
+            ...currentProgress,
+            status: "retry_required",
+          },
+        },
+      };
+      changed = true;
+      continue;
+    }
+
+    if (currentProgress?.status === "mastered") {
+      if (!currentStage.nextStageId) {
+        if (nextRun.status !== "completed") {
+          nextRun = {
+            ...nextRun,
+            status: "completed",
+            completedAt: nextRun.completedAt ?? currentProgress.completedAt ?? now,
+          };
+          changed = true;
+        }
+        break;
+      }
+
+      const upcoming = stageById(pipeline, currentStage.nextStageId);
+      nextRun = {
+        ...nextRun,
+        currentStageId: upcoming.id,
+        currentStageOrder: stageIndex(pipeline, upcoming.id) + 1,
+        recommendedQuestionFilter: upcoming.questionFilter,
+        status: "active",
+        stageProgress: {
+          ...nextRun.stageProgress,
+          [upcoming.id]: nextRun.stageProgress[upcoming.id] ?? stageProgressRecord(upcoming.id, "in_progress", now),
+        },
+      };
+      changed = true;
+      continue;
+    }
+
+    if (currentProgress?.status === "retry_required" && currentStage.remedialStageId) {
+      const remedial = stageById(pipeline, currentStage.remedialStageId);
+      const remedialProgress = nextRun.stageProgress[remedial.id];
+      if (remedial.id !== currentStage.id && remedialProgress?.status !== "mastered") {
+        nextRun = {
+          ...nextRun,
+          currentStageId: remedial.id,
+          currentStageOrder: stageIndex(pipeline, remedial.id) + 1,
+          recommendedQuestionFilter: remedial.questionFilter,
+          status: "active",
+          stageProgress: {
+            ...nextRun.stageProgress,
+            [remedial.id]: nextRun.stageProgress[remedial.id] ?? stageProgressRecord(remedial.id, "in_progress", now),
+          },
+        };
+        changed = true;
+      }
+    }
+
+    break;
+  }
+
+  return changed
+    ? {
+        ...nextRun,
+        lastActivityAt: nextRun.lastActivityAt ?? now,
+        updatedAt: now,
+      }
+    : run;
+}
+
 function createCourseRun(
   childUid: string,
   course: CourseDefinition,
@@ -162,10 +391,14 @@ function createCourseRun(
   child: ChildDocument | undefined,
   now: string
 ): StudentCourseRunRecord {
-  const startingStage = startingStageForCourse(course, pipeline, progress);
+  const startingStage = startingStageForCourse(course, pipeline, progress, child);
   const stageProgress: Record<string, StudentCourseStageProgress> = {
     [startingStage.id]: stageProgressRecord(startingStage.id, "in_progress", now),
   };
+  const visibleStageIds = unique([
+    ...visibleStageIdsForRun(pipeline, course, progress, child),
+    startingStage.id,
+  ]);
 
   return {
     id: documentId(childUid, course.id),
@@ -175,6 +408,7 @@ function createCourseRun(
     status: "active",
     priorityScore: priorityScoreForCourse(course, progress, child),
     personalizedReason: courseReasonText(course, progress),
+    visibleStageIds,
     currentStageId: startingStage.id,
     currentStageOrder: stageIndex(pipeline, startingStage.id) + 1,
     stageProgress,
@@ -265,6 +499,17 @@ export async function ensureCourseRunsForChild(childUid: string): Promise<void> 
       return [run.courseId, run] as const;
     })
   );
+  const activeLimit = activeCourseLimit(child);
+  const rankedCourses = courses
+    .map((course) => ({
+      course,
+      priorityScore: priorityScoreForCourse(course, progress, child),
+    }))
+    .sort((a, b) => {
+      if (b.priorityScore !== a.priorityScore) return b.priorityScore - a.priorityScore;
+      return a.course.recommendedOrder - b.course.recommendedOrder;
+    });
+  const activeCourseIds = new Set(rankedCourses.slice(0, activeLimit).map((item) => item.course.id));
 
   for (const course of courses) {
     const pipeline = pipelinesByCourse.get(course.id);
@@ -274,15 +519,30 @@ export async function ensureCourseRunsForChild(childUid: string): Promise<void> 
     const nextPriority = priorityScoreForCourse(course, progress, child);
     const nextReason = courseReasonText(course, progress);
     const currentStage = current ? stageById(pipeline, current.currentStageId) : undefined;
+    const nextVisibleStageIds = unique([
+      ...visibleStageIdsForRun(pipeline, course, progress, child),
+      ...(current?.currentStageId ? [current.currentStageId] : []),
+    ]);
+    const desiredStatus =
+      current?.status === "completed"
+        ? "completed"
+        : activeCourseIds.has(course.id)
+          ? "active"
+          : "paused";
     const payload = current
       ? {
           ...current,
+          status: desiredStatus,
           priorityScore: nextPriority,
           personalizedReason: nextReason,
+          visibleStageIds: nextVisibleStageIds,
           recommendedQuestionFilter: currentStage?.questionFilter ?? current.recommendedQuestionFilter,
           updatedAt: now,
         }
-      : createCourseRun(childUid, course, pipeline, progress, child, now);
+      : {
+          ...createCourseRun(childUid, course, pipeline, progress, child, now),
+          status: desiredStatus,
+        };
 
     await db.collection("studentCourseRuns").doc(payload.id).set(stripUndefined(payload), { merge: true });
   }
@@ -326,15 +586,52 @@ export async function getCourseRunSnapshots(
     pipelineSnap.docs.map((doc) => [doc.id, { ...doc.data(), id: doc.id } as CoursePipelineDefinition] as const)
   );
 
-  return runs
-    .map((run) => {
+  const now = new Date().toISOString();
+  const snapshots: CourseRunSnapshot[] = [];
+  const attemptSnap = await db.collection("studentExerciseAttempts").where("childUid", "==", childUid).get();
+  const attemptsByCourseRun = new Map<string, StudentExerciseAttemptRecord[]>();
+  for (const doc of attemptSnap.docs) {
+    const attempt = { ...doc.data(), id: doc.id } as StudentExerciseAttemptRecord;
+    if (!attempt.courseRunId) continue;
+    attemptsByCourseRun.set(attempt.courseRunId, [...(attemptsByCourseRun.get(attempt.courseRunId) ?? []), attempt]);
+  }
+
+  for (const run of runs) {
       const course = coursesById.get(run.courseId);
       const pipeline = pipelinesById.get(run.pipelineId);
-      if (!course || !pipeline) return null;
-      const currentStage = stageById(pipeline, run.currentStageId);
-      return { course, pipeline, run, currentStage } as CourseRunSnapshot;
-    })
-    .filter((item): item is CourseRunSnapshot => Boolean(item));
+      if (!course || !pipeline) continue;
+
+      const reconciledRun = reconcileCourseRunState(run, pipeline, now);
+      if (reconciledRun !== run) {
+        await db.collection("studentCourseRuns").doc(reconciledRun.id).set(stripUndefined(reconciledRun), { merge: true });
+      }
+
+      if (!options?.includeCompleted && reconciledRun.status !== "active") continue;
+
+      const currentStage = stageById(pipeline, reconciledRun.currentStageId);
+      const runAttempts = attemptsByCourseRun.get(reconciledRun.id) ?? [];
+      const attemptedQuestionIdsByStage = runAttempts.reduce<Record<string, string[]>>((items, attempt) => {
+        if (!attempt.stageId) return items;
+        items[attempt.stageId] = unique([...(items[attempt.stageId] ?? []), attempt.questionId]);
+        return items;
+      }, {});
+      snapshots.push({
+        course,
+        pipeline,
+        run: reconciledRun,
+        currentStage,
+        attemptedQuestionIds: unique(runAttempts.map((attempt) => attempt.questionId)),
+        attemptedQuestionIdsByStage,
+      });
+  }
+
+  return snapshots.sort((a, b) => {
+    const aCompleted = a.run.status === "completed" ? 1 : 0;
+    const bCompleted = b.run.status === "completed" ? 1 : 0;
+    if (aCompleted !== bCompleted) return aCompleted - bCompleted;
+    if (b.run.priorityScore !== a.run.priorityScore) return b.run.priorityScore - a.run.priorityScore;
+    return (b.run.updatedAt ?? "").localeCompare(a.run.updatedAt ?? "");
+  });
 }
 
 export async function syncCourseRunAttemptInTransaction(
@@ -356,14 +653,26 @@ export async function syncCourseRunAttemptInTransaction(
 
   const run = runSnap.data() as StudentCourseRunRecord;
   const pipeline = { ...pipelineSnap.data(), id: pipelineSnap.id } as CoursePipelineDefinition;
+  const reconciledRun = reconcileCourseRunState(run, pipeline, now);
+  if (reconciledRun.currentStageId !== run.currentStageId || reconciledRun.status !== run.status) {
+    tx.set(runRef, stripUndefined(reconciledRun), { merge: true });
+    if (input.stageId !== reconciledRun.currentStageId) return;
+  }
+
   const stage = stageById(pipeline, input.stageId);
-  const previous = run.stageProgress?.[stage.id] ?? stageProgressRecord(stage.id, "in_progress", now);
+  const activeRun = reconciledRun;
+  const previousRaw = activeRun.stageProgress?.[stage.id] ?? stageProgressRecord(stage.id, "in_progress", now);
+  const previous = previousRaw.status === "retry_required"
+    ? stageProgressRecord(stage.id, "in_progress", now)
+    : previousRaw;
+  if (previous.status === "mastered" && input.stageId !== activeRun.currentStageId) return;
+
   const attempts = previous.attempts + 1;
   const correct = previous.correct + (input.isCorrect ? 1 : 0);
   const accuracy = clampPercent((correct / attempts) * 100);
 
   const nextStageProgress = {
-    ...run.stageProgress,
+    ...activeRun.stageProgress,
     [stage.id]: {
       ...previous,
       attempts,
@@ -374,10 +683,10 @@ export async function syncCourseRunAttemptInTransaction(
     },
   };
 
-  let nextStatus = run.status;
-  let nextStageId = run.currentStageId;
-  let nextStageOrder = run.currentStageOrder;
-  let recommendedQuestionFilter = run.recommendedQuestionFilter;
+  let nextStatus = activeRun.status;
+  let nextStageId = activeRun.currentStageId;
+  let nextStageOrder = activeRun.currentStageOrder;
+  let recommendedQuestionFilter = activeRun.recommendedQuestionFilter;
 
   if (attempts >= stage.minAttempts) {
     if (accuracy >= stage.passAccuracy) {
@@ -392,7 +701,7 @@ export async function syncCourseRunAttemptInTransaction(
         nextStageId = upcoming.id;
         nextStageOrder = stageIndex(pipeline, upcoming.id) + 1;
         recommendedQuestionFilter = upcoming.questionFilter;
-        nextStageProgress[upcoming.id] = nextStageProgress[upcoming.id] ?? stageProgressRecord(upcoming.id, "ready", now);
+        nextStageProgress[upcoming.id] = nextStageProgress[upcoming.id] ?? stageProgressRecord(upcoming.id, "in_progress", now);
       } else {
         nextStatus = "completed";
       }
@@ -402,10 +711,12 @@ export async function syncCourseRunAttemptInTransaction(
         status: "retry_required",
       };
       const remedial = stageById(pipeline, stage.remedialStageId);
-      nextStageId = remedial.id;
-      nextStageOrder = stageIndex(pipeline, remedial.id) + 1;
-      recommendedQuestionFilter = remedial.questionFilter;
-      nextStageProgress[remedial.id] = nextStageProgress[remedial.id] ?? stageProgressRecord(remedial.id, "ready", now);
+      if (nextStageProgress[remedial.id]?.status !== "mastered") {
+        nextStageId = remedial.id;
+        nextStageOrder = stageIndex(pipeline, remedial.id) + 1;
+        recommendedQuestionFilter = remedial.questionFilter;
+        nextStageProgress[remedial.id] = nextStageProgress[remedial.id] ?? stageProgressRecord(remedial.id, "in_progress", now);
+      }
     } else {
       nextStageProgress[stage.id] = {
         ...nextStageProgress[stage.id],
@@ -415,14 +726,14 @@ export async function syncCourseRunAttemptInTransaction(
   }
 
   tx.set(runRef, stripUndefined({
-    ...run,
+    ...activeRun,
     status: nextStatus,
     currentStageId: nextStageId,
     currentStageOrder: nextStageOrder,
     stageProgress: nextStageProgress,
     recommendedQuestionFilter,
     lastActivityAt: now,
-    completedAt: nextStatus === "completed" ? now : run.completedAt,
+    completedAt: nextStatus === "completed" ? now : activeRun.completedAt,
     updatedAt: now,
   }), { merge: true });
 }

@@ -623,14 +623,11 @@ export function PracticeExamPanel({
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-display text-sm">Đề luyện hôm nay</h3>
+            <h3 className="font-display text-sm">Đề luyện</h3>
             <NbPill color="green" icon={<FileText className="h-3 w-3" />}>
               40-60 phút
             </NbPill>
           </div>
-          <p className="mt-2 text-sm font-semibold text-[#555]">
-            Chọn một đề trọn vẹn để luyện nhịp làm bài, canh thời gian và giữ tập trung như khi làm kiểm tra thật.
-          </p>
         </div>
         <NbPill color="yellow" icon={<Clock3 className="h-3 w-3" />}>
           {exams.length} đề
@@ -639,11 +636,11 @@ export function PracticeExamPanel({
 
       {loading ? (
         <div className="mt-5 rounded-xl border-2 border-dashed border-nb-black/20 py-16 text-center">
-          <p className="font-display text-sm text-[#666]">Đang tải danh sách đề...</p>
+          <p className="font-display text-sm text-[#666]">Đang tải đề...</p>
         </div>
       ) : exams.length === 0 ? (
         <div className="mt-5 rounded-xl border-2 border-dashed border-nb-black/20 py-16 text-center">
-          <p className="font-display text-sm text-[#666]">Chưa có đề đủ dữ liệu để luyện.</p>
+          <p className="font-display text-sm text-[#666]">Chưa có đề.</p>
         </div>
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">

@@ -43,6 +43,26 @@ function actionTitle(action: NonNullable<StudentPersonalizedPlanRecord["nextBest
   return action.title;
 }
 
+function masteryLabel(value?: string) {
+  switch (value) {
+    case "mastered":
+      return "Đã vững";
+    case "developing":
+      return "Đang khá dần";
+    case "in_progress":
+      return "Cần luyện thêm";
+    default:
+      return "Chưa rõ";
+  }
+}
+
+function difficultyLabel(rubricLevels: string[]) {
+  if (rubricLevels.includes("van_dung_cao")) return "Mức vận dụng cao";
+  if (rubricLevels.includes("van_dung")) return "Mức vận dụng";
+  if (rubricLevels.includes("thong_hieu")) return "Mức thông hiểu";
+  return "Mức nhận biết";
+}
+
 export default function ProgressPage() {
   const { user, logout } = useAuthContext();
   const [authOpen, setAuthOpen] = useState(false);
@@ -104,6 +124,21 @@ export default function ProgressPage() {
   const totalXp = summary?.totalXpEarned ?? 0;
   const level = summary?.level ?? 1;
   const nextActions = plan?.nextBestActions?.slice(0, 3) ?? [];
+  const weaknessSummary = useMemo(() => plan?.weaknessSummary?.slice(0, 4) ?? [], [plan]);
+  const activeRunsByConcept = useMemo(
+    () => new Map(activeRuns.map((snapshot) => [snapshot.course.primaryConcept, snapshot] as const)),
+    [activeRuns]
+  );
+  const attentionItems = useMemo(
+    () =>
+      weaknessSummary
+        .filter((item) => item.needsAttention || item.accuracy < 85 || item.masteryState !== "mastered")
+        .map((item) => ({
+          ...item,
+          run: activeRunsByConcept.get(item.concept) ?? null,
+        })),
+    [activeRunsByConcept, weaknessSummary]
+  );
 
   if (!user) {
     return (
@@ -136,7 +171,7 @@ export default function ProgressPage() {
               <h1 className="font-display text-h1 text-nb-black">
                 {user.displayName ?? "Learner"}
               </h1>
-              {summary && (
+              {summary ? (
                 <div className="mt-1 flex items-center gap-2">
                   <span className="rounded bg-nb-black px-2 py-0.5 font-display text-[0.7rem] uppercase text-nb-yellow">
                     Level {summary.level}
@@ -145,23 +180,23 @@ export default function ProgressPage() {
                     {summary.totalXpEarned.toLocaleString()} xp
                   </NbPill>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
-          {summary && (
+          {summary ? (
             <XPBar
               totalXp={totalXp}
               level={level}
               xpToNextLevel={xpToNextLevel(totalXp, level)}
             />
-          )}
+          ) : null}
         </section>
 
         {loading ? (
           <SectionContainer>
             <div className="rounded-2xl border-2 border-dashed border-nb-black/20 py-16 text-center">
-              <p className="font-display text-sm text-[#666]">Đang tải tiến độ thật từ Firebase...</p>
+              <p className="font-display text-sm text-[#666]">Đang tải tiến độ</p>
             </div>
           </SectionContainer>
         ) : summary ? (
@@ -182,24 +217,18 @@ export default function ProgressPage() {
             </div>
 
             <SectionContainer>
-              {currentRun && (
+              {currentRun ? (
                 <div className="mb-8 rounded-2xl border-2 border-nb-black bg-white p-5 [box-shadow:6px_6px_0_var(--nb-black)]">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="max-w-3xl">
                       <div className="flex flex-wrap items-center gap-2">
-                        <NbPill color="green" icon={<Target className="w-3 h-3" />}>Đang ưu tiên nhất</NbPill>
+                        <NbPill color="green" icon={<Target className="w-3 h-3" />}>Hiện tại</NbPill>
                         <NbPill color="orange">{currentRun.currentStage.title}</NbPill>
                       </div>
                       <h2 className="mt-3 font-display text-lg">{currentRun.course.title}</h2>
                       <p className="mt-2 text-sm font-semibold leading-relaxed text-[#555]">
                         {currentRun.run.personalizedReason}
                       </p>
-                      <div className="mt-3 rounded-xl border-2 border-nb-black bg-[#fff9ed] p-3 [box-shadow:3px_3px_0_var(--nb-black)]">
-                        <div className="text-[0.68rem] font-black uppercase text-[#666]">Vì sao Melon đang đẩy khóa này lên trước?</div>
-                        <p className="mt-2 text-sm font-bold leading-relaxed">
-                          Khóa này đang là bước hợp lý nhất tiếp theo dựa trên kết quả làm bài gần đây và phần con còn cần ôn thêm.
-                        </p>
-                      </div>
                     </div>
                     <Link
                       href={`/study?courseRunId=${encodeURIComponent(currentRun.run.id)}`}
@@ -210,72 +239,75 @@ export default function ProgressPage() {
                     </Link>
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                <section className="rounded-2xl border-2 border-nb-black bg-white p-5 [box-shadow:6px_6px_0_var(--nb-black)]">
-                  <SectionHeader
-                    title="Melon đang điều chỉnh gì?"
-                    subtitle="Những bước Melon đang ưu tiên cho con ngay lúc này."
-                    badge={<NbPill color="green" icon={<Sparkles className="w-3 h-3" />}>{nextActions.length} bước</NbPill>}
-                  />
-                  <div className="mt-4 flex flex-col gap-3">
-                    {nextActions.length === 0 ? (
-                      <p className="text-sm font-semibold text-[#666]">Chưa có bước cá nhân hóa nào cần ưu tiên thêm.</p>
-                    ) : nextActions.map((action) => (
-                      <div key={action.id} className="rounded-xl border-2 border-nb-black bg-[#fff9ed] p-4 [box-shadow:3px_3px_0_var(--nb-black)]">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <NbPill color="yellow">Bước {action.priority}</NbPill>
-                          {action.concepts.map((concept) => (
-                            <NbPill key={concept} color="orange">{conceptLabel(concept)}</NbPill>
-                          ))}
-                        </div>
-                        <h3 className="mt-3 font-display text-sm">{actionTitle(action)}</h3>
-                        <p className="mt-2 text-sm font-semibold leading-relaxed text-[#555]">{action.description}</p>
-                        <p className="mt-2 text-sm font-bold leading-relaxed text-nb-black">{action.reason}</p>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="rounded-2xl border-2 border-nb-black bg-white p-5 [box-shadow:6px_6px_0_var(--nb-black)]">
-                  <SectionHeader
-                    title="Các phần cần để ý"
-                    subtitle="Những mảng Melon đang theo dõi để điều chỉnh bài tiếp theo."
-                    badge={<NbPill color="orange">{summary.conceptsToReinforce.length} mảng</NbPill>}
-                  />
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {summary.conceptsToReinforce.length === 0 ? (
-                      <p className="text-sm font-semibold text-[#666]">Hiện chưa có mảng nào cần đẩy lên ưu tiên đặc biệt.</p>
-                    ) : summary.conceptsToReinforce.map((concept) => (
-                      <NbPill key={concept} color="orange">{conceptLabel(concept)}</NbPill>
-                    ))}
-                  </div>
-
-                  <div className="mt-6">
-                    <div className="text-[0.75rem] font-black uppercase text-[#666]">Các khóa đang theo</div>
-                    <div className="mt-3 flex flex-col gap-2">
-                      {activeRuns.slice(0, 4).map((snapshot, index) => (
-                        <div key={snapshot.run.id} className="rounded-xl border-2 border-nb-black bg-white p-3 [box-shadow:3px_3px_0_var(--nb-black)]">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <div className="text-[0.68rem] font-black uppercase text-[#666]">Ưu tiên {index + 1}</div>
-                              <div className="mt-1 font-bold">{snapshot.course.title}</div>
-                              <div className="mt-1 text-sm font-semibold text-[#555]">{snapshot.currentStage.title}</div>
+              {nextActions.length > 0 || attentionItems.length > 0 ? (
+                <div className={cn("grid grid-cols-1 gap-6", nextActions.length > 0 && attentionItems.length > 0 && "xl:grid-cols-[1.1fr_0.9fr]")}>
+                  {nextActions.length > 0 ? (
+                    <section className="rounded-2xl border-2 border-nb-black bg-white p-5 [box-shadow:6px_6px_0_var(--nb-black)]">
+                      <SectionHeader
+                        title="Melon đang ưu tiên gì?"
+                        badge={<NbPill color="green" icon={<Sparkles className="w-3 h-3" />}>{nextActions.length} bước</NbPill>}
+                      />
+                      <div className="mt-4 flex flex-col gap-3">
+                        {nextActions.map((action) => (
+                          <div key={action.id} className="rounded-xl border-2 border-nb-black bg-[#fff9ed] p-4 [box-shadow:3px_3px_0_var(--nb-black)]">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <NbPill color="yellow">Ưu tiên {action.priority}</NbPill>
+                              <NbPill color="blue">{difficultyLabel(action.rubricLevels)}</NbPill>
+                              <NbPill color="green">{action.questionCount} câu</NbPill>
+                              {action.concepts.slice(0, 2).map((concept) => (
+                                <NbPill key={concept} color="orange">{conceptLabel(concept)}</NbPill>
+                              ))}
                             </div>
-                            <NbPill color="green">{snapshot.run.currentStageOrder}/5</NbPill>
+                            <h3 className="mt-3 font-display text-sm">{actionTitle(action)}</h3>
+                            <p className="mt-2 text-sm font-bold leading-relaxed text-nb-black">{action.reason}</p>
+                            <div className="mt-3 text-sm font-semibold text-[#555]">
+                              Dạng bài tiếp theo: <strong>{action.description}</strong>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </section>
-              </div>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {attentionItems.length > 0 ? (
+                    <section className="rounded-2xl border-2 border-nb-black bg-white p-5 [box-shadow:6px_6px_0_var(--nb-black)]">
+                      <SectionHeader
+                        title="Các phần cần để ý"
+                        badge={<NbPill color="orange">{attentionItems.length} mảng</NbPill>}
+                      />
+                      <div className="mt-4 flex flex-col gap-3">
+                        {attentionItems.map((item) => (
+                          <div key={item.concept} className="rounded-xl border-2 border-nb-black bg-white p-4 [box-shadow:3px_3px_0_var(--nb-black)]">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <NbPill color="orange">{conceptLabel(item.concept)}</NbPill>
+                              <NbPill color="blue">{masteryLabel(item.masteryState)}</NbPill>
+                              <NbPill color="yellow">{item.accuracy}% đúng</NbPill>
+                              <NbPill color="green">{item.attempts} lượt</NbPill>
+                            </div>
+                            {item.run ? (
+                              <div className="mt-3 rounded-xl border-2 border-nb-black bg-[#fff9ed] p-3">
+                                <div className="text-[0.68rem] font-black uppercase text-[#666]">Khóa học</div>
+                                <div className="mt-1 font-bold">{item.run.course.title}</div>
+                                <div className="mt-1 text-sm font-semibold text-[#555]">
+                                  Chặng hiện tại: {item.run.currentStage.title}
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="mt-3 text-sm font-semibold text-[#555]">Chưa có khóa học.</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+                </div>
+              ) : null}
 
               <section className="mt-8 rounded-2xl border-2 border-nb-black bg-white p-5 [box-shadow:6px_6px_0_var(--nb-black)]">
                 <SectionHeader
                   title="Bài học gần đây"
-                  subtitle="Những bài đã hoàn thành gần nhất từ dữ liệu thật."
                   badge={<NbPill color="yellow" icon={<Trophy className="w-3 h-3" />}>{summary.recentCompletions.length} bài</NbPill>}
                 />
                 <div className="mt-4 flex flex-col gap-3">
@@ -303,7 +335,7 @@ export default function ProgressPage() {
         ) : (
           <SectionContainer>
             <div className="rounded-2xl border-2 border-dashed border-nb-black/20 py-16 text-center">
-              <p className="font-display text-sm text-[#666]">Chưa tải được tiến độ học tập.</p>
+              <p className="font-display text-sm text-[#666]">Chưa có tiến độ.</p>
             </div>
           </SectionContainer>
         )}
