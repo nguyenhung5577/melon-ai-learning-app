@@ -324,7 +324,7 @@ export default function LessonPlayerPage({
       if (!res.ok) {
         throw new Error(data.error ?? "Không tạo được gợi ý");
       }
-const guidance = (data.guidance as string) || "Làm từng bước nhé.";
+      const guidance = (data.guidance as string) || "Làm từng bước nhé.";
       setHintText(guidance);
 
       if (lesson?.audioEnabled && data.audioUrl) {
@@ -333,7 +333,7 @@ const guidance = (data.guidance as string) || "Làm từng bước nhé.";
           /* Ignore autoplay restrictions in browsers */
         });
       }
-} catch (err: any) {
+    } catch (err: any) {
       setHintText(err.message || "Đọc lại đề, tìm dữ kiện, rồi làm từng bước.");
     } finally {
       setHintLoading(false);
