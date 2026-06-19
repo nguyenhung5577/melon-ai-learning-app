@@ -6,7 +6,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMelonAiBackendUrl, getMelonAiEndpoint } from "@/lib/server/melon-ai-backend";
 
+function getBearerToken(req: NextRequest): string | null {
+  const header = req.headers.get("authorization");
+  if (!header?.startsWith("Bearer ")) return null;
+  return header.slice("Bearer ".length).trim();
+}
+
 export async function POST(req: NextRequest) {
+  const token = getBearerToken(req);
+  if (!token) {
+    return NextResponse.json({ error: "Missing auth token." }, { status: 401 });
+  }
+
+  // --- FREEMIUM GUARD ---
+  const { requireEntitlement } = await import("@/lib/server/subscription-guard");
+  const guard = await requireEntitlement(token, "aiCoaching");
+  if (!guard.allowed) {
+    return NextResponse.json({ 
+      error: guard.error, 
+      message: "Tính năng đọc giọng nói AI yêu cầu gói Pro. Vui lòng nâng cấp!",
+      requiredPlan: guard.requiredPlan 
+    }, { status: 402 });
+  }
+  // ----------------------
+
   const { text } = await req.json();
 
   if (!text?.trim()) {

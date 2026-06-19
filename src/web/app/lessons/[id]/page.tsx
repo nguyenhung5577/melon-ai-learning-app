@@ -9,6 +9,7 @@ import { getGeneratedLessons } from "@/lib/lessons/generated-lessons-store";
 import { KidShell } from "@/components/layout/KidShell";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
+import { auth } from "@/lib/auth/firebase";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { gamificationStore } from "@/lib/gamification/gamification-store";
 import { logActivityEvent } from "@/lib/activity";
@@ -295,9 +296,24 @@ export default function LessonPlayerPage({
     setHintLoading(true);
     setHintText("Đang mở gợi ý...");
     try {
+      let token = await auth?.currentUser?.getIdToken();
+      if (!token) {
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 100));
+          token = await auth?.currentUser?.getIdToken();
+          if (token) break;
+        }
+      }
+      if (!token) {
+        throw new Error("Lỗi tải thông tin đăng nhập. Vui lòng F5 lại trang!");
+      }
+
       const res = await fetch("/api/v1/exercise/guide", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           question: slide.content,
           correctAnswer: typeof slide.answer === "string" ? slide.answer : undefined,
@@ -308,7 +324,6 @@ export default function LessonPlayerPage({
       if (!res.ok) {
         throw new Error(data.error ?? "Không tạo được gợi ý");
       }
-
       const guidance = (data.guidance as string) || "Làm từng bước nhé.";
       setHintText(guidance);
 
@@ -318,8 +333,8 @@ export default function LessonPlayerPage({
           /* Ignore autoplay restrictions in browsers */
         });
       }
-    } catch {
-      setHintText("Đọc lại đề, tìm dữ kiện, rồi làm từng bước.");
+    } catch (err: any) {
+      setHintText(err.message || "Đọc lại đề, tìm dữ kiện, rồi làm từng bước.");
     } finally {
       setHintLoading(false);
     }

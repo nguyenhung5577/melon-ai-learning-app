@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth/firebase";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Mail, Zap, User } from "lucide-react";
+import { ChevronDown, ChevronUp, Mail, Zap, User, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChildInfo {
@@ -35,6 +35,14 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [expandedUid, setExpandedUid] = useState<string | null>(null);
   const [upgradingUid, setUpgradingUid] = useState<string | null>(null);
+  const [deletingUid, setDeletingUid] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    uid: string;
+    type: "parent" | "child";
+    title: string;
+    message: string;
+  }>({ isOpen: false, uid: "", type: "parent", title: "", message: "" });
 
   const fetchUsers = async () => {
     try {
@@ -83,6 +91,36 @@ export default function AdminUsersPage() {
       toast.error("Lỗi mạng kết nối.");
     } finally {
       setUpgradingUid(null);
+    }
+  };
+
+  const handleDeleteUser = async (uid: string, type: "parent" | "child") => {
+    setDeletingUid(uid);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/v1/admin/users/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ targetUid: uid, type })
+      });
+      if (res.ok) {
+        toast.success(`Đã xóa thành công tài khoản!`);
+        if (type === "parent") {
+          setParents(parents.filter(p => p.uid !== uid));
+        } else {
+          setParents(parents.map(p => ({
+            ...p,
+            childrenCount: p.children.some(c => c.uid === uid) ? p.childrenCount - 1 : p.childrenCount,
+            children: p.children.filter(c => c.uid !== uid)
+          })));
+        }
+      } else {
+        toast.error("Lỗi khi xóa tài khoản.");
+      }
+    } catch (err) {
+      toast.error("Lỗi mạng kết nối.");
+    } finally {
+      setDeletingUid(null);
     }
   };
 
@@ -146,6 +184,24 @@ export default function AdminUsersPage() {
                         <Zap className="w-3.5 h-3.5 mr-1" /> Cấp Pro
                       </NbButton>
                     )}
+                    <NbButton 
+                      variant="primary" 
+                      size="sm" 
+                      className="bg-red-500 text-white flex-1 sm:flex-none justify-center"
+                      loading={deletingUid === parent.uid}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmModal({
+                          isOpen: true,
+                          uid: parent.uid,
+                          type: "parent",
+                          title: "Xóa Phụ huynh?",
+                          message: `CẢNH BÁO: Bạn sắp xóa vĩnh viễn tài khoản Phụ huynh ${parent.email} VÀ TOÀN BỘ học sinh của họ. Hành động này không thể hoàn tác.`
+                        });
+                      }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </NbButton>
                     <div className="text-xs font-bold bg-white border-2 border-black px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                       {parent.childrenCount} bé
                       {expandedUid === parent.uid ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -171,6 +227,22 @@ export default function AdminUsersPage() {
                                 <span className="font-mono text-[10px] text-nb-blue bg-nb-blue/10 px-1.5 py-0.5 rounded">ID: {child.loginId}</span>
                               </div>
                             </div>
+                            <button
+                              disabled={deletingUid === child.uid}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmModal({
+                                  isOpen: true,
+                                  uid: child.uid,
+                                  type: "child",
+                                  title: "Xóa Học sinh?",
+                                  message: `Bạn muốn xóa vĩnh viễn thẻ học sinh ${child.displayName}? Hành động này không thể hoàn tác.`
+                                });
+                              }}
+                              className="w-8 h-8 flex items-center justify-center rounded-full bg-red-100 text-red-500 hover:bg-red-500 hover:text-white transition-colors flex-shrink-0 disabled:opacity-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -188,6 +260,42 @@ export default function AdminUsersPage() {
           </div>
         )}
         </div>
+
+        {/* Confirm Modal */}
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white nb-card max-w-sm w-full rounded-3xl p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] border-4 border-black animate-in fade-in zoom-in duration-200">
+              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4 border-2 border-red-500 shadow-[2px_2px_0px_0px_rgba(239,68,68,1)]">
+                <Trash2 className="w-6 h-6 text-red-500" />
+              </div>
+              <h3 className="font-display text-xl mb-2">{confirmModal.title}</h3>
+              <p className="text-sm font-semibold text-[#666] mb-6 leading-relaxed">
+                {confirmModal.message}
+              </p>
+              <div className="flex gap-3 w-full">
+                <NbButton 
+                  variant="outline" 
+                  className="flex-1 border-2 border-black"
+                  onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                >
+                  Hủy bỏ
+                </NbButton>
+                <NbButton 
+                  variant="primary" 
+                  className="flex-1 bg-red-500 text-white"
+                  loading={deletingUid === confirmModal.uid}
+                  onClick={async () => {
+                    await handleDeleteUser(confirmModal.uid, confirmModal.type);
+                    setConfirmModal({ ...confirmModal, isOpen: false });
+                  }}
+                >
+                  Xóa ngay
+                </NbButton>
+              </div>
+            </div>
+          </div>
+        )}
+
       </AdminShell>
     </AdminGuard>
   );
