@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BookOpen, Trophy, Brain, Zap, Users, Star } from "lucide-react";
 import { KidShell } from "@/components/layout/KidShell";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -15,52 +16,74 @@ import { cn } from "@/lib/utils";
 const features = [
   {
     icon: <Brain className="w-8 h-8" />,
-    title: "AI Tutor",
-    desc: "Cosmo adapts to your pace, answers questions, and gives instant hints.",
+    title: "Gia sư AI",
+    desc: "Cosmo học theo nhịp của con, trả lời câu hỏi và mở gợi ý tức thì.",
     bg: "bg-nb-purple",
   },
   {
     icon: <BookOpen className="w-8 h-8" />,
-    title: "Smart Lessons",
-    desc: "Interactive lessons built from your curriculum — upload any PDF.",
+    title: "Bài học thông minh",
+    desc: "Bài học tương tác theo chương trình của con, có thể đọc tài liệu PDF.",
     bg: "bg-nb-blue",
   },
   {
     icon: <Trophy className="w-8 h-8" />,
-    title: "Earn Rewards",
-    desc: "Collect XP, badges, and climb the leaderboard with every lesson.",
+    title: "Nhận phần thưởng",
+    desc: "Tích lũy XP, huy hiệu và leo bảng xếp hạng sau mỗi bài học.",
     bg: "bg-nb-yellow",
   },
   {
     icon: <Users className="w-8 h-8" />,
-    title: "Parent Portal",
-    desc: "Real-time progress reports, screen time controls, and family links.",
+    title: "Khu vực phụ huynh",
+    desc: "Theo dõi tiến độ, quản lý thời gian học và tài khoản gia đình.",
     bg: "bg-nb-green",
   },
   {
     icon: <Zap className="w-8 h-8" />,
-    title: "AI Quiz",
-    desc: "Quiz questions generated from lesson content — never the same twice.",
+    title: "Quiz AI",
+    desc: "Câu hỏi được tạo từ nội dung bài học, mỗi lượt luyện đều mới.",
     bg: "bg-nb-orange",
   },
   {
     icon: <Star className="w-8 h-8" />,
-    title: "Daily Quests",
-    desc: "Short daily missions keep the learning streak alive.",
+    title: "Nhiệm vụ hằng ngày",
+    desc: "Nhiệm vụ ngắn giúp con giữ thói quen học đều.",
     bg: "bg-nb-pink",
   },
 ];
 
 const stats = [
-  { value: "10K+", label: "Students", color: "orange" as const },
-  { value: "500+", label: "Lessons", color: "green" as const },
-  { value: "98%", label: "Happy kids", color: "blue" as const },
-  { value: "4.9★", label: "Rating", color: "purple" as const },
+  { value: "10K+", label: "Học sinh", color: "orange" as const },
+  { value: "500+", label: "Bài học", color: "green" as const },
+  { value: "98%", label: "Trẻ thích học", color: "blue" as const },
+  { value: "4.9★", label: "Đánh giá", color: "purple" as const },
 ];
 
 export default function HomePage() {
   const { user, logout } = useAuthContext();
+  const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
+
+  useEffect(() => {
+    if (user?.role === "kid") {
+      router.replace("/progress");
+    }
+  }, [router, user?.role]);
+
+  if (user?.role === "kid") {
+    return (
+      <KidShell
+        userName={user.displayName ?? undefined}
+        photoURL={user.avatarUrl ?? user.photoURL}
+        onLogout={logout}
+        hideNav
+      >
+        <div className="flex min-h-[60dvh] items-center justify-center px-6 text-center">
+          <div className="font-display text-sm">Đang mở trang tiến độ...</div>
+        </div>
+      </KidShell>
+    );
+  }
 
   return (
     <KidShell
@@ -85,7 +108,7 @@ export default function HomePage() {
               "-rotate-2"
             )}
           >
-            🚀 AI-Powered Learning Platform
+            Nền tảng học tập cùng AI
           </div>
 
           <h1
@@ -94,18 +117,17 @@ export default function HomePage() {
               "text-[clamp(2.5rem,6vw,4rem)]"
             )}
           >
-            Learn Smarter
+            Học thông minh
             <br />
             <span className="bg-white px-2 [box-shadow:4px_4px_0_var(--nb-black)] inline-block">
-              Have Fun
+              Vui hơn
             </span>
             <br />
-            Level Up
+            Tiến bộ hơn
           </h1>
 
           <p className="text-xl font-medium leading-snug mb-8 max-w-md text-nb-black">
-            Melon is an AI-powered learning platform that makes studying fun,
-            personalised, and rewarding for kids.
+            Melon giúp trẻ học vui hơn, cá nhân hóa hơn và thấy rõ tiến bộ mỗi ngày.
           </p>
 
           <div className="flex flex-wrap gap-3">
@@ -114,12 +136,12 @@ export default function HomePage() {
                 <>
                   <Link href="/parent">
                     <NbButton variant="primary" size="lg" icon={<Users className="w-4 h-4" />}>
-                      Parent Dashboard
+                      Bảng phụ huynh
                     </NbButton>
                   </Link>
                   <Link href="/family">
                     <NbButton variant="ghost" size="lg">
-                      Manage Family
+                      Quản lý gia đình
                     </NbButton>
                   </Link>
                 </>
@@ -127,12 +149,12 @@ export default function HomePage() {
                 <>
                   <Link href="/lessons">
                     <NbButton variant="primary" size="lg" icon={<BookOpen className="w-4 h-4" />}>
-                      Start Learning
+                      Bắt đầu học
                     </NbButton>
                   </Link>
                   <Link href="/progress">
                     <NbButton variant="ghost" size="lg">
-                      My Progress
+                      Tiến độ của con
                     </NbButton>
                   </Link>
                 </>
@@ -144,7 +166,7 @@ export default function HomePage() {
                 onClick={() => setAuthOpen(true)}
                 icon={<Zap className="w-4 h-4" />}
               >
-                Get Started Free
+                Bắt đầu miễn phí
               </NbButton>
             )}
           </div>
@@ -161,9 +183,9 @@ export default function HomePage() {
           >
             <div className="text-6xl ai-float">🍈</div>
             <div className="font-display text-sm text-center">
-              Hi! I&apos;m Cosmo
+              Chào con, mình là Cosmo
               <br />
-              your AI tutor!
+              gia sư AI của con!
             </div>
             <div
               className={cn(
@@ -171,13 +193,13 @@ export default function HomePage() {
                 "[box-shadow:4px_4px_0_var(--nb-black)] text-sm font-semibold"
               )}
             >
-              💡 &quot;What is photosynthesis?&quot;
+              💡 &quot;Phân số là gì?&quot;
               <br />
-              <span className="text-[#666]">Ask me anything about your lessons!</span>
+              <span className="text-[#666]">Hỏi mình bất cứ điều gì trong bài học nhé!</span>
             </div>
             <NbPill color="purple">
               <Brain className="w-3 h-3" />
-              AI-Powered
+              Học cùng AI
             </NbPill>
           </div>
         </div>
@@ -189,9 +211,9 @@ export default function HomePage() {
       {/* ── FEATURES ── */}
       <SectionContainer>
         <SectionHeader
-          title="Everything you need to learn"
-          subtitle="Lessons, quizzes, games — all powered by AI"
-          badge={<NbPill color="orange" icon={<Zap className="w-3 h-3" />}>6 Features</NbPill>}
+          title="Mọi thứ con cần để học tốt"
+          subtitle="Bài học, quiz và trò chơi đều được AI hỗ trợ"
+          badge={<NbPill color="orange" icon={<Zap className="w-3 h-3" />}>6 tính năng</NbPill>}
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -229,10 +251,10 @@ export default function HomePage() {
         )}
       >
         <h2 className="font-display text-[clamp(1.5rem,4vw,2.5rem)] text-nb-yellow">
-          Ready to learn?
+          Sẵn sàng học chưa?
         </h2>
         <p className="text-white/70 font-semibold max-w-sm">
-          Join thousands of kids already levelling up with Melon.
+          Cùng hàng nghìn bạn nhỏ tiến bộ mỗi ngày với Melon.
         </p>
         <div className="flex flex-wrap gap-3 justify-center">
           {user ? (
@@ -242,7 +264,7 @@ export default function HomePage() {
                 size="lg"
                 icon={user.role === "parent" ? <Users className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
               >
-                {user.role === "parent" ? "Go to Dashboard" : "Go to Lessons"}
+                {user.role === "parent" ? "Mở bảng phụ huynh" : "Vào bài học"}
               </NbButton>
             </Link>
           ) : (
@@ -252,7 +274,7 @@ export default function HomePage() {
               onClick={() => setAuthOpen(true)}
               icon={<Zap className="w-4 h-4" />}
             >
-              Start for free
+              Bắt đầu miễn phí
             </NbButton>
           )}
         </div>
@@ -264,13 +286,13 @@ export default function HomePage() {
           <div>
             <div className="font-display text-sm mb-2">🍈 Melon</div>
             <p className="text-sm text-[#666] font-medium max-w-xs">
-              AI-powered adaptive learning for curious kids everywhere.
+              Học tập cá nhân hóa cùng AI cho những bạn nhỏ ham khám phá.
             </p>
           </div>
           <div className="flex flex-col gap-2">
-            <Link href="/lessons" className="text-sm font-bold text-nb-black hover:text-nb-orange transition-colors no-underline">Lessons</Link>
-            <Link href="/leaderboard" className="text-sm font-bold text-nb-black hover:text-nb-orange transition-colors no-underline">Leaderboard</Link>
-            <Link href="/parent" className="text-sm font-bold text-nb-black hover:text-nb-orange transition-colors no-underline">Parent Portal</Link>
+            <Link href="/lessons" className="text-sm font-bold text-nb-black hover:text-nb-orange transition-colors no-underline">Bài học</Link>
+            <Link href="/leaderboard" className="text-sm font-bold text-nb-black hover:text-nb-orange transition-colors no-underline">Xếp hạng</Link>
+            <Link href="/parent" className="text-sm font-bold text-nb-black hover:text-nb-orange transition-colors no-underline">Phụ huynh</Link>
           </div>
         </div>
         <div className="mt-8 pt-5 [border-top:var(--nb-border)] text-center text-xs font-bold uppercase text-[#888]">

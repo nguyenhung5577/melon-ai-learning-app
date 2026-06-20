@@ -45,7 +45,7 @@ const parentLinks: NavLink[] = [
 const adminLinks: NavLink[] = [
   { href: "/admin", label: "Quản trị", icon: <Settings className="w-4 h-4" /> },
   { href: "/admin/lessons", label: "Bài học", icon: <BookOpen className="w-4 h-4" /> },
-  { href: "/admin/pdf-upload", label: "Upload PDF", icon: <Shield className="w-4 h-4" /> },
+  { href: "/admin/pdf-upload", label: "Tải PDF", icon: <Shield className="w-4 h-4" /> },
   { href: "/admin/question-bank", label: "Kho đề", icon: <FileQuestion className="w-4 h-4" /> },
 ];
 
@@ -92,7 +92,7 @@ export function NavHeader({
           "h-11 w-11 sm:w-auto transition-transform duration-150",
           "hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-nb-orange"
         )}
-        aria-label="Melon home"
+        aria-label="Trang chủ Melon"
       >
         <Image src="/icon.png" alt="Melon" width={40} height={40} className="h-10 w-10 object-contain" priority />
       </Link>
@@ -142,12 +142,12 @@ export function NavHeader({
             >
               <div className="w-7 h-7 rounded-full bg-nb-yellow [border:2px_solid_var(--nb-black)] flex items-center justify-center font-display text-xs overflow-hidden">
                 {photoURL ? (
-                  <img src={photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                  <img src={photoURL} alt="Ảnh đại diện" className="w-full h-full object-cover" />
                 ) : (
                   userName?.[0]?.toUpperCase() ?? "?"
                 )}
               </div>
-              <span className="font-bold text-sm text-nb-black">{userName ?? "User"}</span>
+              <span className="font-bold text-sm text-nb-black">{userName ?? "Người dùng"}</span>
               <ChevronDown className="w-3.5 h-3.5 text-nb-black opacity-60" />
             </button>
 
@@ -188,7 +188,7 @@ export function NavHeader({
         <button
           className="md:hidden p-2 [border:var(--nb-border)] bg-white cursor-pointer"
           onClick={() => setMobileOpen((v) => !v)}
-          aria-label="Toggle menu"
+          aria-label="Mở hoặc đóng menu"
         >
           {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>

@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 const adminNav = [
   { href: "/admin", label: "Tổng quan", icon: <LayoutDashboard className="w-4 h-4" /> },
-  { href: "/admin/users", label: "Quản lý Users", icon: <Users className="w-4 h-4" /> },
+  { href: "/admin/users", label: "Quản lý người dùng", icon: <Users className="w-4 h-4" /> },
   { href: "/admin/lessons", label: "Bài học", icon: <BookOpen className="w-4 h-4" /> },
   { href: "/admin/pdf-upload", label: "PDF / RAG", icon: <FileText className="w-4 h-4" /> },
   { href: "/admin/question-bank", label: "Kho đề", icon: <FileQuestion className="w-4 h-4" /> },
@@ -88,7 +88,7 @@ export function AdminShell({ children, userName, onLogout }: AdminShellProps) {
             )}
           >
             <LogOut className="w-4 h-4" />
-            {userName ?? "Admin"}
+            {userName ?? "Quản trị viên"}
           </button>
         </div>
       </aside>

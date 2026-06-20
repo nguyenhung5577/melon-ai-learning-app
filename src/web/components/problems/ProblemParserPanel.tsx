@@ -135,7 +135,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
     setActiveResultIndex(0);
 
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth?.currentUser?.getIdToken();
 
       const response =
         files.length > 0
@@ -304,7 +304,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
         setSaveMessage(`Đã lưu ${resultsToSave.length} bộ đề vào lịch sử cá nhân.`);
       }
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Save failed");
+      setError(saveError instanceof Error ? saveError.message : "Không lưu được đề.");
     } finally {
       setSaving(false);
       setUploading(false);
@@ -315,7 +315,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
     <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-6">
       <div className="nb-card rounded-2xl bg-white p-6 flex flex-col gap-5">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="font-display text-sm">T?o ??</h3>
+          <h3 className="font-display text-sm">Tạo đề</h3>
           <NbPill color={mode === "admin" ? "orange" : "green"}>
             {mode === "admin" ? "Kho đề" : "Học sinh"}
           </NbPill>
@@ -381,7 +381,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
               <Upload className="w-6 h-6" />
               <span className="text-sm font-bold">Tải tệp lên</span>
               <span className="text-[0.7rem] text-[#555]">
-                {files.length > 0 ? `Đã chọn ${files.length} file` : "JPG, PNG, PDF, DOCX, TXT"}
+                {files.length > 0 ? `Đã chọn ${files.length} tệp` : "JPG, PNG, PDF, DOCX, TXT"}
               </span>
             </button>
           )}
@@ -449,7 +449,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
         {uploading && (
           <div className="flex flex-col gap-2">
             <div className="flex justify-between text-[0.7rem] font-bold uppercase">
-              <span>Đang upload Cloudinary</span>
+              <span>Đang tải tệp lên</span>
               <span>{uploadProgress}%</span>
             </div>
             <div className="h-2 bg-nb-bg rounded-full overflow-hidden border border-nb-black">

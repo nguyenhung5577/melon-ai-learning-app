@@ -22,14 +22,14 @@ export default function AdminLessonsPage() {
 
   return (
     <AdminGuard>
-      <AdminShell userName={user?.displayName ?? "Admin"} onLogout={logout}>
+      <AdminShell userName={user?.displayName ?? "Quản trị viên"} onLogout={logout}>
         <SectionHeader
-          title="Lessons"
-          subtitle="Manage lesson content and curriculum"
-          badge={<NbPill color="green">{lessons.length} lessons</NbPill>}
+          title="Bài học"
+          subtitle="Quản lý nội dung bài học và chương trình học"
+          badge={<NbPill color="green">{lessons.length} bài</NbPill>}
           action={
             <NbButton variant="primary" size="sm" icon={<Plus className="w-3.5 h-3.5" />}>
-              Add Lesson
+              Thêm bài học
             </NbButton>
           }
         />
@@ -38,9 +38,9 @@ export default function AdminLessonsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="[border-bottom:var(--nb-border)] bg-nb-bg">
-                <th className="text-left px-5 py-3 font-display text-[0.7rem] uppercase">Lesson</th>
-                <th className="text-left px-5 py-3 font-display text-[0.7rem] uppercase hidden md:table-cell">Subject</th>
-                <th className="text-left px-5 py-3 font-display text-[0.7rem] uppercase hidden lg:table-cell">Type</th>
+                <th className="text-left px-5 py-3 font-display text-[0.7rem] uppercase">Bài học</th>
+                <th className="text-left px-5 py-3 font-display text-[0.7rem] uppercase hidden md:table-cell">Môn</th>
+                <th className="text-left px-5 py-3 font-display text-[0.7rem] uppercase hidden lg:table-cell">Loại</th>
                 <th className="text-left px-5 py-3 font-display text-[0.7rem] uppercase hidden lg:table-cell">XP</th>
                 <th className="text-left px-5 py-3 font-display text-[0.7rem] uppercase">AI</th>
                 <th className="px-5 py-3" />
@@ -90,14 +90,14 @@ export default function AdminLessonsPage() {
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2">
                       <Link href={`/lessons/${lesson.id}`} target="_blank">
-                        <button className="p-1.5 hover:bg-nb-bg rounded cursor-pointer border-none bg-transparent" aria-label="View">
+                        <button className="p-1.5 hover:bg-nb-bg rounded cursor-pointer border-none bg-transparent" aria-label="Xem">
                           <Eye className="w-4 h-4 text-[#888]" />
                         </button>
                       </Link>
-                      <button className="p-1.5 hover:bg-nb-bg rounded cursor-pointer border-none bg-transparent" aria-label="Edit">
+                      <button className="p-1.5 hover:bg-nb-bg rounded cursor-pointer border-none bg-transparent" aria-label="Sửa">
                         <Edit className="w-4 h-4 text-[#888]" />
                       </button>
-                      <button className="p-1.5 hover:bg-nb-pink/20 rounded cursor-pointer border-none bg-transparent" aria-label="Delete">
+                      <button className="p-1.5 hover:bg-nb-pink/20 rounded cursor-pointer border-none bg-transparent" aria-label="Xóa">
                         <Trash2 className="w-4 h-4 text-nb-red/70" />
                       </button>
                     </div>

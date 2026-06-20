@@ -39,6 +39,14 @@ function sortNewest<T extends { createdAt?: string }>(items: T[]) {
   return [...items].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
 }
 
+function vietnamDateKey(date = new Date()) {
+  const vietnamDate = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  const year = vietnamDate.getUTCFullYear();
+  const month = String(vietnamDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(vietnamDate.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const rubricLabels: Record<RubricLevel, string> = {
   unclassified: "Chưa phân loại",
   nhan_biet: "Nhận biết",
@@ -308,7 +316,7 @@ function QuestionEditor({
           </select>
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[0.65rem] font-bold uppercase">Rubric</span>
+          <span className="text-[0.65rem] font-bold uppercase">Mức độ</span>
           <select
             className="nb-input text-sm"
             value={draft.rubricLevel}
@@ -362,7 +370,7 @@ function QuestionEditor({
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[0.65rem] font-bold uppercase">Đáp án text</span>
+          <span className="text-[0.65rem] font-bold uppercase">Nội dung đáp án</span>
           <input
             className="nb-input text-sm"
             value={draft.answerText}
@@ -450,21 +458,15 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
   // Smart exam generation state
   const [generating, setGenerating] = useState(false);
   const [generatedSets, setGeneratedSets] = useState<GeneratedQuestionSet[]>([]);
-  const [generatedQuestions, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
+  const [, setGeneratedQuestions] = useState<GeneratedQuestion[]>([]);
+  const [todayKey] = useState(() => vietnamDateKey());
 
   const hasGeneratedToday = useMemo(() => {
-    const nowVN = new Date(Date.now() + 7 * 60 * 60 * 1000);
     return generatedSets.some((set) => {
       if (!set.createdAt) return false;
-      const createdDate = new Date(set.createdAt);
-      const createdVN = new Date(createdDate.getTime() + 7 * 60 * 60 * 1000);
-      return (
-        createdVN.getUTCFullYear() === nowVN.getUTCFullYear() &&
-        createdVN.getUTCMonth() === nowVN.getUTCMonth() &&
-        createdVN.getUTCDate() === nowVN.getUTCDate()
-      );
+      return vietnamDateKey(new Date(set.createdAt)) === todayKey;
     });
-  }, [generatedSets]);
+  }, [generatedSets, todayKey]);
 
   const loadSavedProblems = useCallback(async () => {
     setLoading(true);
@@ -499,7 +501,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
         setGeneratedSets(sortNewest(genSets));
         setGeneratedQuestions(genQuestions);
 
-        // Merge generated sets into questionSets for PracticeExamPanel
+        // Gộp đề AI vào danh sách đề để PracticeExamPanel dùng chung.
         const genAsSets: QuestionSet[] = genSets.map((gs) => ({
           id: gs.id,
           title: gs.title,
@@ -660,7 +662,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
         throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
       }
 
-      // Non-SSE response (e.g. "no questions to classify")
+      // Phản hồi thường, ví dụ không còn câu nào cần phân loại.
       const contentType = res.headers.get("content-type") ?? "";
       if (!contentType.includes("text/event-stream")) {
         await res.json();
@@ -670,7 +672,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
 
       // SSE streaming
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      if (!reader) throw new Error("Không có dữ liệu phản hồi.");
 
       const decoder = new TextDecoder();
       let buffer = "";
@@ -708,7 +710,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
             }
 
             if (event.type === "error" && event.error) {
-              console.warn("AI classify error:", event.error);
+              console.warn("Lỗi phân loại AI:", event.error);
             }
           } catch {
             // skip malformed events
@@ -1022,7 +1024,10 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
                       const data = await res.json().catch(() => ({}));
                       throw new Error((data as { error?: string }).error || `Lỗi ${res.status}`);
                     }
-                    // Reload all data to show the new generated set
+                    const data = await res.json().catch(() => ({})) as { cached?: boolean; message?: string };
+                    if (data.cached && data.message) {
+                      setError(data.message);
+                    }
                     await loadSavedProblems();
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Không thể tạo đề ôn tập.");
@@ -1109,7 +1114,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
                 onClick={() => void handleAiClassify(true)}
               >
                 <Bot className="w-4 h-4" />
-                {classifying ? "Đang phân loại..." : `🤖 AI Phân loại tất cả (${unclassifiedCount})`}
+                {classifying ? "Đang phân loại..." : `AI phân loại tất cả (${unclassifiedCount})`}
               </NbButton>
               {classifyProgress && (
                 <div className="flex flex-1 flex-col gap-1 min-w-48">
@@ -1149,7 +1154,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
                           <span>Lớp {question.grade}</span>
                           <span>
                             {question.updatedBy === "ai-rubric-classifier" && "🤖 "}
-                            Rubric: {rubricLabels[question.rubricLevel]}
+                            Mức độ: {rubricLabels[question.rubricLevel]}
                           </span>
                         </div>
                       </div>

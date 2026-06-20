@@ -23,7 +23,7 @@ export default function QuestionBankPage() {
 
   return (
     <AdminGuard>
-      <AdminShell userName={user?.displayName ?? "Admin"} onLogout={handleLogout}>
+      <AdminShell userName={user?.displayName ?? "Quản trị viên"} onLogout={handleLogout}>
         <SectionHeader
           title="Kho Đề Toán"
           subtitle="Đọc đề Toán lớp 4-5 từ text, PDF hoặc ảnh nhiều trang"

@@ -50,6 +50,21 @@ function getBearerToken(req: NextRequest): string | null {
   return header.slice("Bearer ".length).trim();
 }
 
+function vietnamDateKey(date = new Date()) {
+  const vietnamDate = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  const year = vietnamDate.getUTCFullYear();
+  const month = String(vietnamDate.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(vietnamDate.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isSameVietnamDate(value: unknown, dateKey = vietnamDateKey()) {
+  if (typeof value !== "string" || !value) return false;
+  const parsedDate = new Date(value);
+  if (Number.isNaN(parsedDate.getTime())) return false;
+  return vietnamDateKey(parsedDate) === dateKey;
+}
+
 function nextRubricLevel(current: string): RubricLevel {
   const idx = RUBRIC_LEVELS.indexOf(current as RubricLevel);
   if (idx < 0 || idx >= RUBRIC_LEVELS.length - 1) return "van_dung_cao";
@@ -79,10 +94,12 @@ export async function POST(req: NextRequest) {
   const token = getBearerToken(req);
   if (!token) {
     return NextResponse.json(
-      { error: "Missing auth token." },
+      { error: "Thiếu thông tin đăng nhập." },
       { status: 401 },
     );
   }
+
+  let reservedSetId: string | null = null;
 
   try {
     const auth = adminAuth();
@@ -94,42 +111,96 @@ export async function POST(req: NextRequest) {
     const userSnap = await db.collection("users").doc(kidUid).get();
     if (!userSnap.exists || userSnap.data()?.role !== "kid") {
       return NextResponse.json(
-        { error: "Only kid accounts can generate practice sets." },
+        { error: "Chỉ tài khoản học sinh mới được thiết kế đề ôn tập." },
         { status: 403 },
       );
     }
 
-    // Check if the kid has already generated a set today (Vietnam timezone UTC+7)
+    const todayKey = vietnamDateKey();
+    const dailySetId = `gen_${kidUid}_${todayKey}`;
+
+    const dailySetSnap = await db
+      .collection("generatedQuestionSets")
+      .doc(dailySetId)
+      .get();
+    if (dailySetSnap.exists) {
+      const generatedSet = dailySetSnap.data();
+      return NextResponse.json({
+        success: true,
+        cached: true,
+        inProgress: generatedSet?.status === "in_progress",
+        generatedSet,
+        questionCount: generatedSet?.questionCount ?? 0,
+        message: generatedSet?.status === "in_progress"
+          ? "Đề ôn tập đang được thiết kế. Vui lòng chờ một chút."
+          : "Đã có đề ôn tập hôm nay. Melon dùng lại đề đã tạo.",
+      });
+    }
+
+    // Dùng lại dữ liệu cũ nếu hôm nay đã có đề được tạo bằng phiên bản trước.
     const existingSetsSnap = await db
       .collection("generatedQuestionSets")
       .where("childUid", "==", kidUid)
       .get();
-    
-    const hasTodaySet = existingSetsSnap.docs.some((doc) => {
-      const data = doc.data();
-      if (!data.createdAt) return false;
-      const createdDate = new Date(data.createdAt);
-      // Convert to Vietnam timezone
-      const createdDateVN = new Date(createdDate.getTime() + 7 * 60 * 60 * 1000);
-      const nowVN = new Date(Date.now() + 7 * 60 * 60 * 1000);
-      return (
-        createdDateVN.getUTCFullYear() === nowVN.getUTCFullYear() &&
-        createdDateVN.getUTCMonth() === nowVN.getUTCMonth() &&
-        createdDateVN.getUTCDate() === nowVN.getUTCDate()
-      );
-    });
 
-    if (hasTodaySet) {
-      return NextResponse.json(
-        { error: "Mỗi ngày con chỉ được thiết kế tối đa 1 đề ôn tập. Hãy luyện tập thật tốt đề đã được tạo nhé!" },
-        { status: 429 },
-      );
+    const existingTodaySet = existingSetsSnap.docs
+      .map((doc) => doc.data())
+      .filter((data) => data.childUid === kidUid && isSameVietnamDate(data.createdAt, todayKey))
+      .sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")))[0];
+
+    if (existingTodaySet) {
+      return NextResponse.json({
+        success: true,
+        cached: true,
+        generatedSet: existingTodaySet,
+        questionCount: existingTodaySet.questionCount ?? 0,
+        message: "Đã có đề ôn tập hôm nay. Melon dùng lại đề đã tạo.",
+      });
     }
 
     // 1. Load child profile
     const childSnap = await db.collection("children").doc(kidUid).get();
     const child = childSnap.data() ?? {};
     const grade = child.learningPreferences?.gradeLevel === "grade_4" ? 4 : 5;
+    const now = new Date().toISOString();
+
+    try {
+      await db.collection("generatedQuestionSets").doc(dailySetId).create({
+        id: dailySetId,
+        childUid: kidUid,
+        title: `Đề ôn tập cá nhân — ${new Date().toLocaleDateString("vi-VN")}`,
+        grade,
+        subject: "math",
+        questionIds: [],
+        questionCount: 0,
+        status: "in_progress",
+        createdAt: now,
+        updatedAt: now,
+        generationDate: todayKey,
+        generationMeta: {
+          basedOnPlanId: null,
+          targetConcepts: [],
+          rubricDistribution: {},
+          exerciseAccuracyAtGen: 0,
+          sourceQuestionIds: [],
+          generatedAt: now,
+        },
+      });
+    } catch {
+      const existingSnap = await db.collection("generatedQuestionSets").doc(dailySetId).get();
+      const generatedSet = existingSnap.data();
+      return NextResponse.json({
+        success: true,
+        cached: true,
+        inProgress: generatedSet?.status === "in_progress",
+        generatedSet,
+        questionCount: generatedSet?.questionCount ?? 0,
+        message: generatedSet?.status === "in_progress"
+          ? "Đề ôn tập đang được thiết kế. Vui lòng chờ một chút."
+          : "Đã có đề ôn tập hôm nay. Melon dùng lại đề đã tạo.",
+      });
+    }
+    reservedSetId = dailySetId;
 
     // 2. Load student progress
     const progressSnap = await db
@@ -234,7 +305,7 @@ export async function POST(req: NextRequest) {
           `${i + 1}. [CẦN ÔN LẠI — ${RUBRIC_LABELS[a.rubricLevel] ?? a.rubricLevel}]
    Câu hỏi gốc: "${a.stem}"
    Đáp án đúng: "${a.answerText || a.answer}"
-   Concepts: ${a.concepts.join(", ") || "không rõ"}
+   Chủ đề: ${a.concepts.join(", ") || "không rõ"}
    → Hãy tạo 1 câu tương tự cùng dạng (${a.type ?? "short_answer"}), cùng cấp độ ${RUBRIC_LABELS[a.rubricLevel] ?? a.rubricLevel}, nhưng thay đổi dữ kiện/số liệu.`,
       )
       .join("\n\n");
@@ -244,7 +315,7 @@ export async function POST(req: NextRequest) {
         (a, i) =>
           `${i + 1}. [NÂNG CẤP — từ ${RUBRIC_LABELS[a.rubricLevel] ?? a.rubricLevel} lên ${RUBRIC_LABELS[nextRubricLevel(a.rubricLevel)]}]
    Câu hỏi gốc: "${a.stem}"
-   Concepts: ${a.concepts.join(", ") || "không rõ"}
+   Chủ đề: ${a.concepts.join(", ") || "không rõ"}
    → Hãy tạo 1 câu nâng cấp lên cấp độ ${RUBRIC_LABELS[nextRubricLevel(a.rubricLevel)]}, cùng concept nhưng yêu cầu tư duy cao hơn.`,
       )
       .join("\n\n");
@@ -333,8 +404,7 @@ Hãy tạo đúng ${TARGET_QUESTION_COUNT} câu hỏi dưới dạng JSON array.
     }
 
     // 9. Write to Firestore
-    const now = new Date().toISOString();
-    const setId = `gen_${kidUid}_${Date.now()}`;
+    const setId = dailySetId;
     const questionIds: string[] = [];
     const rubricDistribution: Record<string, number> = {};
     const sourceQuestionIds: string[] = [
@@ -403,6 +473,7 @@ Hãy tạo đúng ${TARGET_QUESTION_COUNT} câu hỏi dưới dạng JSON array.
       status: "ready",
       createdAt: now,
       updatedAt: now,
+      generationDate: todayKey,
       generationMeta: {
         basedOnPlanId: planId,
         targetConcepts: targetConcepts.slice(0, 10),
@@ -423,6 +494,9 @@ Hãy tạo đúng ${TARGET_QUESTION_COUNT} câu hỏi dưới dạng JSON array.
     });
   } catch (error) {
     console.error("Smart set generation error:", error);
+    if (reservedSetId) {
+      await adminDb().collection("generatedQuestionSets").doc(reservedSetId).delete().catch(() => undefined);
+    }
     return NextResponse.json(
       {
         error:

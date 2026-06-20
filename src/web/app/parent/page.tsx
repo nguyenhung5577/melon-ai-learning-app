@@ -62,7 +62,7 @@ export default function ParentDashboard() {
   const handleOpenBilling = async () => {
     setPortalLoading(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth?.currentUser?.getIdToken();
       const res = await fetch("/api/v1/stripe/portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
@@ -74,7 +74,7 @@ export default function ParentDashboard() {
         toast.error(data.error || "Không thể mở trang thanh toán.");
         setPortalLoading(false);
       }
-    } catch (err) {
+    } catch {
       toast.error("Lỗi kết nối máy chủ thanh toán.");
       setPortalLoading(false);
     }
@@ -106,7 +106,7 @@ export default function ParentDashboard() {
             ? queryDocuments(collections.kidQuestionStats, where("kidUid", "==", child.uid))
             : Promise.resolve([] as KidQuestionStats[]),
         ]);
-        if (!progressRes.ok) throw new Error("Failed to load progress summary");
+        if (!progressRes.ok) throw new Error("Không tải được tóm tắt tiến độ.");
         const data = (await progressRes.json()) as { summary: ProgressSummary };
 
         setProgressSummary(data.summary);
@@ -140,9 +140,9 @@ export default function ParentDashboard() {
       <ParentShell>
         <SectionContainer>
           <div className="text-center py-12">
-            <p className="font-display text-lg mb-4">Parent account required</p>
+            <p className="font-display text-lg mb-4">Cần tài khoản phụ huynh</p>
             <NbButton variant="primary" onClick={() => setAuthOpen(true)}>
-              Login as Parent
+              Đăng nhập phụ huynh
             </NbButton>
           </div>
         </SectionContainer>
@@ -156,9 +156,9 @@ export default function ParentDashboard() {
       <SectionContainer>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <SectionHeader
-            title="Parent Dashboard"
-            subtitle={selectedChild ? `Tracking ${selectedChild.displayName}'s progress` : "Tracking your child's progress (Demo Data)"}
-            badge={<NbPill color={selectedChild ? "green" : "blue"}>{selectedChild ? "Backend API" : "Demo Mode"}</NbPill>}
+            title="Bảng phụ huynh"
+            subtitle={selectedChild ? `Theo dõi tiến độ của ${selectedChild.displayName}` : "Theo dõi tiến độ của con bằng dữ liệu mẫu"}
+            badge={<NbPill color={selectedChild ? "green" : "blue"}>{selectedChild ? "Dữ liệu thật" : "Dữ liệu mẫu"}</NbPill>}
           />
           <NbButton 
             variant="secondary" 
@@ -196,10 +196,10 @@ export default function ParentDashboard() {
           <div className="nb-card rounded-2xl p-4 mb-8 bg-nb-purple/10 border-nb-purple flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="text-3xl">👋</div>
-              <p className="text-sm font-bold">You haven&apos;t linked any real children yet. Showing demo data below.</p>
+                <p className="text-sm font-bold">Bạn chưa liên kết tài khoản con nào. Bên dưới đang hiển thị dữ liệu mẫu.</p>
             </div>
             <Link href="/family">
-              <NbButton variant="secondary" size="sm">Link a Child</NbButton>
+              <NbButton variant="secondary" size="sm">Liên kết tài khoản con</NbButton>
             </Link>
           </div>
         )}
@@ -211,27 +211,27 @@ export default function ParentDashboard() {
                 <Target className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-display text-sm">Learning Goal</h3>
-                <p className="text-xs font-semibold text-[#666]">Parent-set setup for this child</p>
+                <h3 className="font-display text-sm">Mục tiêu học tập</h3>
+                <p className="text-xs font-semibold text-[#666]">Thiết lập phụ huynh đã chọn cho con</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-nb-bg rounded-xl [border:var(--nb-border-thin)] p-3">
-                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Goal</div>
+                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Mục tiêu</div>
                 <div className="text-sm font-bold">
                   {goalLabels[selectedChild.learningPreferences.primaryGoal]}
                 </div>
               </div>
               <div className="bg-nb-bg rounded-xl [border:var(--nb-border-thin)] p-3">
-                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Score Target</div>
+                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Mục tiêu điểm</div>
                 <div className="text-sm font-bold">
                   {selectedChild.learningPreferences.currentScore}/10 → {selectedChild.learningPreferences.targetScore}/10
                 </div>
               </div>
               <div className="bg-nb-bg rounded-xl [border:var(--nb-border-thin)] p-3">
-                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Commitment</div>
+                <div className="text-[0.65rem] font-black uppercase text-[#666] mb-1">Lịch học</div>
                 <div className="text-sm font-bold">
-                  {selectedChild.learningPreferences.sessionMinutes}m x {selectedChild.learningPreferences.sessionsPerWeek}/week
+                  {selectedChild.learningPreferences.sessionMinutes} phút x {selectedChild.learningPreferences.sessionsPerWeek}/tuần
                 </div>
               </div>
             </div>
@@ -246,10 +246,10 @@ export default function ParentDashboard() {
         {/* Stat row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
           {[
-            { icon: <Clock className="w-5 h-5" />, value: `${metrics.totalWatchMinutes}m`, label: "Time Learned", color: "text-nb-blue" },
-            { icon: <BookOpen className="w-5 h-5" />, value: questionStats.length || metrics.completedExperiences, label: questionStats.length ? "Questions Done" : "Lessons Done", color: "text-nb-green" },
-            { icon: <Trophy className="w-5 h-5" />, value: `${questionAccuracy}%`, label: "Accuracy", color: "text-nb-orange" },
-            { icon: <TrendingUp className="w-5 h-5" />, value: metrics.xp, label: "Total XP", color: "text-nb-purple" },
+            { icon: <Clock className="w-5 h-5" />, value: `${metrics.totalWatchMinutes} phút`, label: "Thời gian học", color: "text-nb-blue" },
+            { icon: <BookOpen className="w-5 h-5" />, value: questionStats.length || metrics.completedExperiences, label: questionStats.length ? "Câu đã làm" : "Bài đã học", color: "text-nb-green" },
+            { icon: <Trophy className="w-5 h-5" />, value: `${questionAccuracy}%`, label: "Độ chính xác", color: "text-nb-orange" },
+            { icon: <TrendingUp className="w-5 h-5" />, value: metrics.xp, label: "Tổng XP", color: "text-nb-purple" },
           ].map((s) => (
             <div key={s.label} className="nb-card rounded-2xl p-5 flex flex-col gap-1">
               <div className={cn("w-5 h-5", s.color)}>{s.icon}</div>
@@ -261,7 +261,7 @@ export default function ParentDashboard() {
 
         {/* XP chart */}
         <div className="nb-card rounded-2xl p-5 mb-8">
-          <h3 className="font-display text-sm mb-4">Daily XP (This Week)</h3>
+          <h3 className="font-display text-sm mb-4">XP mỗi ngày trong tuần</h3>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={weeklyProgress} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <defs>

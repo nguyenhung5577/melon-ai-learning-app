@@ -137,12 +137,12 @@ export function AITutorWidget({ lessonContext, className }: AITutorWidgetProps) 
               <div className="text-2xl ai-float">🍈</div>
               <div className="flex-1">
                 <div className="font-display text-[0.75rem]">Cosmo</div>
-                <div className="text-[0.65rem] font-semibold text-nb-green">● Online</div>
+                <div className="text-[0.65rem] font-semibold text-nb-green">● Đang online</div>
               </div>
               <button
                 onClick={() => setOpen(false)}
                 className="w-8 h-8 flex items-center justify-center [border:var(--nb-border)] bg-nb-pink cursor-pointer [box-shadow:2px_2px_0_var(--nb-black)] hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all"
-                aria-label="Close chat"
+                aria-label="Đóng chat"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -175,10 +175,10 @@ export function AITutorWidget({ lessonContext, className }: AITutorWidgetProps) 
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
-                placeholder="Ask Cosmo anything..."
+                placeholder="Hỏi Cosmo bất cứ điều gì..."
                 disabled={streaming}
                 className="flex-1 px-3 py-2 bg-nb-bg [border:var(--nb-border-thin)] text-sm font-medium outline-none focus:[border:var(--nb-border)] transition-all"
-                aria-label="Chat message input"
+                aria-label="Nội dung tin nhắn"
               />
               <button
                 onClick={sendMessage}
@@ -191,7 +191,7 @@ export function AITutorWidget({ lessonContext, className }: AITutorWidgetProps) 
                   "disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none",
                   "transition-all duration-150"
                 )}
-                aria-label="Send message"
+                aria-label="Gửi tin nhắn"
               >
                 {streaming ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -215,7 +215,7 @@ export function AITutorWidget({ lessonContext, className }: AITutorWidgetProps) 
           "hover:[box-shadow:var(--nb-shadow-lg)] hover:-translate-x-0.5 hover:-translate-y-0.5",
           "transition-all duration-150 flex items-center justify-center"
         )}
-        aria-label="Open Cosmo AI Tutor"
+        aria-label="Mở gia sư AI Cosmo"
       >
         {open ? <X className="w-6 h-6 text-white" /> : "🍈"}
       </button>

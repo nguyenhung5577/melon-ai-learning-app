@@ -21,9 +21,9 @@ import { useRouter } from "next/navigation";
 
 const profileSchema = z.object({
   displayName: z.string()
-    .min(2, "Name is too short")
-    .max(25, "Name is too long (max 25 chars)")
-    .regex(/^[a-zA-Z0-9À-ỹ\s]+$/, "Name contains invalid characters"),
+    .min(2, "Tên quá ngắn")
+    .max(25, "Tên quá dài, tối đa 25 ký tự")
+    .regex(/^[a-zA-Z0-9À-ỹ\s]+$/, "Tên có ký tự không hợp lệ"),
 });
 
 export default function ProfilePage() {
@@ -52,7 +52,7 @@ export default function ProfilePage() {
         const newProfile = {
           uid: user.uid,
           loginId: user.loginId,
-          displayName: user.displayName ?? "Learner",
+          displayName: user.displayName ?? "Học sinh",
           avatarEmoji: "🦊",
           grade: "Grade 1",
           createdAt: new Date().toISOString(),
@@ -73,8 +73,8 @@ export default function ProfilePage() {
       <KidShell onLogin={() => setAuthOpen(true)}>
         <SectionContainer>
           <div className="text-center py-12">
-            <p className="font-display text-lg mb-4">Login to view your profile</p>
-            <NbButton variant="primary" onClick={() => setAuthOpen(true)}>Login</NbButton>
+            <p className="font-display text-lg mb-4">Đăng nhập để xem hồ sơ</p>
+            <NbButton variant="primary" onClick={() => setAuthOpen(true)}>Đăng nhập</NbButton>
           </div>
         </SectionContainer>
         <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
@@ -105,10 +105,10 @@ export default function ProfilePage() {
         displayName: localName
       });
       
-      toast.success("Profile saved!");
+      toast.success("Đã lưu hồ sơ.");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      toast.error("Failed to save: " + message);
+      const message = err instanceof Error ? err.message : "Lỗi không xác định";
+      toast.error("Không lưu được: " + message);
     } finally {
       setSaving(false);
     }
@@ -123,9 +123,9 @@ export default function ProfilePage() {
     try {
       const url = await uploadAvatar(file, setAvatarProgress);
       await updateDocument(collections.users, user.uid, { avatarUrl: url });
-      toast.success("Avatar updated! Refresh to see changes.");
+      toast.success("Đã cập nhật ảnh đại diện.");
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to upload avatar");
+      toast.error(err instanceof Error ? err.message : "Không tải được ảnh đại diện.");
     } finally {
       setUploadingAvatar(false);
       setAvatarProgress(0);
@@ -134,7 +134,7 @@ export default function ProfilePage() {
 
   const content = (
     <SectionContainer>
-      <SectionHeader title="My Profile" subtitle="Customise how you appear on Melon" />
+      <SectionHeader title="Hồ sơ của con" subtitle="Chỉnh cách con hiển thị trong Melon" />
 
       <div className="max-w-lg flex flex-col gap-8">
         <div className="nb-card rounded-2xl p-6 flex flex-col sm:flex-row items-center sm:items-start gap-5">
@@ -143,7 +143,7 @@ export default function ProfilePage() {
                        bg-nb-yellow [border:var(--nb-border)] [box-shadow:var(--nb-shadow-sm)] flex-shrink-0"
           >
             {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              <img src={user.avatarUrl} alt="Ảnh đại diện" className="w-full h-full object-cover" />
             ) : (
               profile?.avatarEmoji || "👤"
             )}
@@ -152,16 +152,16 @@ export default function ProfilePage() {
             <div className="font-display text-lg truncate w-full max-w-[250px]">{localName || user.displayName}</div>
             {isKid && <div className="text-sm font-semibold text-[#666]">{profile?.grade}</div>}
             <div className="text-xs text-[#999] mt-0.5 mb-3">
-              {isKid ? (user.loginId ?? profile?.loginId ?? "Child account") : user.email}
+              {isKid ? (user.loginId ?? profile?.loginId ?? "Tài khoản học sinh") : user.email}
             </div>
             
             <label className="inline-flex items-center gap-2 cursor-pointer bg-nb-bg px-3 py-1.5 rounded-lg [border:var(--nb-border)] font-bold text-[0.7rem] uppercase hover:bg-white transition-colors">
               {uploadingAvatar ? (
-                <span>Uploading {avatarProgress}%...</span>
+                <span>Đang tải {avatarProgress}%...</span>
               ) : (
                 <>
                   <Upload className="w-3.5 h-3.5" />
-                  Upload Photo
+                  Tải ảnh lên
                 </>
               )}
               <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
@@ -170,7 +170,7 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <label className="block font-bold text-[0.8rem] uppercase mb-2">Display Name</label>
+          <label className="block font-bold text-[0.8rem] uppercase mb-2">Tên hiển thị</label>
           <input
             type="text"
             value={localName}
@@ -190,19 +190,19 @@ export default function ProfilePage() {
 
         {isKid ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <IdentityField label="Child ID" value={user.loginId ?? profile?.loginId ?? "Not assigned"} />
+            <IdentityField label="Mã học sinh" value={user.loginId ?? profile?.loginId ?? "Chưa có"} />
             <IdentityField label="UID" value={user.uid} />
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <IdentityField label="Email" value={user.email ?? "Not available"} />
-            <IdentityField label="Parent UID" value={user.uid} />
+            <IdentityField label="Email" value={user.email ?? "Chưa có"} />
+            <IdentityField label="UID phụ huynh" value={user.uid} />
           </div>
         )}
 
         {isKid && profile && (
           <div>
-            <label className="block font-bold text-[0.8rem] uppercase mb-2">Grade</label>
+            <label className="block font-bold text-[0.8rem] uppercase mb-2">Lớp</label>
             <select
               value={profile.grade}
               onChange={(e) => setProfile({ ...profile, grade: e.target.value })}
@@ -223,7 +223,7 @@ export default function ProfilePage() {
         )}
 
         <NbButton variant="primary" size="lg" loading={saving} onClick={handleSave}>
-          Save Profile
+          Lưu hồ sơ
         </NbButton>
       </div>
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
@@ -231,10 +231,10 @@ export default function ProfilePage() {
   );
 
   if (user.role === "admin") {
-    return <AdminShell userName={user.displayName ?? "Admin"} onLogout={handleLogout}>{content}</AdminShell>;
+    return <AdminShell userName={user.displayName ?? "Quản trị viên"} onLogout={handleLogout}>{content}</AdminShell>;
   }
   if (user.role === "parent") {
-    return <ParentShell userName={user.displayName ?? "Parent"} photoURL={user.avatarUrl ?? user.photoURL} onLogout={handleLogout}>{content}</ParentShell>;
+    return <ParentShell userName={user.displayName ?? "Phụ huynh"} photoURL={user.avatarUrl ?? user.photoURL} onLogout={handleLogout}>{content}</ParentShell>;
   }
   return (
     <KidShell
@@ -250,9 +250,9 @@ export default function ProfilePage() {
 
 function IdentityField({ label, value }: { label: string; value: string }) {
   async function copyValue() {
-    if (!navigator.clipboard || value === "Not assigned") return;
+    if (!navigator.clipboard || value === "Chưa có") return;
     await navigator.clipboard.writeText(value);
-    toast.success(`${label} copied`);
+    toast.success(`Đã sao chép ${label}`);
   }
 
   return (
@@ -264,7 +264,7 @@ function IdentityField({ label, value }: { label: string; value: string }) {
           type="button"
           onClick={copyValue}
           className="w-8 h-8 flex items-center justify-center rounded-lg bg-nb-bg [border:var(--nb-border-thin)] cursor-pointer"
-          aria-label={`Copy ${label}`}
+          aria-label={`Sao chép ${label}`}
         >
           <Copy className="w-3.5 h-3.5" />
         </button>

@@ -19,9 +19,9 @@ import { cn } from "@/lib/utils";
 
 const ingestSchema = z.object({
   lessonId: z.string()
-    .min(3, "Lesson ID is too short")
-    .max(20, "Lesson ID is too long")
-    .regex(/^[a-zA-Z0-9-]+$/, "Lesson ID must be alphanumeric or hyphens"),
+    .min(3, "Mã bài học quá ngắn")
+    .max(20, "Mã bài học quá dài")
+    .regex(/^[a-zA-Z0-9-]+$/, "Mã bài học chỉ gồm chữ, số hoặc dấu gạch ngang"),
 });
 
 type UploadStatus = "idle" | "storing" | "ingesting" | "success" | "error";
@@ -90,14 +90,14 @@ export default function PdfUploadPage() {
       const res = await fetch(`/api/v1/rag/ingest/${jobId}`, { cache: "no-store" });
       const data = (await res.json()) as IngestStatusResponse;
       if (!res.ok) {
-        throw new Error(data.error ?? "Failed to read ingest status");
+        throw new Error(data.error ?? "Không đọc được trạng thái xử lý.");
       }
       if (data.status === "completed" || data.status === "failed" || data.status === "not_found") {
         return data;
       }
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-    throw new Error("Ingest timeout. Please try again.");
+    throw new Error("Quá thời gian xử lý. Vui lòng thử lại.");
   }
 
   function handleDrop(e: DragEvent) {
@@ -149,7 +149,7 @@ export default function PdfUploadPage() {
 
       const startData = (await response.json()) as IngestStartResponse;
       if (!response.ok) {
-        throw new Error(startData.error || "Ingestion failed");
+        throw new Error(startData.error || "Không xử lý được tài liệu.");
       }
 
       let fileId = startData.file_id;
@@ -158,7 +158,7 @@ export default function PdfUploadPage() {
       if (startData.job_id) {
         const finalStatus = await pollIngestJob(startData.job_id);
         if (finalStatus.status !== "completed") {
-          throw new Error(finalStatus.error ?? "Ingest failed");
+          throw new Error(finalStatus.error ?? "Không xử lý được tài liệu.");
         }
         fileId = finalStatus.file_id ?? fileId;
         chunkCount = finalStatus.chunks ?? chunkCount;
@@ -170,7 +170,7 @@ export default function PdfUploadPage() {
         subject,
         type: "reading",
         emoji: "📄",
-        description: "Uploaded PDF lesson source for Melon AI generation.",
+        description: "Tài liệu PDF dùng để Melon AI tạo bài học.",
         duration: 10,
         xpReward: 100,
         difficulty: 1,
@@ -202,7 +202,7 @@ export default function PdfUploadPage() {
       setResult({
         success: false,
         lessonId,
-        error: err instanceof Error ? err.message : "Upload failed",
+        error: err instanceof Error ? err.message : "Không tải được tệp.",
       });
       setStatus("error");
     }
@@ -227,11 +227,11 @@ export default function PdfUploadPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error ?? "Failed to generate exercises");
+        throw new Error(data.error ?? "Không tạo được bài tập.");
       }
       setGeneratedExercises(data.questions ?? []);
     } catch (err) {
-      setExerciseError(err instanceof Error ? err.message : "Failed to generate exercises");
+      setExerciseError(err instanceof Error ? err.message : "Không tạo được bài tập.");
     } finally {
       setExerciseLoading(false);
     }
@@ -246,16 +246,16 @@ export default function PdfUploadPage() {
       sourceFileId: exerciseFileId.trim() || undefined,
     });
     saveGeneratedLesson(lesson);
-    setSaveMessage(`Saved lesson "${lesson.title}". You can now learn it in /lessons.`);
+    setSaveMessage(`Đã lưu bài "${lesson.title}". Có thể học bài này ở mục Bài học.`);
   }
 
   return (
     <AdminGuard>
-      <AdminShell userName={user?.displayName ?? "Admin"} onLogout={handleLogout}>
+      <AdminShell userName={user?.displayName ?? "Quản trị viên"} onLogout={handleLogout}>
         <SectionHeader
-          title="PDF & RAG Upload"
-          subtitle="Add new learning materials to the AI database"
-          badge={<NbPill color="orange">Admin Only</NbPill>}
+          title="Tải PDF và RAG"
+          subtitle="Thêm tài liệu học tập vào cơ sở dữ liệu AI"
+          badge={<NbPill color="orange">Chỉ admin</NbPill>}
         />
 
         <div className="max-w-5xl mt-8">
@@ -264,15 +264,15 @@ export default function PdfUploadPage() {
               <div className="nb-card rounded-2xl p-6 bg-white">
                 <h3 className="font-display text-sm mb-6 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-nb-purple" />
-                  Lesson Metadata
+                  Thông tin bài học
                 </h3>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block font-bold text-[0.7rem] uppercase mb-1.5">Lesson ID (e.g. math-101)</label>
+                    <label className="block font-bold text-[0.7rem] uppercase mb-1.5">Mã bài học, ví dụ math-101</label>
                     <input
                       type="text"
-                      placeholder="Enter a unique ID..."
+                      placeholder="Nhập mã không trùng..."
                       className={cn("nb-input text-sm", fieldError && "border-nb-red focus:ring-nb-red")}
                       value={lessonId}
                       onChange={(e) => {
@@ -285,7 +285,7 @@ export default function PdfUploadPage() {
                   </div>
 
                   <div>
-                    <label className="block font-bold text-[0.7rem] uppercase mb-1.5">Subject</label>
+                    <label className="block font-bold text-[0.7rem] uppercase mb-1.5">Môn học</label>
                     <select
                       className="nb-input text-sm cursor-pointer"
                       value={subject}
@@ -325,15 +325,15 @@ export default function PdfUploadPage() {
                     </div>
                     <div className="font-bold text-sm mt-2">{file.name}</div>
                     <div className="text-[0.65rem] text-[#666]">{(file.size / (1024 * 1024)).toFixed(2)} MB</div>
-                    <NbButton variant="secondary" size="sm" className="mt-2 text-[0.65rem] h-8">Change File</NbButton>
+                    <NbButton variant="secondary" size="sm" className="mt-2 text-[0.65rem] h-8">Đổi tệp</NbButton>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-12 h-12 rounded-xl bg-nb-bg flex items-center justify-center text-[#999]">
                       <Upload className="w-6 h-6" />
                     </div>
-                    <div className="font-bold text-sm mt-2">Drop your PDF here</div>
-                    <div className="text-[0.65rem] text-[#666]">or click to browse from files</div>
+                    <div className="font-bold text-sm mt-2">Thả PDF vào đây</div>
+                    <div className="text-[0.65rem] text-[#666]">hoặc bấm để chọn tệp</div>
                   </div>
                 )}
               </div>
@@ -346,19 +346,19 @@ export default function PdfUploadPage() {
                 loading={status !== "idle" && status !== "success" && status !== "error"}
                 onClick={handleUpload}
               >
-                {status === "idle" ? "Ingest to Melon AI" : "Processing..."}
+                {status === "idle" ? "Đưa vào Melon AI" : "Đang xử lý..."}
               </NbButton>
             </div>
 
             <div className="flex flex-col gap-6">
               {status !== "idle" && (
                 <div className="nb-card rounded-2xl p-6 bg-white animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <h3 className="font-display text-sm mb-6">Upload Progress</h3>
+                  <h3 className="font-display text-sm mb-6">Tiến độ tải lên</h3>
 
                   <div className="space-y-6">
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between text-[0.65rem] font-bold uppercase">
-                        <span>1. Cloudinary Storage</span>
+                        <span>1. Lưu trữ Cloudinary</span>
                         {status === "storing" ? (
                           <span className="text-nb-purple">{uploadProgress}%</span>
                         ) : (
@@ -375,9 +375,9 @@ export default function PdfUploadPage() {
 
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between text-[0.65rem] font-bold uppercase">
-                        <span>2. Melon AI Ingestion</span>
+                        <span>2. Melon AI đọc tài liệu</span>
                         {status === "storing" ? (
-                          <span className="text-[#ccc]">Waiting...</span>
+                          <span className="text-[#ccc]">Đang chờ...</span>
                         ) : status === "ingesting" ? (
                           <Loader2 className="w-4 h-4 text-nb-purple animate-spin" />
                         ) : status === "success" ? (
@@ -403,20 +403,20 @@ export default function PdfUploadPage() {
                     <div className="mt-8 p-4 bg-nb-green/10 border-2 border-nb-green rounded-xl flex flex-col gap-3">
                       <div className="flex items-center gap-2 text-nb-green font-bold text-xs">
                         <CheckCircle className="w-4 h-4" />
-                        Success! Lesson {result.lessonId} is ready.
+                        Thành công! Bài {result.lessonId} đã sẵn sàng.
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[0.65rem] font-bold">
                         <div className="bg-white p-2 rounded-lg border border-nb-green/30">
-                          <div className="text-[#666] mb-1">CHUNKS</div>
+                          <div className="text-[#666] mb-1">ĐOẠN</div>
                           <div>{result.chunkCount ?? 0}</div>
                         </div>
                         <div className="bg-white p-2 rounded-lg border border-nb-green/30">
-                          <div className="text-[#666] mb-1">FILE ID</div>
-                          <div className="truncate">{result.fileId ?? "n/a"}</div>
+                          <div className="text-[#666] mb-1">ID TỆP</div>
+                          <div className="truncate">{result.fileId ?? "không có"}</div>
                         </div>
                       </div>
                       <NbButton variant="secondary" size="sm" onClick={() => setStatus("idle")}>
-                        Upload Another
+                        Tải tệp khác
                       </NbButton>
                     </div>
                   )}
@@ -425,11 +425,11 @@ export default function PdfUploadPage() {
                     <div className="mt-8 p-4 bg-nb-red/10 border-2 border-nb-red rounded-xl flex flex-col gap-2">
                       <div className="flex items-center gap-2 text-nb-red font-bold text-xs">
                         <AlertCircle className="w-4 h-4" />
-                        Error occurred
+                        Có lỗi xảy ra
                       </div>
                       <p className="text-[0.65rem] text-nb-red font-bold">{result.error}</p>
                       <NbButton variant="secondary" size="sm" onClick={() => setStatus("idle")}>
-                        Try Again
+                        Thử lại
                       </NbButton>
                     </div>
                   )}
@@ -437,18 +437,18 @@ export default function PdfUploadPage() {
               )}
 
               <div className="nb-card rounded-2xl p-6 bg-nb-purple/5 border-nb-purple">
-                <h3 className="font-display text-xs mb-3">Generate Exercises</h3>
+                <h3 className="font-display text-xs mb-3">Tạo bài tập</h3>
                 <div className="flex flex-col gap-3">
                   <input
                     value={exerciseTopic}
                     onChange={(e) => setExerciseTopic(e.target.value)}
-                    placeholder="Topic"
+                    placeholder="Chủ đề"
                     className="nb-input text-sm"
                   />
                   <input
                     value={exerciseFileId}
                     onChange={(e) => setExerciseFileId(e.target.value)}
-                    placeholder="Melon AI file_id"
+                    placeholder="ID tệp Melon AI"
                     className="nb-input text-sm"
                   />
                   <NbButton
@@ -458,7 +458,7 @@ export default function PdfUploadPage() {
                     loading={exerciseLoading}
                     onClick={handleGenerateExercises}
                   >
-                    Generate Quiz
+                    Tạo quiz
                   </NbButton>
                 </div>
 
@@ -469,10 +469,10 @@ export default function PdfUploadPage() {
                 {generatedExercises.length > 0 && (
                   <div className="mt-4 flex flex-col gap-3">
                     <div className="text-[0.7rem] font-bold text-[#555]">
-                      {generatedExercises.length} questions generated.
+                      Đã tạo {generatedExercises.length} câu hỏi.
                     </div>
                     <NbButton variant="primary" size="sm" onClick={handleSaveLesson}>
-                      Save as Local Lesson
+                      Lưu thành bài học cục bộ
                     </NbButton>
                   </div>
                 )}

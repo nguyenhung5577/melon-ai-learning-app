@@ -122,19 +122,19 @@ export default function FamilyPage() {
     const loginId = form.loginId.trim().toLowerCase();
     const displayName = form.displayName.trim();
     if (!/^[a-z0-9_]{3,24}$/.test(loginId)) {
-      setFormError("Child ID must be 3-24 lowercase letters, numbers, or underscores.");
+      setFormError("Mã học sinh cần dài 3-24 ký tự, chỉ gồm chữ thường, số hoặc dấu gạch dưới.");
       return;
     }
     if (displayName.length < 2) {
-      setFormError("Display name must be at least 2 characters.");
+      setFormError("Tên hiển thị cần có ít nhất 2 ký tự.");
       return;
     }
     if (form.passwordOrPin.length < 4) {
-      setFormError("PIN/password must be at least 4 characters.");
+      setFormError("PIN hoặc mật khẩu cần có ít nhất 4 ký tự.");
       return;
     }
     if (form.passwordOrPin !== form.confirmSecret) {
-      setFormError("PIN/password and confirmation do not match.");
+      setFormError("PIN hoặc mật khẩu nhập lại chưa khớp.");
       return;
     }
     if (
@@ -143,11 +143,11 @@ export default function FamilyPage() {
       form.learningPreferences.targetScore < 0 ||
       form.learningPreferences.targetScore > 10
     ) {
-      setFormError("Math scores must be between 0 and 10.");
+      setFormError("Điểm Toán cần nằm trong khoảng 0 đến 10.");
       return;
     }
     if (form.learningPreferences.weakTopics.length === 0) {
-      setFormError("Choose at least one weak topic.");
+      setFormError("Vui lòng chọn ít nhất một chủ đề cần ôn.");
       return;
     }
 
@@ -228,11 +228,11 @@ export default function FamilyPage() {
     <ParentShell userName={user.displayName ?? undefined} onLogout={handleLogout}>
       <SectionContainer>
         <SectionHeader
-          title="Family"
-          subtitle="Create and manage child accounts"
+          title="Gia đình"
+          subtitle="Tạo và quản lý tài khoản con"
           badge={
             <NbPill color="blue" icon={<Users className="w-3 h-3" />}>
-              {children.length} kids
+              {children.length} tài khoản con
             </NbPill>
           }
         />
@@ -246,15 +246,15 @@ export default function FamilyPage() {
                 <UserPlus className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-display text-sm">Create Child Account</h3>
-                <p className="text-xs font-semibold text-[#666]">No Gmail required for children</p>
+                <h3 className="font-display text-sm">Tạo tài khoản con</h3>
+                <p className="text-xs font-semibold text-[#666]">Trẻ không cần dùng Gmail</p>
               </div>
             </div>
 
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2 pt-1">
                 <KeyRound className="w-4 h-4 text-nb-orange" />
-                <h4 className="font-display text-[0.75rem]">Account</h4>
+                <h4 className="font-display text-[0.75rem]">Tài khoản</h4>
               </div>
 
               <div>

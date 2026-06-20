@@ -35,7 +35,7 @@ export function AuthModal({
       await signInWithGoogle();
       onClose();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Google sign-in failed");
+      setFormError(err instanceof Error ? err.message : "Không đăng nhập được bằng Google.");
     }
   }
 
@@ -44,11 +44,11 @@ export function AuthModal({
     setFormError("");
 
     if (!loginId.trim()) {
-      setFormError("Enter your Child ID.");
+      setFormError("Vui lòng nhập mã học sinh.");
       return;
     }
     if (!passwordOrPin.trim()) {
-      setFormError("Enter your PIN or password.");
+      setFormError("Vui lòng nhập PIN hoặc mật khẩu.");
       return;
     }
 
@@ -56,7 +56,7 @@ export function AuthModal({
       await signInChild(loginId, passwordOrPin);
       onClose();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Child login failed");
+      setFormError(err instanceof Error ? err.message : "Không đăng nhập được tài khoản học sinh.");
     }
   }
 
@@ -75,7 +75,7 @@ export function AuthModal({
       >
         <div className="flex items-center justify-between px-8 py-5 bg-white [border-bottom:var(--nb-border)]">
           <span className="font-display text-base flex items-center gap-2">
-            Melon Account
+            Tài khoản Melon
           </span>
           <button
             onClick={onClose}
@@ -86,7 +86,7 @@ export function AuthModal({
               "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:[box-shadow:5px_5px_0_var(--nb-black)]",
               "transition-all duration-150"
             )}
-            aria-label="Close"
+            aria-label="Đóng"
           >
             <X className="w-5 h-5" />
           </button>
@@ -95,8 +95,8 @@ export function AuthModal({
         <div className="px-8 py-7">
           <div className="grid grid-cols-2 [border:var(--nb-border)] mb-7 overflow-hidden">
             {([
-              { id: "parent" as const, label: "Parent" },
-              { id: "child" as const, label: "Child" },
+              { id: "parent" as const, label: "Phụ huynh" },
+              { id: "child" as const, label: "Học sinh" },
             ]).map((item) => (
               <button
                 key={item.id}
@@ -124,9 +124,9 @@ export function AuthModal({
                 <div className="w-12 h-12 bg-nb-blue [border:var(--nb-border)] rounded-full flex items-center justify-center mb-4">
                   <UserRound className="w-6 h-6" />
                 </div>
-                <h2 className="font-display text-base mb-2">Parent Access</h2>
+                <h2 className="font-display text-base mb-2">Đăng nhập phụ huynh</h2>
                 <p className="text-sm font-semibold text-[#555] leading-snug">
-                  Parents use Google to create and manage the family account.
+                  Phụ huynh dùng Google để tạo và quản lý tài khoản gia đình.
                 </p>
               </div>
 
@@ -148,7 +148,7 @@ export function AuthModal({
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                Continue with Google
+                Tiếp tục với Google
               </button>
 
               <button
@@ -156,7 +156,7 @@ export function AuthModal({
                 onClick={() => setView("child")}
                 className="text-sm font-bold underline bg-transparent border-none cursor-pointer text-nb-black"
               >
-                Child login with ID instead
+                Học sinh đăng nhập bằng mã riêng
               </button>
             </div>
           ) : (
@@ -165,15 +165,15 @@ export function AuthModal({
                 <div className="w-12 h-12 bg-nb-yellow [border:var(--nb-border)] rounded-full flex items-center justify-center mb-4">
                   <KeyRound className="w-6 h-6" />
                 </div>
-                <h2 className="font-display text-base mb-2">Child Login</h2>
+                <h2 className="font-display text-base mb-2">Đăng nhập học sinh</h2>
                 <p className="text-sm font-semibold text-[#555] leading-snug">
-                  Use the Child ID and PIN/password created by your parent.
+                  Dùng mã học sinh và PIN hoặc mật khẩu do phụ huynh tạo.
                 </p>
               </div>
 
               <div>
                 <label className="block font-bold text-[0.8rem] uppercase mb-1.5">
-                  Child ID
+                  Mã học sinh
                 </label>
                 <input
                   type="text"
@@ -188,7 +188,7 @@ export function AuthModal({
 
               <div>
                 <label className="block font-bold text-[0.8rem] uppercase mb-1.5">
-                  PIN or Password
+                  PIN hoặc mật khẩu
                 </label>
                 <div className="relative">
                   <input
@@ -205,7 +205,7 @@ export function AuthModal({
                     tabIndex={-1}
                     onClick={() => setShowSecret((v) => !v)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-[#888] cursor-pointer bg-transparent border-none"
-                    aria-label="Toggle PIN visibility"
+                    aria-label="Ẩn hoặc hiện PIN"
                   >
                     {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -220,7 +220,7 @@ export function AuthModal({
                 className="w-full mt-2"
                 icon={<Check className="w-4 h-4" />}
               >
-                Login as Child
+                Đăng nhập học sinh
               </NbButton>
             </form>
           )}

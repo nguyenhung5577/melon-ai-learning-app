@@ -16,10 +16,10 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Melon — AI Learning for Kids",
+  title: "Melon — Học cùng AI cho trẻ",
   description:
-    "Melon is an AI-powered adaptive learning platform for children. Interactive lessons, gamified progress, and a personal AI tutor.",
-  keywords: ["kids learning", "AI tutor", "gamified education", "adaptive learning"],
+    "Melon là nền tảng học tập cá nhân hóa bằng AI cho trẻ, gồm bài học tương tác, tiến độ gamified và gia sư AI.",
+  keywords: ["học cho trẻ", "gia sư AI", "học gamified", "học cá nhân hóa"],
 };
 
 export default function RootLayout({
@@ -29,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="vi"
       className={`${lexendMega.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-nb-bg text-nb-black font-body">

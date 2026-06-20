@@ -1,13 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { 
   Users, 
   BookOpen, 
   AlertCircle, 
-  TrendingUp, 
-  ArrowUpRight,
-  Shield,
   Activity
 } from "lucide-react";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -15,13 +11,9 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { useAuthContext } from "@/lib/auth/auth-context";
-import { auth } from "@/lib/auth/firebase";
-import { updateDocument } from "@/lib/db/firestore-helpers";
-import { collections } from "@/lib/db/firestore";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { AdminGuard } from "@/components/shared/AdminGuard";
-import { toast } from "sonner";
 
 const AI_SPEND = [
   { date: "Apr 17", cost: 0.12 },
@@ -44,20 +36,20 @@ export default function AdminDashboard() {
 
   return (
     <AdminGuard>
-      <AdminShell userName={user?.displayName ?? "Admin"} onLogout={handleLogout}>
+      <AdminShell userName={user?.displayName ?? "Quản trị viên"} onLogout={handleLogout}>
         <SectionHeader
-          title="Admin Dashboard"
-          subtitle="Melon App overview"
-          badge={<NbPill color="purple">Phase 1</NbPill>}
+          title="Bảng quản trị"
+          subtitle="Tổng quan hệ thống Melon"
+          badge={<NbPill color="purple">Giai đoạn 1</NbPill>}
         />
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 mb-8">
           {[
-            { label: "Total Students", value: "1,284", icon: <Users className="w-4 h-4" />, color: "bg-nb-blue/20 text-nb-blue" },
-            { label: "Active Lessons", value: "42", icon: <BookOpen className="w-4 h-4" />, color: "bg-nb-green/20 text-nb-green" },
-            { label: "Flagged Content", value: "3", icon: <AlertCircle className="w-4 h-4" />, color: "bg-nb-red/20 text-nb-red" },
-            { label: "AI Quiz Usage", value: "8.2k", icon: <Activity className="w-4 h-4" />, color: "bg-nb-orange/20 text-nb-orange" },
+            { label: "Tổng học sinh", value: "1,284", icon: <Users className="w-4 h-4" />, color: "bg-nb-blue/20 text-nb-blue" },
+            { label: "Bài học đang mở", value: "42", icon: <BookOpen className="w-4 h-4" />, color: "bg-nb-green/20 text-nb-green" },
+            { label: "Nội dung bị báo cáo", value: "3", icon: <AlertCircle className="w-4 h-4" />, color: "bg-nb-red/20 text-nb-red" },
+            { label: "Lượt dùng quiz AI", value: "8.2k", icon: <Activity className="w-4 h-4" />, color: "bg-nb-orange/20 text-nb-orange" },
           ].map((s) => (
             <div key={s.label} className="nb-card rounded-2xl p-5 flex flex-col gap-2">
               <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", s.color)}>
@@ -73,8 +65,8 @@ export default function AdminDashboard() {
           {/* AI Spend Table */}
           <div className="nb-card rounded-2xl p-6">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="font-display text-sm">AI API Spend (Last 7 Days)</h3>
-              <NbPill color="purple">$6.35 Total</NbPill>
+              <h3 className="font-display text-sm">Chi phí API AI trong 7 ngày</h3>
+              <NbPill color="purple">Tổng $6.35</NbPill>
             </div>
             <div className="flex flex-col gap-3">
               {AI_SPEND.map((row) => (
@@ -105,28 +97,28 @@ export default function AdminDashboard() {
                 className="w-full justify-center bg-nb-purple text-white"
                 onClick={() => router.push('/admin/users')}
               >
-                Tới danh sách Users
+                Tới danh sách người dùng
               </NbButton>
             </div>
 
             <div className="nb-card rounded-2xl p-6">
-              <h3 className="font-display text-sm mb-2">System Health</h3>
+              <h3 className="font-display text-sm mb-2">Tình trạng hệ thống</h3>
               <div className="flex items-center gap-2 mb-4">
-                <NbPill color="green">Operational</NbPill>
-                <span className="text-xs font-bold text-[#888]">Uptime: 99.9%</span>
+                <NbPill color="green">Đang hoạt động</NbPill>
+                <span className="text-xs font-bold text-[#888]">Thời gian ổn định: 99.9%</span>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between text-xs font-bold">
-                  <span>Pinecone Index</span>
-                  <span className="text-nb-green">Connected</span>
+                  <span>Chỉ mục Pinecone</span>
+                  <span className="text-nb-green">Đã kết nối</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold">
                   <span>OpenAI API</span>
-                  <span className="text-nb-green">Active</span>
+                  <span className="text-nb-green">Đang chạy</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold">
-                  <span>Cloudinary Storage</span>
-                  <span className="text-nb-green">Healthy</span>
+                  <span>Lưu trữ Cloudinary</span>
+                  <span className="text-nb-green">Ổn định</span>
                 </div>
               </div>
             </div>

@@ -15,7 +15,6 @@ import {
   Zap,
 } from "lucide-react";
 import { auth } from "@/lib/auth/firebase";
-import { useAuthContext } from "@/lib/auth/auth-context";
 import type { QuestionBankQuestion } from "@/lib/problems/types";
 import type {
   CourseQuestionFilter,
@@ -78,6 +77,8 @@ const fallbackAction: PersonalizedNextAction = {
   hintMode: "available",
   uiMode: "normal",
 };
+
+const hintCachePrefix = "melon.exerciseHint.v1";
 
 const conceptLabels: Record<string, string> = {
   arithmetic: "Số học",
@@ -992,6 +993,29 @@ function feedbackText(state: AnswerState, wrongCount: number, action: Personaliz
   return "Chọn đáp án rồi bấm Kiểm tra. Con có thể dùng nháp nếu cần.";
 }
 
+function hintCacheKey(uid: string | undefined, questionId: string, answer: string) {
+  const answerHash = hashString(answer.trim().toLowerCase()).toString(36);
+  return `${hintCachePrefix}:${uid ?? "guest"}:${questionId}:${answerHash}`;
+}
+
+function readHintCache(key: string) {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeHintCache(key: string, value: string) {
+  if (typeof window === "undefined" || !value.trim()) return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Cache chỉ để giảm gọi AI, bỏ qua nếu trình duyệt chặn localStorage.
+  }
+}
+
 export function PersonalizedExercisePanel({
   uid,
   questions,
@@ -1001,7 +1025,6 @@ export function PersonalizedExercisePanel({
   autoStart = false,
 }: PersonalizedExercisePanelProps) {
   const router = useRouter();
-  const { user } = useAuthContext();
   const [plan, setPlan] = useState<StudentPersonalizedPlanRecord | null>(null);
   const [courseRuns, setCourseRuns] = useState<CourseRunSnapshot[]>([]);
   const [planLoading, setPlanLoading] = useState(false);
@@ -1077,7 +1100,7 @@ export function PersonalizedExercisePanel({
         const res = await fetch(`/api/v1/course-run/${uid}`, { cache: "no-store" });
         const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error ?? "KhÃ´ng táº£i Ä‘Æ°á»£c khÃ³a há»c cÃ¡ nhÃ¢n hÃ³a.");
+          throw new Error(data.error ?? "Không tải được khóa học cá nhân hóa.");
         }
 
         if (!mounted) return;
@@ -1087,7 +1110,7 @@ export function PersonalizedExercisePanel({
       } catch (error) {
         if (!mounted) return;
         setCourseRuns([]);
-        setPlanError((current) => current ?? (error instanceof Error ? error.message : "KhÃ´ng táº£i Ä‘Æ°á»£c khÃ³a há»c cÃ¡ nhÃ¢n hÃ³a."));
+        setPlanError((current) => current ?? (error instanceof Error ? error.message : "Không tải được khóa học cá nhân hóa."));
       } finally {
         if (mounted) setCourseRunsLoading(false);
       }
@@ -1303,6 +1326,14 @@ export function PersonalizedExercisePanel({
   async function loadHint(answerOverride?: string) {
     if (!currentQuestion || hintLoading) return;
 
+    const answerForHint = answerOverride ?? submittedAnswer;
+    const cacheKey = hintCacheKey(uid, currentQuestion.id, answerForHint);
+    const cachedHint = readHintCache(cacheKey);
+    if (cachedHint) {
+      setHintText(cachedHint);
+      return;
+    }
+
     setHintLoading(true);
     setHintText("Đang mở gợi ý...");
 
@@ -1327,7 +1358,7 @@ export function PersonalizedExercisePanel({
         },
         body: JSON.stringify({
           question: currentQuestion.stem,
-          studentAnswer: answerOverride ?? submittedAnswer,
+          studentAnswer: answerForHint,
           correctAnswer: currentQuestion.answerText || currentQuestion.answer,
           topic: currentCoachingAction.concepts.map(conceptLabel).join(", ") || currentCoachingAction.title,
         }),
@@ -1336,9 +1367,11 @@ export function PersonalizedExercisePanel({
       if (!res.ok) {
         throw new Error(data.error ?? "Không tạo được gợi ý.");
       }
-setHintText(data.guidance || "Đọc lại đề rồi làm từng bước.");
-    } catch (err: any) {
-      setHintText(err.message || "Đọc lại đề rồi làm từng bước.");
+      const guidance = data.guidance || "Đọc lại đề rồi làm từng bước.";
+      writeHintCache(cacheKey, guidance);
+      setHintText(guidance);
+    } catch (err: unknown) {
+      setHintText(err instanceof Error ? err.message : "Đọc lại đề rồi làm từng bước.");
     } finally {
       setHintLoading(false);
     }
