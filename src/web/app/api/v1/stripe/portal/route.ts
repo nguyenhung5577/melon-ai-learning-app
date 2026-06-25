@@ -41,8 +41,8 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Lỗi khi tạo Stripe Portal:", error);
-    return NextResponse.json({ error: error.message || "Lỗi máy chủ" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Lỗi máy chủ" }, { status: 500 });
   }
 }

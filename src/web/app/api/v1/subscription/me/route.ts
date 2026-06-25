@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
 import { getUserSubscription, getEntitlements } from "@/lib/subscription/subscription-service";
+import type { Subscription } from "@/lib/subscription/types";
 
 function getBearerToken(req: NextRequest): string | null {
   const header = req.headers.get("authorization");
@@ -23,10 +24,10 @@ export async function GET(req: NextRequest) {
 
     // 1. ADMIN BYPASS
     if (userData?.role === "admin") {
-      const proSub = { plan: "pro", status: "active", startedAt: new Date().toISOString(), expiresAt: null };
+      const proSub: Subscription = { plan: "pro", status: "active", startedAt: new Date().toISOString(), expiresAt: null };
       return NextResponse.json({ 
         subscription: proSub, 
-        entitlements: getEntitlements(proSub as any), 
+        entitlements: getEntitlements(proSub),
         isPro: true 
       });
     }
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
       entitlements, 
       isPro: subscription.plan === "pro" 
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

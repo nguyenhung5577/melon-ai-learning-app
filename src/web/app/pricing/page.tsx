@@ -9,10 +9,6 @@ import { SectionContainer, SectionHeader } from "@/components/shared/SectionHead
 import { NbButton } from "@/components/shared/NbButton";
 import { Check, X, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { loadStripe } from "@stripe/stripe-js";
-
-// Lấy public key từ env
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
 export default function PricingPage() {
   const { user, logout } = useAuthContext();
@@ -26,7 +22,8 @@ export default function PricingPage() {
     }
     setLoading(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) throw new Error("Bạn cần đăng nhập để thanh toán.");
       const res = await fetch("/api/v1/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
@@ -39,9 +36,9 @@ export default function PricingPage() {
         toast.error(data.error || "Không thể khởi tạo thanh toán. Vui lòng thử lại.");
         setLoading(false);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error("Lỗi Front-end bắt được: " + (err?.message || String(err)));
+      toast.error("Lỗi Front-end bắt được: " + (err instanceof Error ? err.message : String(err)));
       setLoading(false);
     }
   };

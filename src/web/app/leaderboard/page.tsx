@@ -37,6 +37,7 @@ export default function LeaderboardPage() {
     if (!user) {
       return;
     }
+    const userUid = user.uid;
 
     let mounted = true;
 
@@ -48,7 +49,7 @@ export default function LeaderboardPage() {
         setBoard(
           payload.entries.map((entry) => ({
             ...entry,
-            isYou: entry.uid === user.uid,
+            isYou: entry.uid === userUid,
           }))
         );
       } catch {

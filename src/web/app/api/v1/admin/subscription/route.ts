@@ -28,11 +28,22 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const status = plan === "pro" ? "active" : "inactive";
     await db.collection("subscriptions").doc(targetUid).set({
       plan,
-      status: "active",
+      status,
       startedAt: now,
-      expiresAt: null // Vĩnh viễn (cho Phase 1)
+      expiresAt: null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      updatedAt: now,
+    }, { merge: true });
+    await db.collection("users").doc(targetUid).set({
+      isPro: plan === "pro",
+      plan,
+      subscriptionStatus: status,
+      subscriptionUpdatedAt: now,
+      proExpiresAt: null,
     }, { merge: true });
 
     return NextResponse.json({ success: true, targetUid, plan });

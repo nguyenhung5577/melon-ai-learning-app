@@ -100,8 +100,13 @@ export default function ParentDashboard() {
 
         const child = kids[selectedChildIdx];
         const targetUid = child?.uid || "demo-child";
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) throw new Error("Bạn cần đăng nhập để xem tiến độ.");
         const [progressRes, savedQuestionStats] = await Promise.all([
-          fetch(`/api/v1/progress/${targetUid}`, { cache: "no-store" }),
+          fetch(`/api/v1/progress/${targetUid}`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${token}` },
+          }),
           child
             ? queryDocuments(collections.kidQuestionStats, where("kidUid", "==", child.uid))
             : Promise.resolve([] as KidQuestionStats[]),

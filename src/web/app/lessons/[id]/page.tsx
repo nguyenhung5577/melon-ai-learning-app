@@ -265,25 +265,30 @@ export default function LessonPlayerPage({
             score,
             xpEarned: newXp,
           });
-          fetch("/api/v1/progress/lesson-completion", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              childUid: user.uid,
-              lessonId: id,
-              lessonTitle: lesson?.title ?? id,
-              subject: lesson?.subject ?? "unknown",
-              scorePercent: score,
-              quizCorrect: finalQuizCorrect,
-              quizTotal: finalQuizTotal,
-              xpEarned: newXp,
-              timeOnTaskSeconds,
-              concepts: tagsFromLesson(lesson, conceptTags),
-              skills: tagsFromLesson(lesson, skillTags),
-            }),
-          }).catch(() => {
-            /* Progress tracking should not block lesson completion. */
-          });
+          auth?.currentUser?.getIdToken()
+            .then((token) => {
+              if (!token) return undefined;
+              return fetch("/api/v1/progress/lesson-completion", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  childUid: user.uid,
+                  lessonId: id,
+                  lessonTitle: lesson?.title ?? id,
+                  subject: lesson?.subject ?? "unknown",
+                  scorePercent: score,
+                  quizCorrect: finalQuizCorrect,
+                  quizTotal: finalQuizTotal,
+                  xpEarned: newXp,
+                  timeOnTaskSeconds,
+                  concepts: tagsFromLesson(lesson, conceptTags),
+                  skills: tagsFromLesson(lesson, skillTags),
+                }),
+              });
+            })
+            .catch(() => {
+              /* Progress tracking should not block lesson completion. */
+            });
         }
       }
     },
@@ -333,8 +338,8 @@ export default function LessonPlayerPage({
           /* Ignore autoplay restrictions in browsers */
         });
       }
-    } catch (err: any) {
-      setHintText(err.message || "Đọc lại đề, tìm dữ kiện, rồi làm từng bước.");
+    } catch (err: unknown) {
+      setHintText(err instanceof Error ? err.message : "Đọc lại đề, tìm dữ kiện, rồi làm từng bước.");
     } finally {
       setHintLoading(false);
     }

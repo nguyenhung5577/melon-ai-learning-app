@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AdminGuard } from "@/components/shared/AdminGuard";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { useAuthContext } from "@/lib/auth/auth-context";
@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth/firebase";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { toast } from "sonner";
-import { ChevronDown, ChevronUp, Mail, Zap, User, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Mail, Search, Zap, User, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChildInfo {
@@ -32,8 +32,9 @@ interface ParentInfo {
 export default function AdminUsersPage() {
   const { user, logout } = useAuthContext();
   const [parents, setParents] = useState<ParentInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(auth));
   const [expandedUid, setExpandedUid] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [upgradingUid, setUpgradingUid] = useState<string | null>(null);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{
@@ -46,7 +47,7 @@ export default function AdminUsersPage() {
 
   const fetchUsers = async () => {
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth?.currentUser?.getIdToken();
       if (!token) return;
       const res = await fetch("/api/v1/admin/users", {
         headers: { Authorization: `Bearer ${token}` }
@@ -57,7 +58,7 @@ export default function AdminUsersPage() {
       } else {
         toast.error("Failed to fetch users");
       }
-    } catch (err) {
+    } catch {
       toast.error("Network error");
     } finally {
       setLoading(false);
@@ -65,16 +66,32 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
+    if (!auth) return;
     const unsub = auth.onAuthStateChanged((user) => {
       if (user) fetchUsers();
     });
     return unsub;
   }, []);
 
+  const filteredParents = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return parents;
+    return parents.filter((parent) => {
+      const childMatch = parent.children.some((child) =>
+        [child.displayName, child.loginId, child.uid, child.grade]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(query))
+      );
+      return [parent.displayName, parent.email, parent.uid, parent.plan]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(query)) || childMatch;
+    });
+  }, [parents, searchQuery]);
+
   const handleUpgrade = async (uid: string) => {
     setUpgradingUid(uid);
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth?.currentUser?.getIdToken();
       const res = await fetch("/api/v1/admin/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -87,7 +104,7 @@ export default function AdminUsersPage() {
       } else {
         toast.error("Lỗi khi nâng cấp. Có thể bạn không đủ quyền Admin.");
       }
-    } catch (err) {
+    } catch {
       toast.error("Lỗi mạng kết nối.");
     } finally {
       setUpgradingUid(null);
@@ -97,7 +114,7 @@ export default function AdminUsersPage() {
   const handleDeleteUser = async (uid: string, type: "parent" | "child") => {
     setDeletingUid(uid);
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth?.currentUser?.getIdToken();
       const res = await fetch("/api/v1/admin/users/delete", {
         method: "DELETE",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -117,7 +134,7 @@ export default function AdminUsersPage() {
       } else {
         toast.error("Lỗi khi xóa tài khoản.");
       }
-    } catch (err) {
+    } catch {
       toast.error("Lỗi mạng kết nối.");
     } finally {
       setDeletingUid(null);
@@ -128,16 +145,26 @@ export default function AdminUsersPage() {
     <AdminGuard>
       <AdminShell userName={user?.displayName || "Admin"} onLogout={logout}>
         <div className="max-w-5xl mx-auto">
-          <SectionHeader 
+        <SectionHeader 
             title="Quản lý Người dùng" 
           subtitle="Theo dõi toàn bộ danh sách Phụ huynh và Học sinh" 
         />
+
+        <div className="mt-6 flex items-center gap-3 rounded-2xl border-2 border-black bg-white px-4 py-3 shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+          <Search className="h-4 w-4 text-[#666]" />
+          <input
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Tìm theo email, tên, UID hoặc mã học sinh"
+            className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none"
+          />
+        </div>
 
         {loading ? (
           <div className="py-10 text-center font-bold">Đang tải dữ liệu...</div>
         ) : (
           <div className="flex flex-col gap-4 mt-6">
-            {parents.map(parent => (
+            {filteredParents.map(parent => (
               <div key={parent.uid} className="nb-card rounded-2xl bg-white flex flex-col">
                 {/* Header row */}
                 <div 
@@ -157,7 +184,7 @@ export default function AdminUsersPage() {
                         {parent.plan === "pro" ? (
                           <NbPill color="purple">PRO VIP</NbPill>
                         ) : (
-                          <NbPill color="gray">FREE</NbPill>
+                          <NbPill color="black">FREE</NbPill>
                         )}
                       </div>
                       <div className="text-xs font-semibold text-[#666] flex items-center gap-1 mt-1">
@@ -252,9 +279,9 @@ export default function AdminUsersPage() {
               </div>
             ))}
 
-            {parents.length === 0 && !loading && (
+            {filteredParents.length === 0 && !loading && (
               <div className="text-center py-10 font-bold border-2 border-dashed border-black/20 rounded-2xl">
-                Chưa có phụ huynh nào đăng ký.
+                {parents.length === 0 ? "Chưa có phụ huynh nào đăng ký." : "Không tìm thấy người dùng phù hợp."}
               </div>
             )}
           </div>

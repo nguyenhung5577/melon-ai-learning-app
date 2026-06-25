@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
 
+function errorCode(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String((error as { code?: unknown }).code)
+    : "";
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Internal Server Error";
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const authHeader = req.headers.get("Authorization");
@@ -38,8 +48,8 @@ export async function DELETE(req: NextRequest) {
       // 2. Xóa khỏi Auth
       try {
         await auth.deleteUser(targetUid);
-      } catch (e: any) {
-        if (e.code !== "auth/user-not-found") throw e;
+      } catch (e: unknown) {
+        if (errorCode(e) !== "auth/user-not-found") throw e;
       }
 
       return NextResponse.json({ success: true });
@@ -68,8 +78,8 @@ export async function DELETE(req: NextRequest) {
       for (const cuid of childUidsToDelete) {
         try {
           await auth.deleteUser(cuid);
-        } catch (e: any) {
-          if (e.code !== "auth/user-not-found") console.error("Error deleting child auth", e);
+        } catch (e: unknown) {
+          if (errorCode(e) !== "auth/user-not-found") console.error("Error deleting child auth", e);
         }
       }
 
@@ -80,8 +90,8 @@ export async function DELETE(req: NextRequest) {
       // 3. Xóa Phụ huynh khỏi Auth
       try {
         await auth.deleteUser(targetUid);
-      } catch (e: any) {
-        if (e.code !== "auth/user-not-found") throw e;
+      } catch (e: unknown) {
+        if (errorCode(e) !== "auth/user-not-found") throw e;
       }
 
       return NextResponse.json({ success: true });
@@ -89,8 +99,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Invalid type" }, { status: 400 });
     }
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error deleting user:", error);
-    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: errorMessage(error) }, { status: 500 });
   }
 }

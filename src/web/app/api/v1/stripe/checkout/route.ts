@@ -49,8 +49,8 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Stripe Checkout Error:", error);
-    return NextResponse.json({ error: error.message || "Lỗi khởi tạo thanh toán" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Lỗi khởi tạo thanh toán" }, { status: 500 });
   }
 }

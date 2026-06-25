@@ -22,8 +22,8 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
 const gradeOptions: Array<{ label: string; value: GradeLevel; grade: string }> = [
-  { label: "Grade 4", value: "grade_4", grade: "Grade 4" },
-  { label: "Grade 5", value: "grade_5", grade: "Grade 5" },
+  { label: "Lớp 4", value: "grade_4", grade: "Grade 4" },
+  { label: "Lớp 5", value: "grade_5", grade: "Grade 5" },
 ];
 
 const goalOptions = [
@@ -91,6 +91,10 @@ function optionLabel<T extends string>(
   return options.find((option) => option.value === value)?.label ?? value;
 }
 
+function sortChildren(children: ChildProfile[]) {
+  return [...children].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+}
+
 export default function FamilyPage() {
   const { user, logout } = useAuthContext();
   const { entitlements } = useSubscription();
@@ -111,7 +115,7 @@ export default function FamilyPage() {
   useEffect(() => {
     if (!user || user.role !== "parent") return;
     userStore.getChildrenForParent(user.uid)
-      .then(setChildren)
+      .then((items) => setChildren(sortChildren(items)))
       .catch((e) => console.warn("Lỗi ngầm Firebase khi tải danh sách con, bỏ qua để không hiện bảng đỏ", e));
   }, [user]);
 
@@ -172,11 +176,11 @@ export default function FamilyPage() {
           updatedAt: now,
         },
       });
-      setChildren((items) => [child, ...items.filter((item) => item.uid !== child.uid)]);
+      setChildren((items) => sortChildren([child, ...items.filter((item) => item.uid !== child.uid)]));
       setForm(defaultForm);
-      setMessage(`Created child account ${child.loginId ?? child.uid}.`);
+      setMessage(`Đã tạo tài khoản con ${child.loginId ?? child.uid}.`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not create child account.";
+      const msg = err instanceof Error ? err.message : "Không tạo được tài khoản con.";
       if (msg.includes("subscription_limit_reached") || msg.includes("subscription required")) {
         setPaywallOpen(true);
       } else {
@@ -213,9 +217,9 @@ export default function FamilyPage() {
       <ParentShell>
         <SectionContainer>
           <div className="text-center py-12">
-            <p className="font-display text-lg mb-4">Parent account required</p>
+            <p className="font-display text-lg mb-4">Cần tài khoản phụ huynh</p>
             <NbButton variant="primary" onClick={() => setAuthOpen(true)}>
-              Continue with Google
+              Tiếp tục với Google
             </NbButton>
           </div>
         </SectionContainer>
@@ -258,7 +262,7 @@ export default function FamilyPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">Child ID</label>
+                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">Mã học sinh</label>
                 <input
                   value={form.loginId}
                   onChange={(e) => setForm({ ...form, loginId: e.target.value })}
@@ -268,7 +272,7 @@ export default function FamilyPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">Display Name</label>
+                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">Tên hiển thị</label>
                 <input
                   value={form.displayName}
                   onChange={(e) => setForm({ ...form, displayName: e.target.value })}
@@ -278,7 +282,7 @@ export default function FamilyPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">Grade</label>
+                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">Lớp</label>
                 <select
                   value={form.grade}
                   onChange={(e) => {
@@ -306,7 +310,7 @@ export default function FamilyPage() {
               />
 
               <div>
-                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">PIN or Password</label>
+                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">PIN hoặc mật khẩu</label>
                 <input
                   type="password"
                   value={form.passwordOrPin}
@@ -317,7 +321,7 @@ export default function FamilyPage() {
               </div>
 
               <div>
-                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">Confirm PIN or Password</label>
+                <label className="block font-bold text-[0.8rem] uppercase mb-1.5">Nhập lại PIN hoặc mật khẩu</label>
                 <input
                   type="password"
                   value={form.confirmSecret}
@@ -329,7 +333,7 @@ export default function FamilyPage() {
 
               <div className="flex items-center gap-2 pt-4 [border-top:var(--nb-border-thin)]">
                 <Target className="w-4 h-4 text-nb-green" />
-                <h4 className="font-display text-[0.75rem]">Learning Setup</h4>
+                <h4 className="font-display text-[0.75rem]">Thiết lập học tập</h4>
               </div>
 
               <div>
@@ -379,7 +383,7 @@ export default function FamilyPage() {
                 <input
                   value={form.learningPreferences.targetSchool ?? ""}
                   onChange={(e) => updateLearningPreferences({ targetSchool: e.target.value })}
-                  placeholder="Optional"
+                  placeholder="Không bắt buộc"
                   className="nb-input"
                 />
               </div>
@@ -499,7 +503,7 @@ export default function FamilyPage() {
                 onClick={handleCreateChild}
                 icon={<KeyRound className="w-4 h-4" />}
               >
-                Create Child
+                Tạo tài khoản con
               </NbButton>
             </div>
           </div>
@@ -507,7 +511,7 @@ export default function FamilyPage() {
           {children.length === 0 ? (
             <div className="text-center py-16 border-2 border-dashed border-nb-black/20 rounded-2xl">
               <div className="text-5xl mb-4">👨‍👧</div>
-              <p className="font-display text-sm text-[#666]">No children created yet</p>
+              <p className="font-display text-sm text-[#666]">Chưa có tài khoản con nào</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -549,10 +553,10 @@ function ChildCard({ child }: { child: ChildProfile }) {
               {optionLabel(goalOptions, prefs.primaryGoal)}
             </div>
             <div className="text-[0.7rem] font-semibold text-[#666]">
-              Target {prefs.targetScore}/10 · {prefs.sessionMinutes}m x {prefs.sessionsPerWeek}/week
+              Mục tiêu {prefs.targetScore}/10 · {prefs.sessionMinutes} phút x {prefs.sessionsPerWeek} buổi/tuần
             </div>
             <div className="text-[0.65rem] font-semibold text-[#777] line-clamp-2">
-              Weak: {prefs.weakTopics.map((topic) => optionLabel(weakTopicOptions, topic)).join(", ")}
+              Cần ôn: {prefs.weakTopics.map((topic) => optionLabel(weakTopicOptions, topic)).join(", ")}
             </div>
           </div>
         )}

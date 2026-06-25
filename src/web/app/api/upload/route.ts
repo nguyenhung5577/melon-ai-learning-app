@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/problems/upload-limits";
 
 interface CloudinaryUploadResponse {
   secure_url?: string;
@@ -27,6 +28,13 @@ export async function POST(req: NextRequest) {
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: `File exceeds ${MAX_UPLOAD_MB}MB limit` },
+        { status: 413 }
+      );
     }
 
     const cloudinaryForm = new FormData();

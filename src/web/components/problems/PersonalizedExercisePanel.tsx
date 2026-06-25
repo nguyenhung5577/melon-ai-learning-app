@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Sparkles,
   Target,
+  Volume2,
   X,
   Zap,
 } from "lucide-react";
@@ -1041,8 +1042,12 @@ export function PersonalizedExercisePanel({
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [hintText, setHintText] = useState("");
   const [hintLoading, setHintLoading] = useState(false);
+  const [hintAudioUrl, setHintAudioUrl] = useState("");
+  const [hintAudioLoading, setHintAudioLoading] = useState(false);
+  const [hintAudioError, setHintAudioError] = useState("");
   const [scratchOpen, setScratchOpen] = useState(false);
   const [scratchText, setScratchText] = useState("");
+  const hintAudioRef = useRef<HTMLAudioElement | null>(null);
   const [wrongCounts, setWrongCounts] = useState<Record<string, number>>({});
   const [sessionXp, setSessionXp] = useState(0);
   const [attemptSaving, setAttemptSaving] = useState(false);
@@ -1062,7 +1067,12 @@ export function PersonalizedExercisePanel({
       setPlanError(null);
 
       try {
-        const res = await fetch(`/api/v1/progress/${uid}`, { cache: "no-store" });
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) throw new Error("Bạn cần đăng nhập để tải tiến độ cá nhân hóa.");
+        const res = await fetch(`/api/v1/progress/${uid}`, {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error ?? "Không tải được lộ trình cá nhân hóa.");
@@ -1097,7 +1107,12 @@ export function PersonalizedExercisePanel({
       setCourseRunsLoading(true);
 
       try {
-        const res = await fetch(`/api/v1/course-run/${uid}`, { cache: "no-store" });
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) throw new Error("Bạn cần đăng nhập để tải khóa học cá nhân hóa.");
+        const res = await fetch(`/api/v1/course-run/${uid}`, {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error ?? "Không tải được khóa học cá nhân hóa.");
@@ -1220,6 +1235,8 @@ export function PersonalizedExercisePanel({
     setAnswerState("idle");
     setFeedbackMessage("");
     setHintText("");
+    setHintAudioUrl("");
+    setHintAudioError("");
     setScratchText("");
     questionStartedAtRef.current = Date.now();
   }, []);
@@ -1241,9 +1258,15 @@ export function PersonalizedExercisePanel({
       : stats.concepts;
 
     try {
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) throw new Error("Bạn cần đăng nhập để lưu tiến độ phiên học.");
+
       const res = await fetch("/api/v1/progress/lesson-completion", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           childUid: uid,
           lessonId,
@@ -1331,11 +1354,15 @@ export function PersonalizedExercisePanel({
     const cachedHint = readHintCache(cacheKey);
     if (cachedHint) {
       setHintText(cachedHint);
+      setHintAudioUrl("");
+      setHintAudioError("");
       return;
     }
 
     setHintLoading(true);
     setHintText("Đang mở gợi ý...");
+    setHintAudioUrl("");
+    setHintAudioError("");
 
     try {
       let token = await auth?.currentUser?.getIdToken();
@@ -1370,10 +1397,53 @@ export function PersonalizedExercisePanel({
       const guidance = data.guidance || "Đọc lại đề rồi làm từng bước.";
       writeHintCache(cacheKey, guidance);
       setHintText(guidance);
+      setHintAudioUrl(data.audioUrl || "");
     } catch (err: unknown) {
       setHintText(err instanceof Error ? err.message : "Đọc lại đề rồi làm từng bước.");
+      setHintAudioUrl("");
     } finally {
       setHintLoading(false);
+    }
+  }
+
+  async function playHintAudio() {
+    const textToSpeak = hintText.trim();
+    if (!textToSpeak || hintLoading || hintAudioLoading) return;
+
+    setHintAudioError("");
+    setHintAudioLoading(true);
+
+    try {
+      let audioUrl = hintAudioUrl;
+      if (!audioUrl) {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) throw new Error("Bạn cần đăng nhập để nghe gợi ý.");
+
+        const res = await fetch("/api/v1/ai/tts", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text: textToSpeak.slice(0, 1000) }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.message ?? data.error ?? "Không tạo được âm thanh.");
+        }
+        audioUrl = data.audioUrl || "";
+        if (!audioUrl) throw new Error("Không có âm thanh để phát.");
+        setHintAudioUrl(audioUrl);
+      }
+
+      hintAudioRef.current?.pause();
+      const audio = new Audio(audioUrl);
+      hintAudioRef.current = audio;
+      await audio.play();
+    } catch (error) {
+      setHintAudioError(error instanceof Error ? error.message : "Không phát được gợi ý.");
+    } finally {
+      setHintAudioLoading(false);
     }
   }
 
@@ -1843,6 +1913,20 @@ export function PersonalizedExercisePanel({
                 </button>
                 <button
                   type="button"
+                  onClick={() => void playHintAudio()}
+                  disabled={!hintText || hintLoading || hintText === "Đang mở gợi ý..." || hintAudioLoading}
+                  className={cn(
+                    "nb-pill cursor-pointer bg-nb-green",
+                    "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:[box-shadow:5px_5px_0_var(--nb-black)]",
+                    "transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50"
+                  )}
+                  aria-label="Nghe gợi ý"
+                >
+                  <Volume2 className="h-3 w-3" />
+                  {hintAudioLoading ? "Đang đọc..." : "Nghe"}
+                </button>
+                <button
+                  type="button"
                   onClick={() => setScratchOpen((open) => !open)}
                   className="nb-pill cursor-pointer bg-nb-blue hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all duration-150"
                 >
@@ -1859,6 +1943,8 @@ export function PersonalizedExercisePanel({
                   placeholder="Viết phép tính, dữ kiện hoặc bước giải ở đây"
                 />
               )}
+
+              {hintAudioError && <p className="mt-3 text-xs font-bold text-nb-red">{hintAudioError}</p>}
             </div>
           </div>
 
