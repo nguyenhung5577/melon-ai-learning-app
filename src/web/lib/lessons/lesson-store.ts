@@ -32,7 +32,6 @@ export interface Lesson {
   thumbnailBg: string;
   cloudinaryUrl?: string;
   pdfUrl?: string;
-  isRAG?: boolean;
   updatedAt?: string;
   createdAt: string;
 }

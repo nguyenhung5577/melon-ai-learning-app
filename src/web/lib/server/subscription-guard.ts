@@ -50,7 +50,7 @@ export async function requireEntitlement(
 
     return { allowed: true };
 
-  } catch (err) {
+  } catch {
     return { allowed: false, error: "invalid_token_or_internal_error" };
   }
 }

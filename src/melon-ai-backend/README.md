@@ -2,8 +2,7 @@
 
 FastAPI backend for Melon AI features:
 
-- PDF ingestion and local RAG storage with ChromaDB
-- Lesson and exercise generation through the LLM service
+- Problem parsing through the LLM/Vision parser service
 - Exercise guidance
 - Text-to-speech through ElevenLabs
 
@@ -15,14 +14,14 @@ src/melon-ai-backend/
 ├── api/
 │   └── endpoints.py
 ├── services/
-│   ├── rag_service.py
 │   ├── llm_service.py
+│   ├── problem_parser_service.py
 │   └── tts_service.py
 ├── requirements.txt
 └── README.md
 ```
 
-Runtime directories such as `chroma_db/`, `uploads/`, `generations/`, `.env`, and `__pycache__/` are ignored by Git.
+Runtime directories such as `uploads/`, `generations/`, `.env`, and `__pycache__/` are ignored by Git.
 
 ## Setup
 
@@ -87,63 +86,6 @@ Restart the Next.js dev server after changing `.env.local`.
 
 All routes are prefixed with `/api/v1`.
 
-### Ingest a PDF
-
-```http
-POST /api/v1/ingest
-Content-Type: multipart/form-data
-```
-
-Payload:
-
-- `file`: PDF file
-
-Example:
-
-```bash
-curl -F "file=@example.pdf" http://127.0.0.1:8001/api/v1/ingest
-```
-
-Returns a `job_id` and `file_id`. Poll the job:
-
-```bash
-curl http://127.0.0.1:8001/api/v1/ingest/<job_id>
-```
-
-### Generate Lesson Content
-
-```http
-POST /api/v1/generate
-Content-Type: application/json
-```
-
-Payload:
-
-```json
-{
-  "topic": "The Solar System",
-  "file_id": "optional-file-id"
-}
-```
-
-### Generate Exercises
-
-```http
-POST /api/v1/exercise/generate
-Content-Type: application/json
-```
-
-Payload:
-
-```json
-{
-  "topic": "The Solar System",
-  "file_id": "file-id-from-ingest",
-  "count": 5,
-  "difficulty": "medium"
-}
-```
-
 ### Exercise Guidance
 
 ```http
@@ -179,4 +121,3 @@ Payload:
 ## Notes
 
 - Local HuggingFace model loading is not required for this backend setup.
-- ChromaDB may print telemetry warnings in local development; they do not block the app if `/health` works.

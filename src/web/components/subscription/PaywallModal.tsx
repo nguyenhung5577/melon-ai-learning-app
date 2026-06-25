@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { NbButton } from "@/components/shared/NbButton";
 import { Lock, Sparkles, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { cn } from "@/lib/utils";
 
 interface PaywallModalProps {
   isOpen: boolean;

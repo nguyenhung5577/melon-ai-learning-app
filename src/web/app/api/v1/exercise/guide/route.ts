@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       );
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Auth Error in AI Hint API:", error);
     return NextResponse.json({ error: "Lỗi hệ thống xác thực. Vui lòng thử lại." }, { status: 401 });
   }

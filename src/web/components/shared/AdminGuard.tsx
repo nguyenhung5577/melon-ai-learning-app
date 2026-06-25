@@ -27,7 +27,6 @@ export function AdminGuard({ children }: AdminGuardProps) {
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = "/";
   };
 
   if (!user || user.role !== "admin") {

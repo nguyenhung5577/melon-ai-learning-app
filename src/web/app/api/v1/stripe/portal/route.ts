@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+function getStripe() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("Missing STRIPE_SECRET_KEY");
+  }
+  return new Stripe(secretKey);
+}
 
 function getBearerToken(req: Request) {
   const authHeader = req.headers.get("Authorization");
@@ -33,6 +39,7 @@ export async function POST(req: Request) {
     }
 
     const returnUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+    const stripe = getStripe();
 
     // 3. Khởi tạo một cánh cửa thời không (Portal Session) tới trang hóa đơn của Stripe
     const session = await stripe.billingPortal.sessions.create({
@@ -41,8 +48,9 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Lỗi khi tạo Stripe Portal:", error);
-    return NextResponse.json({ error: error.message || "Lỗi máy chủ" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Lỗi máy chủ";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

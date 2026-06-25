@@ -19,7 +19,6 @@ import {
   type WeakTopic,
 } from "@/lib/user/user-store";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
 
 const gradeOptions: Array<{ label: string; value: GradeLevel; grade: string }> = [
   { label: "Grade 4", value: "grade_4", grade: "Grade 4" },
@@ -94,7 +93,6 @@ function optionLabel<T extends string>(
 export default function FamilyPage() {
   const { user, logout } = useAuthContext();
   const { entitlements } = useSubscription();
-  const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [children, setChildren] = useState<ChildProfile[]>([]);
@@ -105,7 +103,6 @@ export default function FamilyPage() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/");
   };
 
   useEffect(() => {

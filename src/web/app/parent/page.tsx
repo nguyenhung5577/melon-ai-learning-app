@@ -31,7 +31,6 @@ import { queryDocuments } from "@/lib/db/firestore-helpers";
 import type { KidQuestionStats } from "@/lib/problems/types";
 import type { ProgressSummary } from "@/lib/progress/types";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
 import { CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { auth } from "@/lib/auth/firebase";
@@ -55,7 +54,6 @@ const weakTopicLabels = {
 
 export default function ParentDashboard() {
   const { user, logout } = useAuthContext();
-  const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
 
@@ -86,7 +84,6 @@ export default function ParentDashboard() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/");
   };
 
   useEffect(() => {

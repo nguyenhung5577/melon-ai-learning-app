@@ -3,23 +3,27 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from api.endpoints import router
-import os
 from dotenv import load_dotenv
 
 # Ép hệ thống load file .env thủ công để chắc chắn nhận key
 load_dotenv()
 
+def _configured_origins() -> list[str]:
+    raw_origins = os.getenv(
+        "CORS_ALLOW_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    )
+    return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
-print("[BACKEND] Checking config keys...")
-print("OpenRouter API Key:", os.getenv("OPENROUTER_API_KEY")[:15] + "..." if os.getenv("OPENROUTER_API_KEY") else "[MISSING]")
-print("ElevenLabs API Key:", os.getenv("ELEVENLABS_API_KEY")[:15] + "..." if os.getenv("ELEVENLABS_API_KEY") else "[MISSING]")
+print("[BACKEND] OpenRouter API Key:", "[SET]" if os.getenv("OPENROUTER_API_KEY") else "[MISSING]")
+print("[BACKEND] ElevenLabs API Key:", "[SET]" if os.getenv("ELEVENLABS_API_KEY") else "[MISSING]")
 
 app = FastAPI(title="Melon AI Backend", description="AI API for Melon Education App")
 
 # CORS setup for Frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins for dev
+    allow_origins=_configured_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -14,10 +14,9 @@
 | UI Components | shadcn/ui (Radix UI), Framer Motion |
 | Database | **Firestore** (Real-time data persistence) |
 | Auth | Firebase Authentication |
-| Storage | **Cloudinary** (Optimized PDF & Avatar hosting) |
+| Storage | **Cloudinary** (Optimized question media & avatar hosting) |
 | AI / Chat | OpenAI GPT-4o-mini (SSE streaming) |
 | TTS | ElevenLabs |
-| RAG | OpenAI Embeddings + Pinecone |
 | State | TanStack Query v5, Firestore + userStore |
 | Charts | Recharts |
 | Deployment | Vercel (one-click deploy) |
@@ -34,8 +33,8 @@ src/web/
 │   ├── progress/           # Kid progress dashboard
 │   ├── parent/             # Parent dashboard (real-time charts)
 │   ├── family/             # Parent → child link management
-│   ├── admin/              # Admin panel (PDF Upload, User Mgmt)
-│   └── api/v1/             # Route Handlers (AI, RAG, Cloudinary)
+│   ├── admin/              # Admin panel (Question Bank, User Mgmt)
+│   └── api/v1/             # Route Handlers (AI, progress, subscription)
 ├── components/
 │   ├── ai/                 # AITutorWidget (Cosmo)
 │   ├── auth/               # AuthModal (Role-based login)
@@ -90,9 +89,7 @@ Copy `.env.example` → `.env.local`:
 | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | File uploads | Firebase Storage bucket (PDFs, avatars) |
 | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Auth only | Firebase sender ID |
 | `NEXT_PUBLIC_FIREBASE_APP_ID` | Auth only | Firebase app ID |
-| `OPENAI_API_KEY` | AI features | OpenAI API key (chat, RAG, moderation) |
-| `PINECONE_API_KEY` | RAG only | Pinecone vector DB key |
-| `PINECONE_INDEX` | RAG only | Pinecone index name (default: `melon-lessons`) |
+| `OPENAI_API_KEY` | AI features | OpenAI API key (chat, parsing, moderation) |
 | `ELEVENLABS_API_KEY` | TTS only | ElevenLabs API key |
 | `ELEVENLABS_VOICE_ID` | TTS only | Voice ID (default: Rachel) |
 | `MELON_AI_BACKEND_URL` | Backend integration | FastAPI base URL (local dev example: `http://127.0.0.1:8001`) |
@@ -112,7 +109,7 @@ Copy `.env.example` → `.env.local`:
 
 ### 👦 Student Experience
 - **Lesson Player**: Neobrutalism design with Framer Motion animations.
-- **AI Tutor (Cosmo)**: Real-time GPT-4o powered tutor with RAG support.
+- **AI Tutor (Cosmo)**: Real-time GPT-4o powered tutor.
 - **Gamification**: XP points, levels, and badges stored in Firestore.
 - **Leaderboard**: Real-time ranking based on XP.
 
@@ -121,8 +118,7 @@ Copy `.env.example` → `.env.local`:
 - **Family Link**: Link child accounts using their unique UID to monitor progress.
 
 ### 🛡️ Admin Experience
-- **PDF Upload**: Upload textbooks/worksheets to Cloudinary.
-- **RAG Ingestion**: Automatic chunking and embedding of PDFs into Pinecone.
+- **Question Bank**: Parse and manage math problem sets from text, images, PDFs, and docs.
 - **User Promotion**: Promote regular users to Admin/Parent roles via the dashboard.
 
 ---
@@ -150,10 +146,10 @@ npm run type-check # TypeScript check
 ## Development Notes
 
 - **Mock data**: Seed lessons live in `lib/lessons/lesson-store.ts`; generated local lessons live in browser localStorage.
-- **Adding lessons**: Edit `MOCK_LESSONS` in `lib/lessons/lesson-store.ts` or upload PDFs through the admin RAG flow.
+- **Adding lessons**: Edit seed lessons in `lib/lessons/lesson-store.ts`.
 - **Design system**: All tokens defined in `app/globals.css` under `@theme inline` (Neobrutalism palette, Lexend Mega + Space Grotesk)
 - **File uploads**: Use `lib/storage/upload.ts` — `uploadPdf(file)` uploads to Cloudinary through `/api/upload`.
-- **API routes**: `app/api/v1/` now proxies to `melon-ai-backend` for ingest/generate/tts
+- **API routes**: `app/api/v1/` proxies selected AI, TTS, progress, and subscription calls.
 - **Deploy**: Connect repo to [Vercel](https://vercel.com) → set env vars → auto-deploy on push (`infra/vercel.json`)
 
 ---

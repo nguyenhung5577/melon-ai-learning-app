@@ -18,6 +18,7 @@ import {
   updateProfile,
   type User as FirebaseUser,
 } from "firebase/auth";
+import { useRouter } from "next/navigation";
 import { auth, db } from "./firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import type { AuthState, MelonUser, UserRole } from "./types";
@@ -74,6 +75,7 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [state, setState] = useState<AuthState>({
     user: null,
     loading: Boolean(auth),
@@ -186,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (auth) await signOut(auth);
     setState({ user: null, loading: false, error: null });
     bus.emit("auth:signedOut", {});
+    router.replace("/");
   }
 
   return (

@@ -58,6 +58,15 @@ const rubricLabels: Record<RubricLevel, string> = {
 const rubricOptions = Object.entries(rubricLabels) as [RubricLevel, string][];
 const questionPageSize = 12;
 const listPageSize = 8;
+const choiceLabels = ["A", "B", "C", "D"];
+
+function choiceLabel(choice: ParsedChoice, index: number) {
+  return choice.key?.trim() || choiceLabels[index] || String(index + 1);
+}
+
+function choiceReactKey(questionId: string, choice: ParsedChoice, index: number) {
+  return `${questionId}-choice-${index}-${choice.key?.trim() || "missing"}`;
+}
 
 function PaginationControls({
   currentPage,
@@ -258,9 +267,9 @@ function QuestionPreview({
           <SubQuestionList question={question} />
           {question.choices.length > 0 ? (
             <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-              {question.choices.map((choice) => (
-                <div key={`${question.id}-${choice.key}`} className="rounded-lg border-2 border-nb-black p-2 font-bold">
-                  {choice.key}. {choice.text}
+              {question.choices.map((choice, choiceIndex) => (
+                <div key={choiceReactKey(question.id, choice, choiceIndex)} className="rounded-lg border-2 border-nb-black p-2 font-bold">
+                  {choiceLabel(choice, choiceIndex)}. {choice.text}
                 </div>
               ))}
             </div>
@@ -1222,9 +1231,9 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
                         <SubQuestionList question={question} />
                         {question.choices.length > 0 ? (
                           <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                            {question.choices.map((choice) => (
-                              <div key={`${question.id}-${choice.key}`} className="rounded-lg border-2 border-nb-black p-2 font-bold">
-                                {choice.key}. {choice.text}
+                            {question.choices.map((choice, choiceIndex) => (
+                              <div key={choiceReactKey(question.id, choice, choiceIndex)} className="rounded-lg border-2 border-nb-black p-2 font-bold">
+                                {choiceLabel(choice, choiceIndex)}. {choice.text}
                               </div>
                             ))}
                           </div>

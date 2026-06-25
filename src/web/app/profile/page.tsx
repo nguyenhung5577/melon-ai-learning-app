@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { KidShell } from "@/components/layout/KidShell";
 import { AdminShell } from "@/components/layout/AdminShell";
@@ -17,7 +18,6 @@ import { toast } from "sonner";
 import { Upload, AlertCircle, Copy } from "lucide-react";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
 
 const profileSchema = z.object({
   displayName: z.string()
@@ -28,7 +28,6 @@ const profileSchema = z.object({
 
 export default function ProfilePage() {
   const { user, logout } = useAuthContext();
-  const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
   const [profile, setProfile] = useState<ChildProfile | null>(null);
   const [localName, setLocalName] = useState("");
@@ -65,7 +64,6 @@ export default function ProfilePage() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/");
   };
 
   if (!user) {
@@ -143,7 +141,14 @@ export default function ProfilePage() {
                        bg-nb-yellow [border:var(--nb-border)] [box-shadow:var(--nb-shadow-sm)] flex-shrink-0"
           >
             {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="Ảnh đại diện" className="w-full h-full object-cover" />
+              <Image
+                src={user.avatarUrl}
+                alt="Ảnh đại diện"
+                width={80}
+                height={80}
+                sizes="80px"
+                className="h-full w-full object-cover"
+              />
             ) : (
               profile?.avatarEmoji || "👤"
             )}

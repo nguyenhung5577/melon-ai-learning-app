@@ -9,10 +9,6 @@ import { SectionContainer, SectionHeader } from "@/components/shared/SectionHead
 import { NbButton } from "@/components/shared/NbButton";
 import { Check, X, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { loadStripe } from "@stripe/stripe-js";
-
-// Lấy public key từ env
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
 export default function PricingPage() {
   const { user, logout } = useAuthContext();
@@ -24,6 +20,11 @@ export default function PricingPage() {
       setAuthOpen(true);
       return;
     }
+    if (!auth) {
+      toast.error("Firebase Auth chưa sẵn sàng.");
+      return;
+    }
+
     setLoading(true);
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -39,9 +40,10 @@ export default function PricingPage() {
         toast.error(data.error || "Không thể khởi tạo thanh toán. Vui lòng thử lại.");
         setLoading(false);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      toast.error("Lỗi Front-end bắt được: " + (err?.message || String(err)));
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error("Lỗi Front-end bắt được: " + message);
       setLoading(false);
     }
   };

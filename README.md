@@ -127,7 +127,7 @@ Then open the Network URL printed by Next.js from another device on the same Wi-
 1. Start backend from `src/melon-ai-backend` using conda env `myenv`.
 2. Start frontend from `src/web`.
 3. Open `http://localhost:3000`.
-4. Use admin PDF upload or lesson flows to call the backend through Next.js API routes.
+4. Use lesson, practice, and question-bank flows to call the backend through Next.js API routes.
 
 ## Useful Commands
 
@@ -151,6 +151,5 @@ uvicorn main:app --host 127.0.0.1 --port 8001 --reload
 
 ## Notes
 
-- The backend currently uses local ChromaDB runtime storage under `chroma_db/`; it is ignored by Git.
 - Generated audio and uploaded files are runtime artifacts and are ignored by Git.
 - Local `.env` files are ignored by Git. Share secrets through the team secret manager, not commits.

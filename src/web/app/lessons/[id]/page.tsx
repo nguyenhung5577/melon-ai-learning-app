@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Zap, Volume2, Check, X, ChevronRight } from "lucide-react";
 import { getLessonById, type Lesson, type LessonSlide } from "@/lib/lessons/lesson-store";
-import { getGeneratedLessons } from "@/lib/lessons/generated-lessons-store";
 import { KidShell } from "@/components/layout/KidShell";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
@@ -214,8 +213,7 @@ export default function LessonPlayerPage({
 
     getLessonById(id).then((storedLesson) => {
       if (!mounted) return;
-      const generated = getGeneratedLessons().find((item) => item.id === id);
-      setLesson(storedLesson ?? generated ?? null);
+      setLesson(storedLesson ?? null);
     });
 
     return () => {
@@ -333,8 +331,9 @@ export default function LessonPlayerPage({
           /* Ignore autoplay restrictions in browsers */
         });
       }
-    } catch (err: any) {
-      setHintText(err.message || "Đọc lại đề, tìm dữ kiện, rồi làm từng bước.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
+      setHintText(message || "Đọc lại đề, tìm dữ kiện, rồi làm từng bước.");
     } finally {
       setHintLoading(false);
     }

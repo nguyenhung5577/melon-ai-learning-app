@@ -529,11 +529,14 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
 
                 {question.choices.length > 0 && (
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {question.choices.map((choice) => (
-                      <div key={choice.key} className="border-2 border-nb-black rounded-lg p-3 text-sm font-bold">
-                        {choice.key}. {choice.text}
-                      </div>
-                    ))}
+                    {question.choices.map((choice, choiceIndex) => {
+                      const letter = choice.key || ["A", "B", "C", "D"][choiceIndex] || String(choiceIndex + 1);
+                      return (
+                        <div key={`choice-${choiceIndex}-${choice.key || "missing"}`} className="border-2 border-nb-black rounded-lg p-3 text-sm font-bold">
+                          {letter}. {choice.text}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

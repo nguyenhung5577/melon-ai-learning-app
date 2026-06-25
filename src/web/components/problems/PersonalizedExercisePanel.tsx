@@ -1596,19 +1596,19 @@ export function PersonalizedExercisePanel({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {currentQuestion.choices.map((choice, choiceIndex) => {
                 const letter = choice.key || ["A", "B", "C", "D"][choiceIndex] || String(choiceIndex + 1);
-                const isSelected = answer === choice.key;
+                const isSelected = answer === letter;
                 const isCorrectChoice = answerState === "correct" && isSelected;
                 const isWrongChoice = answerState === "wrong" && isSelected;
 
                 return (
                   <button
-                    key={`${currentQuestion.id}-${choice.key}`}
+                    key={`${currentQuestion.id}-choice-${choiceIndex}-${choice.key || "missing"}`}
                     type="button"
                     disabled={answerState !== "idle" || attemptSaving}
                     onClick={() => {
                       if (answerState !== "idle" || attemptSaving) return;
-                      setAnswer(choice.key);
-                      void submitAnswer(choice.key);
+                      setAnswer(letter);
+                      void submitAnswer(letter);
                     }}
                     className={cn(
                       "flex min-h-24 items-center gap-4 rounded-[18px] p-5 text-left",

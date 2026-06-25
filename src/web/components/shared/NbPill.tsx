@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-type PillColor = "purple" | "green" | "yellow" | "blue" | "orange" | "pink" | "black";
+type PillColor = "purple" | "green" | "yellow" | "blue" | "orange" | "pink" | "black" | "gray";
 
 interface NbPillProps {
   children: React.ReactNode;
@@ -17,6 +17,7 @@ const pillBg: Record<PillColor, string> = {
   orange: "bg-nb-orange",
   pink:   "bg-nb-pink",
   black:  "bg-nb-black text-white",
+  gray:   "bg-gray-200",
 };
 
 export function NbPill({ children, color = "purple", icon, className }: NbPillProps) {

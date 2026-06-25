@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { adminAuth } from "@/lib/server/firebase-admin";
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+function getStripe() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("Missing STRIPE_SECRET_KEY");
+  }
+  return new Stripe(secretKey);
+}
 
 function getBearerToken(req: Request) {
   const authHeader = req.headers.get("Authorization");
@@ -22,6 +28,7 @@ export async function POST(req: Request) {
     const parentUid = decoded.uid;
 
     const returnUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
+    const stripe = getStripe();
 
     // Khởi tạo phiên giao dịch bên Stripe
     const session = await stripe.checkout.sessions.create({
@@ -34,7 +41,7 @@ export async function POST(req: Request) {
             currency: "usd",
             product_data: {
               name: "Melon Pro VIP",
-              description: "Không giới hạn tài khoản con, Mở khóa Gia sư AI, Phân tích PDF, và Trợ lý Toán học.",
+              description: "Không giới hạn tài khoản con, mở khóa gia sư AI và trợ lý Toán học.",
             },
             unit_amount: 999, // 9.99 USD
             recurring: {
@@ -49,8 +56,9 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Stripe Checkout Error:", error);
-    return NextResponse.json({ error: error.message || "Lỗi khởi tạo thanh toán" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Lỗi khởi tạo thanh toán";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

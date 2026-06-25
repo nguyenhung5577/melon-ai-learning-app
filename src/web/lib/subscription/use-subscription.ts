@@ -24,6 +24,10 @@ export function useSubscription(): UseSubscriptionReturn {
   });
 
   useEffect(() => {
+    if (!auth) {
+      return;
+    }
+
     const unsubscribe = auth.onIdTokenChanged(async (user) => {
       if (!user) {
         setData({ subscription: null, entitlements: null, isPro: false, loading: false });
@@ -45,7 +49,7 @@ export function useSubscription(): UseSubscriptionReturn {
         } else {
            setData({ subscription: null, entitlements: null, isPro: false, loading: false });
         }
-      } catch (e) {
+      } catch {
         setData({ subscription: null, entitlements: null, isPro: false, loading: false });
       }
     });

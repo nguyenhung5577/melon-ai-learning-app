@@ -32,7 +32,7 @@ interface ParentInfo {
 export default function AdminUsersPage() {
   const { user, logout } = useAuthContext();
   const [parents, setParents] = useState<ParentInfo[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(auth));
   const [expandedUid, setExpandedUid] = useState<string | null>(null);
   const [upgradingUid, setUpgradingUid] = useState<string | null>(null);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
@@ -45,6 +45,11 @@ export default function AdminUsersPage() {
   }>({ isOpen: false, uid: "", type: "parent", title: "", message: "" });
 
   const fetchUsers = async () => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const token = await auth.currentUser?.getIdToken();
       if (!token) return;
@@ -57,7 +62,7 @@ export default function AdminUsersPage() {
       } else {
         toast.error("Failed to fetch users");
       }
-    } catch (err) {
+    } catch {
       toast.error("Network error");
     } finally {
       setLoading(false);
@@ -65,6 +70,10 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
+    if (!auth) {
+      return;
+    }
+
     const unsub = auth.onAuthStateChanged((user) => {
       if (user) fetchUsers();
     });
@@ -72,6 +81,11 @@ export default function AdminUsersPage() {
   }, []);
 
   const handleUpgrade = async (uid: string) => {
+    if (!auth) {
+      toast.error("Firebase Auth chưa sẵn sàng.");
+      return;
+    }
+
     setUpgradingUid(uid);
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -87,7 +101,7 @@ export default function AdminUsersPage() {
       } else {
         toast.error("Lỗi khi nâng cấp. Có thể bạn không đủ quyền Admin.");
       }
-    } catch (err) {
+    } catch {
       toast.error("Lỗi mạng kết nối.");
     } finally {
       setUpgradingUid(null);
@@ -95,6 +109,11 @@ export default function AdminUsersPage() {
   };
 
   const handleDeleteUser = async (uid: string, type: "parent" | "child") => {
+    if (!auth) {
+      toast.error("Firebase Auth chưa sẵn sàng.");
+      return;
+    }
+
     setDeletingUid(uid);
     try {
       const token = await auth.currentUser?.getIdToken();
@@ -117,7 +136,7 @@ export default function AdminUsersPage() {
       } else {
         toast.error("Lỗi khi xóa tài khoản.");
       }
-    } catch (err) {
+    } catch {
       toast.error("Lỗi mạng kết nối.");
     } finally {
       setDeletingUid(null);

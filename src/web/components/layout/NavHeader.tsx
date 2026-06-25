@@ -45,7 +45,6 @@ const parentLinks: NavLink[] = [
 const adminLinks: NavLink[] = [
   { href: "/admin", label: "Quản trị", icon: <Settings className="w-4 h-4" /> },
   { href: "/admin/lessons", label: "Bài học", icon: <BookOpen className="w-4 h-4" /> },
-  { href: "/admin/pdf-upload", label: "Tải PDF", icon: <Shield className="w-4 h-4" /> },
   { href: "/admin/question-bank", label: "Kho đề", icon: <FileQuestion className="w-4 h-4" /> },
 ];
 
@@ -140,9 +139,16 @@ export function NavHeader({
               )}
               onClick={() => setUserMenuOpen((v) => !v)}
             >
-              <div className="w-7 h-7 rounded-full bg-nb-yellow [border:2px_solid_var(--nb-black)] flex items-center justify-center font-display text-xs overflow-hidden">
+              <div className="relative w-7 h-7 rounded-full bg-nb-yellow [border:2px_solid_var(--nb-black)] flex items-center justify-center font-display text-xs overflow-hidden">
                 {photoURL ? (
-                  <img src={photoURL} alt="Ảnh đại diện" className="w-full h-full object-cover" />
+                  <Image
+                    src={photoURL}
+                    alt="Ảnh đại diện"
+                    width={28}
+                    height={28}
+                    sizes="28px"
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   userName?.[0]?.toUpperCase() ?? "?"
                 )}

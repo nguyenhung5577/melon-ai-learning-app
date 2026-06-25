@@ -31,7 +31,6 @@ export default function AdminDashboard() {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/");
   };
 
   return (
@@ -108,10 +107,6 @@ export default function AdminDashboard() {
                 <span className="text-xs font-bold text-[#888]">Thời gian ổn định: 99.9%</span>
               </div>
               <div className="space-y-3">
-                <div className="flex justify-between text-xs font-bold">
-                  <span>Chỉ mục Pinecone</span>
-                  <span className="text-nb-green">Đã kết nối</span>
-                </div>
                 <div className="flex justify-between text-xs font-bold">
                   <span>OpenAI API</span>
                   <span className="text-nb-green">Đang chạy</span>

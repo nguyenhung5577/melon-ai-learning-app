@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { KidShell } from "@/components/layout/KidShell";
 import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
@@ -24,13 +23,11 @@ interface LeaderEntry {
 
 export default function LeaderboardPage() {
   const { user, logout } = useAuthContext();
-  const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
   const [board, setBoard] = useState<LeaderEntry[]>([]);
 
   const handleLogout = async () => {
     await logout();
-    router.push("/");
   };
 
   useEffect(() => {
@@ -39,6 +36,7 @@ export default function LeaderboardPage() {
     }
 
     let mounted = true;
+    const currentUid = user.uid;
 
     async function loadBoard() {
       try {
@@ -48,7 +46,7 @@ export default function LeaderboardPage() {
         setBoard(
           payload.entries.map((entry) => ({
             ...entry,
-            isYou: entry.uid === user.uid,
+            isYou: entry.uid === currentUid,
           }))
         );
       } catch {

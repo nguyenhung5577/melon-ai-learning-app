@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   BookOpen,
-  FileText,
   FileQuestion,
   Flag,
   BarChart2,
@@ -18,7 +17,6 @@ const adminNav = [
   { href: "/admin", label: "Tổng quan", icon: <LayoutDashboard className="w-4 h-4" /> },
   { href: "/admin/users", label: "Quản lý người dùng", icon: <Users className="w-4 h-4" /> },
   { href: "/admin/lessons", label: "Bài học", icon: <BookOpen className="w-4 h-4" /> },
-  { href: "/admin/pdf-upload", label: "PDF / RAG", icon: <FileText className="w-4 h-4" /> },
   { href: "/admin/question-bank", label: "Kho đề", icon: <FileQuestion className="w-4 h-4" /> },
   { href: "/admin/flagged", label: "Bị báo cáo", icon: <Flag className="w-4 h-4" /> },
   { href: "/admin/analytics", label: "Thống kê", icon: <BarChart2 className="w-4 h-4" /> },

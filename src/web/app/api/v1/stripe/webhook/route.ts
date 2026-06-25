@@ -2,8 +2,21 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb } from "@/lib/server/firebase-admin";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
+function getStripe() {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("Missing STRIPE_SECRET_KEY");
+  }
+  return new Stripe(secretKey);
+}
+
+function getWebhookSecret() {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    throw new Error("Missing STRIPE_WEBHOOK_SECRET");
+  }
+  return webhookSecret;
+}
 
 export async function POST(req: Request) {
   // Bắt buộc phải đọc dạng chuỗi (text) thô để Stripe kiểm chứng chữ ký số
@@ -17,11 +30,14 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
 
   try {
+    const stripe = getStripe();
+    const webhookSecret = getWebhookSecret();
     // Xác minh đây là tin nhắn thật từ máy chủ Stripe chứ không phải hacker giả mạo
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-  } catch (err: any) {
-    console.error(`Lỗi giải mã Webhook: ${err.message}`);
-    return NextResponse.json({ error: err.message }, { status: 400 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Lỗi giải mã Webhook";
+    console.error(`Lỗi giải mã Webhook: ${message}`);
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   const db = adminDb();
@@ -78,8 +94,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ received: true });
-  } catch (err: any) {
-    console.error("Lỗi khi xử lý CSDL từ Webhook:", err);
+  } catch (error: unknown) {
+    console.error("Lỗi khi xử lý CSDL từ Webhook:", error);
     return NextResponse.json({ error: "Lỗi kết nối CSDL" }, { status: 500 });
   }
 }

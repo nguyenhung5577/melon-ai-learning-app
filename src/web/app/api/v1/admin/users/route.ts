@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
 
+type UserRecord = {
+  uid: string;
+  email?: string;
+  displayName?: string;
+  createdAt?: string;
+  linkedParentUid?: string;
+  loginId?: string;
+  avatarEmoji?: string;
+  grade?: string;
+};
+
+type SubscriptionRecord = {
+  plan?: "free" | "pro";
+};
+
 function getBearerToken(req: Request) {
   const authHeader = req.headers.get("Authorization");
   if (authHeader?.startsWith("Bearer ")) {
@@ -23,22 +38,22 @@ export async function GET(req: Request) {
 
     // 2. Fetch toàn bộ Parents
     const parentsSnapshot = await adminDb().collection("users").where("role", "==", "parent").get();
-    const parents = parentsSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+    const parents = parentsSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserRecord));
 
     // 3. Fetch toàn bộ Kids
     const kidsSnapshot = await adminDb().collection("users").where("role", "==", "kid").get();
-    const kids = kidsSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }));
+    const kids = kidsSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserRecord));
 
     // 4. Fetch toàn bộ Subscriptions
     const subsSnapshot = await adminDb().collection("subscriptions").get();
     const subscriptions = subsSnapshot.docs.reduce((acc, doc) => {
       acc[doc.id] = doc.data();
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Record<string, SubscriptionRecord>);
 
     // 5. Kết hợp dữ liệu (Merge)
     const result = parents.map(parent => {
-      const parentKids = kids.filter((k: any) => k.linkedParentUid === parent.uid);
+      const parentKids = kids.filter((k) => k.linkedParentUid === parent.uid);
       const sub = subscriptions[parent.uid] || { plan: "free" };
       
       return {
@@ -48,7 +63,7 @@ export async function GET(req: Request) {
         createdAt: parent.createdAt,
         plan: sub.plan || "free",
         childrenCount: parentKids.length,
-        children: parentKids.map((k: any) => ({
+        children: parentKids.map((k) => ({
           uid: k.uid,
           loginId: k.loginId,
           displayName: k.displayName || "Learner",

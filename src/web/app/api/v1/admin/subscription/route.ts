@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     }, { merge: true });
 
     return NextResponse.json({ success: true, targetUid, plan });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

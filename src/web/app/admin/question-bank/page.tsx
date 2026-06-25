@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { AdminShell } from "@/components/layout/AdminShell";
 import { AdminGuard } from "@/components/shared/AdminGuard";
 import { NbButton } from "@/components/shared/NbButton";
@@ -13,12 +12,10 @@ import { useAuthContext } from "@/lib/auth/auth-context";
 
 export default function QuestionBankPage() {
   const { user, logout } = useAuthContext();
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"parse" | "manage">("parse");
 
   const handleLogout = async () => {
     await logout();
-    router.push("/");
   };
 
   return (

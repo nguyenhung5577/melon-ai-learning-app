@@ -538,13 +538,13 @@ export function PracticeExamPanel({
               <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {currentQuestion.choices.map((choice, index) => {
                   const letter = choice.key || ["A", "B", "C", "D"][index] || String(index + 1);
-                  const selected = currentAnswer === choice.key;
+                  const selected = currentAnswer === letter;
                   return (
                     <button
-                      key={`${currentQuestion.id}-${choice.key}`}
+                      key={`${currentQuestion.id}-choice-${index}-${choice.key || "missing"}`}
                       type="button"
                       disabled={Boolean(result)}
-                      onClick={() => setAnswers((items) => ({ ...items, [currentQuestion.id]: choice.key }))}
+                      onClick={() => setAnswers((items) => ({ ...items, [currentQuestion.id]: letter }))}
                       className={cn(
                         "flex min-h-24 items-center gap-4 rounded-[18px] p-5 text-left",
                         "[border:var(--nb-border)] [box-shadow:6px_6px_0_var(--nb-black)] transition-all duration-150",

@@ -32,13 +32,6 @@ export const config = {
     model:  optionalEnv("OPENAI_MODEL", "gpt-4o-mini"),
   },
 
-  // Pinecone (RAG)
-  pinecone: {
-    apiKey:    requireEnv("PINECONE_API_KEY"),
-    indexName: optionalEnv("PINECONE_INDEX", "melon-lessons"),
-    namespace: optionalEnv("PINECONE_NAMESPACE", "default"),
-  },
-
   // ElevenLabs (TTS)
   elevenlabs: {
     apiKey:  requireEnv("ELEVENLABS_API_KEY"),

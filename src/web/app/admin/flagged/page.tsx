@@ -57,7 +57,6 @@ export default function FlaggedContentPage() {
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = "/";
   };
 
   function handleApprove(id: string) {

@@ -684,7 +684,6 @@ function fillMissingAnswer(question, changes) {
   }
 
   if (question.type === "multiple_choice") {
-    const keyFromAnswer = choices.find((choice) => normalizeAnswer(choice.key) === normalizeAnswer(answer));
     const keyFromAnswerText = choices.find((choice) => normalizeAnswer(choice.text) === normalizeAnswer(answerText));
     const parsed =
       parseAnswerFromExplanation(question.explanation || question.rawText) ||

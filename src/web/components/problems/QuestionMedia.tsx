@@ -50,19 +50,15 @@ export function QuestionMedia({
         <div className="grid grid-cols-1 gap-3">
           {displayableUrls.map((url, index) => (
             <div key={`${url}-${index}`} className="overflow-hidden rounded-xl border-2 border-[#ddd] bg-white">
-              {isInlineImageUrl(url) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={url} alt={`Hình câu hỏi ${index + 1}`} className="max-h-[32rem] w-full object-contain p-2" />
-              ) : (
-                <Image
-                  src={url}
-                  alt={`Hình câu hỏi ${index + 1}`}
-                  width={900}
-                  height={450}
-                  sizes="(min-width: 768px) 720px, 100vw"
-                  className="h-auto max-h-[32rem] w-full object-contain p-2"
-                />
-              )}
+              <Image
+                src={url}
+                alt={`Hình câu hỏi ${index + 1}`}
+                width={900}
+                height={450}
+                sizes="(min-width: 768px) 720px, 100vw"
+                unoptimized={isInlineImageUrl(url)}
+                className="h-auto max-h-[32rem] w-full object-contain p-2"
+              />
             </div>
           ))}
         </div>
