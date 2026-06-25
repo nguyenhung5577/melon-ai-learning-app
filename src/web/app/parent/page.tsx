@@ -24,6 +24,7 @@ import { AuthModal } from "@/components/auth/AuthModal";
 import { SectionContainer, SectionHeader } from "@/components/shared/SectionHeader";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
+import { PaywallModal } from "@/components/subscription/PaywallModal";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { userStore, type ChildProfile } from "@/lib/user/user-store";
 import { collections } from "@/lib/db/firestore";
@@ -33,7 +34,6 @@ import type { ProgressSummary } from "@/lib/progress/types";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { CreditCard } from "lucide-react";
-import { toast } from "sonner";
 import { auth } from "@/lib/auth/firebase";
 
 const PIE_COLORS = ["#b497ff", "#38b6ff", "#ff914d", "#22c55e", "#ffde59"];
@@ -57,28 +57,7 @@ export default function ParentDashboard() {
   const { user, logout } = useAuthContext();
   const router = useRouter();
   const [authOpen, setAuthOpen] = useState(false);
-  const [portalLoading, setPortalLoading] = useState(false);
-
-  const handleOpenBilling = async () => {
-    setPortalLoading(true);
-    try {
-      const token = await auth?.currentUser?.getIdToken();
-      const res = await fetch("/api/v1/stripe/portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok && data.url) {
-        window.location.href = data.url;
-      } else {
-        toast.error(data.error || "Không thể mở trang thanh toán.");
-        setPortalLoading(false);
-      }
-    } catch {
-      toast.error("Lỗi kết nối máy chủ thanh toán.");
-      setPortalLoading(false);
-    }
-  };
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false);
   const [children, setChildren] = useState<ChildProfile[]>([]);
   const [selectedChildIdx, setSelectedChildIdx] = useState(0);
   const [progressSummary, setProgressSummary] = useState<ProgressSummary | null>(null);
@@ -168,12 +147,17 @@ export default function ParentDashboard() {
           <NbButton 
             variant="secondary" 
             size="sm" 
-            onClick={handleOpenBilling}
-            loading={portalLoading}
+            onClick={() => setSubscriptionOpen(true)}
           >
             <CreditCard className="w-4 h-4 mr-2" /> Quản lý Gói cước
           </NbButton>
         </div>
+
+        <PaywallModal
+          isOpen={subscriptionOpen}
+          onClose={() => setSubscriptionOpen(false)}
+          featureName="Melon Pro"
+        />
 
         {/* Child selector if multiple */}
         {children.length > 1 && (
