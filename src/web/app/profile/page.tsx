@@ -82,6 +82,11 @@ export default function ProfilePage() {
 
   const currentUser = user;
   const isKid = user.role === "kid";
+  const profileHeader = isKid
+    ? { title: "Hồ sơ của con", subtitle: "Chỉnh cách con hiển thị trong Melon" }
+    : user.role === "parent"
+      ? { title: "Hồ sơ phụ huynh", subtitle: "Chỉnh thông tin hiển thị của phụ huynh" }
+      : { title: "Hồ sơ quản trị viên", subtitle: "Chỉnh thông tin hiển thị của quản trị viên" };
 
   async function handleSave() {
     const result = profileSchema.safeParse({ displayName: localName });
@@ -132,7 +137,7 @@ export default function ProfilePage() {
 
   const content = (
     <SectionContainer>
-      <SectionHeader title="Hồ sơ của con" subtitle="Chỉnh cách con hiển thị trong Melon" />
+      <SectionHeader title={profileHeader.title} subtitle={profileHeader.subtitle} />
 
       <div className="max-w-lg flex flex-col gap-8">
         <div className="nb-card rounded-2xl p-6 flex flex-col sm:flex-row items-center sm:items-start gap-5">

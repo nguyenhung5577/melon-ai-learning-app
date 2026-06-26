@@ -20,7 +20,7 @@ export function useSubscription(): UseSubscriptionReturn {
     subscription: null,
     entitlements: null,
     isPro: false,
-    loading: true,
+    loading: Boolean(auth),
   });
 
   useEffect(() => {

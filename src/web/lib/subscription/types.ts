@@ -6,6 +6,11 @@ export interface Subscription {
   status: SubscriptionStatus;
   startedAt: string;
   expiresAt: string | null;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  updatedAt?: string;
 }
 
 export interface Entitlements {

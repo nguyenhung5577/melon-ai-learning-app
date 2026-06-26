@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
 
-type UserRecord = {
+type AdminUserDoc = {
   uid: string;
   email?: string;
   displayName?: string;
   createdAt?: string;
+  isPro?: boolean;
+  plan?: "free" | "pro";
   linkedParentUid?: string;
   loginId?: string;
   avatarEmoji?: string;
   grade?: string;
 };
 
-type SubscriptionRecord = {
+type SubscriptionDoc = {
   plan?: "free" | "pro";
 };
 
@@ -38,30 +40,37 @@ export async function GET(req: Request) {
 
     // 2. Fetch toàn bộ Parents
     const parentsSnapshot = await adminDb().collection("users").where("role", "==", "parent").get();
-    const parents = parentsSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserRecord));
+    const parents: AdminUserDoc[] = parentsSnapshot.docs.map(doc => ({
+      ...(doc.data() as Omit<AdminUserDoc, "uid">),
+      uid: doc.id,
+    }));
 
     // 3. Fetch toàn bộ Kids
     const kidsSnapshot = await adminDb().collection("users").where("role", "==", "kid").get();
-    const kids = kidsSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserRecord));
+    const kids: AdminUserDoc[] = kidsSnapshot.docs.map(doc => ({
+      ...(doc.data() as Omit<AdminUserDoc, "uid">),
+      uid: doc.id,
+    }));
 
     // 4. Fetch toàn bộ Subscriptions
     const subsSnapshot = await adminDb().collection("subscriptions").get();
     const subscriptions = subsSnapshot.docs.reduce((acc, doc) => {
-      acc[doc.id] = doc.data();
+      acc[doc.id] = doc.data() as SubscriptionDoc;
       return acc;
-    }, {} as Record<string, SubscriptionRecord>);
+    }, {} as Record<string, SubscriptionDoc>);
 
     // 5. Kết hợp dữ liệu (Merge)
     const result = parents.map(parent => {
       const parentKids = kids.filter((k) => k.linkedParentUid === parent.uid);
       const sub = subscriptions[parent.uid] || { plan: "free" };
+      const plan = sub.plan || (parent.isPro ? "pro" : parent.plan) || "free";
       
       return {
         uid: parent.uid,
         email: parent.email || parent.uid, // Fallback nếu login bằng số điện thoại
         displayName: parent.displayName || "Unknown Parent",
         createdAt: parent.createdAt,
-        plan: sub.plan || "free",
+        plan,
         childrenCount: parentKids.length,
         children: parentKids.map((k) => ({
           uid: k.uid,

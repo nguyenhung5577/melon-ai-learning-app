@@ -11,6 +11,7 @@ import { NbPill } from "@/components/shared/NbPill";
 import { NbButton } from "@/components/shared/NbButton";
 import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
 import { useAuthContext } from "@/lib/auth/auth-context";
+import { auth } from "@/lib/auth/firebase";
 import type {
   CourseRunSnapshot,
   ProgressSummary,
@@ -80,9 +81,12 @@ export default function ProgressPage() {
     async function loadData() {
       setLoading(true);
       try {
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) throw new Error("Bạn cần đăng nhập để xem tiến độ.");
+        const headers = { Authorization: `Bearer ${token}` };
         const [progressRes, runsRes] = await Promise.all([
-          fetch(`/api/v1/progress/${uid}`, { cache: "no-store" }),
-          fetch(`/api/v1/course-run/${uid}?status=all`, { cache: "no-store" }),
+          fetch(`/api/v1/progress/${uid}`, { cache: "no-store", headers }),
+          fetch(`/api/v1/course-run/${uid}?status=all`, { cache: "no-store", headers }),
         ]);
 
         const progressData = await progressRes.json();

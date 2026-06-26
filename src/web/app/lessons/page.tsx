@@ -26,6 +26,7 @@ import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
 import { NbPill } from "@/components/shared/NbPill";
 import { SectionContainer } from "@/components/shared/SectionHeader";
 import { useAuthContext } from "@/lib/auth/auth-context";
+import { auth } from "@/lib/auth/firebase";
 import type { CourseRunSnapshot, CourseStageType } from "@/lib/progress/types";
 import { cn } from "@/lib/utils";
 
@@ -544,7 +545,12 @@ export default function LessonsPage() {
     async function loadRuns() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/v1/course-run/${userUid}?status=all`, { cache: "no-store" });
+        const token = await auth?.currentUser?.getIdToken();
+        if (!token) throw new Error("Bạn cần đăng nhập để tải khóa học.");
+        const res = await fetch(`/api/v1/course-run/${userUid}?status=all`, {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error ?? "Không tải được khóa học.");

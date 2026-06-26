@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMelonAiEndpoint } from "@/lib/server/melon-ai-backend";
 import { ProblemParseResponseSchema } from "@/lib/problems/schema";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/problems/upload-limits";
 
 function formatUnknownError(value: unknown): string {
   if (typeof value === "string") return value;
@@ -18,6 +19,12 @@ async function forwardMultipart(req: NextRequest): Promise<Response> {
 
   for (const [key, value] of incoming.entries()) {
     if (value instanceof File) {
+      if (value.size > MAX_UPLOAD_BYTES) {
+        return NextResponse.json(
+          { error: `File "${value.name}" exceeds ${MAX_UPLOAD_MB}MB limit.` },
+          { status: 413 }
+        );
+      }
       outgoing.append(key, value, value.name);
     } else {
       outgoing.append(key, value);
@@ -66,6 +73,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const contentType = req.headers.get("content-type") ?? "";
+    const contentLength = Number(req.headers.get("content-length") ?? "0");
+    if (contentType.includes("multipart/form-data") && contentLength > MAX_UPLOAD_BYTES) {
+      return NextResponse.json(
+        { error: `Upload request exceeds ${MAX_UPLOAD_MB}MB limit.` },
+        { status: 413 }
+      );
+    }
+
     const res = contentType.includes("multipart/form-data")
       ? await forwardMultipart(req)
       : await forwardJson(req);

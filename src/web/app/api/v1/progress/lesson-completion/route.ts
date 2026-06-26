@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { requireChildAccess } from "@/lib/server/child-access";
 import { getProgressSummary, recordLessonCompletion } from "@/lib/progress/progress-store";
 
 export const runtime = "nodejs";
@@ -24,6 +25,9 @@ export async function POST(req: NextRequest) {
   if (!body.success) {
     return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
   }
+
+  const access = await requireChildAccess(req, body.data.childUid, "write");
+  if (!access.ok) return access.response;
 
   const record = await recordLessonCompletion(body.data);
   const summary = await getProgressSummary(body.data.childUid);

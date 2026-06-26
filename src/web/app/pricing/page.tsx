@@ -27,7 +27,8 @@ export default function PricingPage() {
 
     setLoading(true);
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) throw new Error("Bạn cần đăng nhập để thanh toán.");
       const res = await fetch("/api/v1/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }

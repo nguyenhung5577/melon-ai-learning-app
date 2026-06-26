@@ -7,6 +7,7 @@ import { setDocument } from "@/lib/db/firestore-helpers";
 import { uploadFile } from "@/lib/storage/upload";
 import { auth } from "@/lib/auth/firebase";
 import type { ProblemParseResponse, ProblemParseResult, ProblemParseSet } from "@/lib/problems/types";
+import { isOverUploadLimit, MAX_UPLOAD_MB } from "@/lib/problems/upload-limits";
 import { useSubscription } from "@/lib/subscription/use-subscription";
 import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
@@ -110,6 +111,15 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.target.files ?? []);
+    const oversized = selected.find(isOverUploadLimit);
+    if (oversized) {
+      setFiles([]);
+      setError(`Tệp "${oversized.name}" vượt quá giới hạn ${MAX_UPLOAD_MB}MB.`);
+      setSaveMessage(null);
+      setSourceUrls([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
     setFiles(selected);
     setError(null);
     setSaveMessage(null);
@@ -381,7 +391,7 @@ export function ProblemParserPanel({ mode, uid }: ProblemParserPanelProps) {
               <Upload className="w-6 h-6" />
               <span className="text-sm font-bold">Tải tệp lên</span>
               <span className="text-[0.7rem] text-[#555]">
-                {files.length > 0 ? `Đã chọn ${files.length} tệp` : "JPG, PNG, PDF, DOCX, TXT"}
+                {files.length > 0 ? `Đã chọn ${files.length} tệp` : `JPG, PNG, PDF, DOCX, TXT · tối đa ${MAX_UPLOAD_MB}MB/tệp`}
               </span>
             </button>
           )}
