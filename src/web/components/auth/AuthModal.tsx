@@ -51,6 +51,10 @@ export function AuthModal({
       setFormError("Vui lòng nhập PIN hoặc mật khẩu.");
       return;
     }
+    if (passwordOrPin.length < 4) {
+      setFormError("PIN hoặc mật khẩu cần có ít nhất 4 ký tự.");
+      return;
+    }
 
     try {
       await signInChild(loginId, passwordOrPin);
@@ -197,6 +201,7 @@ export function AuthModal({
                     onChange={(e) => setPasswordOrPin(e.target.value)}
                     placeholder="••••••"
                     autoComplete="current-password"
+                    minLength={4}
                     required
                     className="nb-input pr-12"
                   />

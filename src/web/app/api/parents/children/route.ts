@@ -34,11 +34,11 @@ const LearningPreferencesSchema = z.object({
 });
 
 const CreateChildSchema = z.object({
-  loginId: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/),
-  displayName: z.string().trim().min(2).max(30),
-  passwordOrPin: z.string().min(4).max(128),
-  grade: z.string().min(1).max(40),
-  avatarEmoji: z.string().min(1).max(8),
+  loginId: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,24}$/, "Mã học sinh cần dài 3-24 ký tự, chỉ gồm chữ thường, số hoặc dấu gạch dưới."),
+  displayName: z.string().trim().min(2, "Tên hiển thị cần có ít nhất 2 ký tự.").max(30, "Tên hiển thị tối đa 30 ký tự."),
+  passwordOrPin: z.string().min(4, "PIN hoặc mật khẩu cần có ít nhất 4 ký tự.").max(128, "PIN hoặc mật khẩu tối đa 128 ký tự."),
+  grade: z.string().min(1, "Vui lòng chọn lớp.").max(40),
+  avatarEmoji: z.string().min(1, "Vui lòng chọn avatar.").max(8),
   learningPreferences: LearningPreferencesSchema,
 });
 
@@ -51,7 +51,7 @@ function getBearerToken(req: NextRequest): string | null {
 export async function POST(req: NextRequest) {
   const body = CreateChildSchema.safeParse(await req.json());
   if (!body.success) {
-    return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: body.error.issues[0]?.message ?? "Thông tin tài khoản học sinh chưa hợp lệ." }, { status: 400 });
   }
 
   const token = getBearerToken(req);

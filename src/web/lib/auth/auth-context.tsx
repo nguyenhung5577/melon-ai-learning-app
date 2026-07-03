@@ -168,7 +168,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.customToken) {
-      throw new Error(data.error ?? "Child login is not available yet.");
+      const message =
+        typeof data.error === "string"
+          ? data.error
+          : typeof data.message === "string"
+            ? data.message
+            : "Không đăng nhập được tài khoản học sinh.";
+      throw new Error(message);
     }
 
     const cred = await signInWithCustomToken(auth, data.customToken);

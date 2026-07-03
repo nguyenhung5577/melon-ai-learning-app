@@ -6,14 +6,14 @@ import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
 export const runtime = "nodejs";
 
 const ChildLoginSchema = z.object({
-  loginId: z.string().trim().min(3).max(24),
-  passwordOrPin: z.string().min(4).max(128),
+  loginId: z.string().trim().min(3, "Mã học sinh cần có ít nhất 3 ký tự.").max(24, "Mã học sinh tối đa 24 ký tự."),
+  passwordOrPin: z.string().min(4, "PIN hoặc mật khẩu cần có ít nhất 4 ký tự.").max(128, "PIN hoặc mật khẩu tối đa 128 ký tự."),
 });
 
 export async function POST(req: NextRequest) {
   const body = ChildLoginSchema.safeParse(await req.json());
   if (!body.success) {
-    return NextResponse.json({ error: body.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: body.error.issues[0]?.message ?? "Thông tin đăng nhập chưa hợp lệ." }, { status: 400 });
   }
 
   try {
