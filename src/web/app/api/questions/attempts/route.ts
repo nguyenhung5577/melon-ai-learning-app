@@ -113,11 +113,30 @@ function choiceDisplayKey(choice: Record<string, unknown>, index: number): strin
   return repairMojibake(choice.key).trim() || ["A", "B", "C", "D"][index] || String(index + 1);
 }
 
+function expectedChoiceKey(question: Record<string, unknown>, choices: unknown[]): string {
+  const expectedAnswer = normalizeAnswer(question.answer);
+  if (!expectedAnswer) return "";
+
+  const matchingChoice = choices.find((choice, index) => (
+    choice &&
+    typeof choice === "object" &&
+    normalizeAnswer(choiceDisplayKey(choice as Record<string, unknown>, index)) === expectedAnswer
+  ));
+  if (!matchingChoice || typeof matchingChoice !== "object") return "";
+
+  const index = choices.indexOf(matchingChoice);
+  return normalizeAnswer(choiceDisplayKey(matchingChoice as Record<string, unknown>, index));
+}
+
 function isExpectedChoice(question: Record<string, unknown>, choice: Record<string, unknown>, index: number): boolean {
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  const expectedKey = expectedChoiceKey(question, choices);
+  const choiceKey = normalizeAnswer(choiceDisplayKey(choice, index));
+  if (expectedKey) return choiceKey === expectedKey;
+
   const expectedAnswer = normalizeAnswer(question.answer);
   const expectedText = normalizeAnswer(question.answerText);
   const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
-  const choiceKey = normalizeAnswer(choiceDisplayKey(choice, index));
   const choiceText = normalizeAnswer(choice.text);
 
   return Boolean(
@@ -216,11 +235,24 @@ function isAnswerCorrect(question: Record<string, unknown>, submittedAnswer: str
   if (!submitted) return false;
   if (subQuestionAnswersCorrect(question, submittedAnswer)) return true;
   if (answersEquivalent(submittedAnswer, question.answer)) return true;
+
+  const choices = Array.isArray(question.choices) ? question.choices : [];
+  const expectedKey = expectedChoiceKey(question, choices);
+  if (expectedKey) {
+    return choices.some((choice, index) => {
+      if (!choice || typeof choice !== "object") return false;
+      const typedChoice = choice as Record<string, unknown>;
+      const selected =
+        normalizeAnswer(choiceDisplayKey(typedChoice, index)) === submitted ||
+        normalizeAnswer(typedChoice.text) === submitted;
+      return selected && normalizeAnswer(choiceDisplayKey(typedChoice, index)) === expectedKey;
+    });
+  }
+
   if (answersEquivalent(submittedAnswer, question.answerText)) return true;
   if (answersEquivalent(submittedAnswer, question.answerTextMarkdown)) return true;
   if (explanationAnswer && submitted === explanationAnswer) return true;
 
-  const choices = Array.isArray(question.choices) ? question.choices : [];
   return choices.some((choice, index) => {
     if (!choice || typeof choice !== "object") return false;
     const typedChoice = choice as Record<string, unknown>;

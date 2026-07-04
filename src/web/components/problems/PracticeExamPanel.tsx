@@ -279,13 +279,22 @@ function isLocallyCorrect(question: QuestionBankQuestion, submittedAnswer: strin
   const expectedText = normalizeAnswer(question.answerText);
   const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
   if (expectedAnswer && submitted === expectedAnswer) return true;
-  if (expectedText && submitted === expectedText) return true;
-  if (expectedMarkdown && submitted === expectedMarkdown) return true;
 
   const selectedChoice = (question.choices ?? []).find((choice, index) => (
     normalizeAnswer(choiceDisplayKey(choice, index)) === submitted ||
     normalizeAnswer(choice.text) === submitted
   ));
+
+  const expectedKey = expectedChoiceKey(question);
+  if (expectedKey) {
+    if (!selectedChoice) return false;
+    const index = question.choices.indexOf(selectedChoice);
+    return normalizeAnswer(choiceDisplayKey(selectedChoice, index)) === expectedKey;
+  }
+
+  if (expectedText && submitted === expectedText) return true;
+  if (expectedMarkdown && submitted === expectedMarkdown) return true;
+
   const expectedChoiceText = expectedText || expectedMarkdown;
   return Boolean(selectedChoice && expectedChoiceText && normalizeAnswer(selectedChoice.text) === expectedChoiceText);
 }
@@ -294,11 +303,27 @@ function choiceDisplayKey(choice: QuestionBankQuestion["choices"][number], index
   return choice.key || ["A", "B", "C", "D"][index] || String(index + 1);
 }
 
+function expectedChoiceKey(question: QuestionBankQuestion) {
+  const expectedAnswer = normalizeAnswer(question.answer);
+  if (!expectedAnswer) return "";
+
+  const choice = (question.choices ?? []).find((item, index) => (
+    normalizeAnswer(choiceDisplayKey(item, index)) === expectedAnswer
+  ));
+  if (!choice) return "";
+
+  const index = question.choices.indexOf(choice);
+  return normalizeAnswer(choiceDisplayKey(choice, index));
+}
+
 function isCorrectChoice(question: QuestionBankQuestion, choice: QuestionBankQuestion["choices"][number], index: number) {
+  const expectedKey = expectedChoiceKey(question);
+  const choiceKey = normalizeAnswer(choiceDisplayKey(choice, index));
+  if (expectedKey) return choiceKey === expectedKey;
+
   const expectedAnswer = normalizeAnswer(question.answer);
   const expectedText = normalizeAnswer(question.answerText);
   const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
-  const choiceKey = normalizeAnswer(choiceDisplayKey(choice, index));
   const choiceText = normalizeAnswer(choice.text);
 
   return Boolean(
@@ -335,9 +360,9 @@ function standardAnswerText(question: QuestionBankQuestion) {
 
 function shortAnswerPlaceholder(question: QuestionBankQuestion) {
   const expected = normalizeAnswer(standardAnswerText(question));
-  if (/^-?\d+\s*\/\s*-?\d+$/.test(expected)) return "Vi du: 3/4";
-  if (/^-?\d+(?:[.,]\d+)?$/.test(expected)) return "Vi du: 124349 (khong can dau cach)";
-  return "Nhap dap an ngan";
+  if (/^-?\d+\s*\/\s*-?\d+$/.test(expected)) return "Ví dụ: 3/4";
+  if (/^-?\d+(?:[.,]\d+)?$/.test(expected)) return "Ví dụ: 124349";
+  return "Nhập đáp án";
 }
 
 function subAnswerResults(question: QuestionBankQuestion, answers: Record<string, string>) {
@@ -892,7 +917,7 @@ export function PracticeExamPanel({
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.45fr)_auto] md:items-center">
                         <div>
                           <div className="inline-flex rounded-md bg-nb-black px-2 py-1 font-display text-[0.65rem] uppercase text-white">
-                            Ý {part.label}
+                            {part.label.toUpperCase()})
                           </div>
                           <div className="mt-3 whitespace-pre-line text-base font-black leading-relaxed text-nb-black">
                             {part.text}
@@ -913,7 +938,7 @@ export function PracticeExamPanel({
                           value={partAnswer}
                           disabled={Boolean(result)}
                           onChange={(event) => setAnswers((items) => ({ ...items, [key]: event.target.value }))}
-                          placeholder={`Nhập đáp án ${part.label}`}
+                          placeholder={`Nhập đáp án ${part.label.toUpperCase()})`}
                         />
 
                         {hasPartResult ? (

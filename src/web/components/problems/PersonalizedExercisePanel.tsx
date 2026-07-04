@@ -564,6 +564,19 @@ function choiceDisplayKey(choice: QuestionBankQuestion["choices"][number], index
   return choice.key || ["A", "B", "C", "D"][index] || String(index + 1);
 }
 
+function expectedChoiceKey(question: QuestionBankQuestion) {
+  const expectedAnswer = normalizeAnswer(question.answer);
+  if (!expectedAnswer) return "";
+
+  const choice = (question.choices ?? []).find((item, index) => (
+    normalizeAnswer(choiceDisplayKey(item, index)) === expectedAnswer
+  ));
+  if (!choice) return "";
+
+  const index = question.choices.indexOf(choice);
+  return normalizeAnswer(choiceDisplayKey(choice, index));
+}
+
 function emptySessionStats(): SessionCompletionStats {
   return {
     attempts: 0,
@@ -664,13 +677,22 @@ function isLocallyCorrect(question: QuestionBankQuestion, answer: string) {
   }
 
   if (expectedAnswer && submitted === expectedAnswer) return true;
-  if (expectedText && submitted === expectedText) return true;
-  if (expectedMarkdown && submitted === expectedMarkdown) return true;
 
   const selectedChoice = (question.choices ?? []).find((choice, index) => (
     normalizeAnswer(choiceDisplayKey(choice, index)) === submitted ||
     normalizeAnswer(choice.text) === submitted
   ));
+
+  const expectedKey = expectedChoiceKey(question);
+  if (expectedKey) {
+    if (!selectedChoice) return false;
+    const index = question.choices.indexOf(selectedChoice);
+    return normalizeAnswer(choiceDisplayKey(selectedChoice, index)) === expectedKey;
+  }
+
+  if (expectedText && submitted === expectedText) return true;
+  if (expectedMarkdown && submitted === expectedMarkdown) return true;
+
   const expectedChoiceText = expectedText || expectedMarkdown;
   return Boolean(selectedChoice && expectedChoiceText && normalizeAnswer(selectedChoice.text) === expectedChoiceText);
 }

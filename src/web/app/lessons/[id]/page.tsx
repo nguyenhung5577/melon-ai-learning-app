@@ -56,6 +56,19 @@ function choiceDisplayKey(choice: QuestionBankQuestion["choices"][number] | unde
   return choice?.key || ["A", "B", "C", "D"][index] || String(index + 1);
 }
 
+function expectedChoiceKey(question: QuestionBankQuestion | null | undefined) {
+  const expectedAnswer = normalizeAnswer(question?.answer);
+  if (!question || !expectedAnswer) return "";
+
+  const choice = (question.choices ?? []).find((item, index) => (
+    normalizeAnswer(choiceDisplayKey(item, index)) === expectedAnswer
+  ));
+  if (!choice) return "";
+
+  const index = question.choices.indexOf(choice);
+  return normalizeAnswer(choiceDisplayKey(choice, index));
+}
+
 function questionStem(question: QuestionBankQuestion | null | undefined) {
   return String(question?.stemMarkdown || question?.stem || question?.rawText || "").trim();
 }
@@ -68,6 +81,14 @@ function questionChoices(question: QuestionBankQuestion | null | undefined) {
 
 function questionAnswer(question: QuestionBankQuestion | null | undefined) {
   if (!question) return "";
+  const expectedKey = expectedChoiceKey(question);
+  if (expectedKey) {
+    const keyChoice = (question.choices ?? []).find((choice, index) => (
+      normalizeAnswer(choiceDisplayKey(choice, index)) === expectedKey
+    ));
+    if (keyChoice?.text?.trim()) return keyChoice.text.trim();
+  }
+
   if (question.answerTextMarkdown?.trim()) return question.answerTextMarkdown.trim();
   if (question.answerText?.trim()) return question.answerText.trim();
 
@@ -99,8 +120,10 @@ function optionIsCorrect(
     const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
     const choice = question.choices?.[index];
     const choiceKey = normalizeAnswer(choiceDisplayKey(choice, index));
+    const expectedKey = expectedChoiceKey(question);
 
     if (expectedAnswer && (submitted === expectedAnswer || choiceKey === expectedAnswer)) return true;
+    if (expectedKey) return choiceKey === expectedKey;
     if (expectedText && submitted === expectedText) return true;
     if (expectedMarkdown && submitted === expectedMarkdown) return true;
     if (choice?.text && expectedText && normalizeAnswer(choice.text) === expectedText) return submitted === normalizeAnswer(choice.text);
