@@ -10,9 +10,12 @@ import { NbButton } from "@/components/shared/NbButton";
 import { NbPill } from "@/components/shared/NbPill";
 import { auth } from "@/lib/auth/firebase";
 import { useAuthContext } from "@/lib/auth/auth-context";
+import { collections } from "@/lib/db/firestore";
+import { getDocument } from "@/lib/db/firestore-helpers";
 import { gamificationStore } from "@/lib/gamification/gamification-store";
 import { logActivityEvent } from "@/lib/activity";
 import { bus } from "@/lib/core/event-bus";
+import type { QuestionBankQuestion } from "@/lib/problems/types";
 import { cn } from "@/lib/utils";
 
 type AnswerState = "idle" | "correct" | "wrong";
@@ -38,8 +41,78 @@ function tagsFromLesson(lesson: Lesson | null | undefined, allowed: Set<string>)
   return (lesson?.tags ?? []).filter((tag) => allowed.has(tag));
 }
 
+function normalizeAnswer(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/(?<=\d)\s(?=\d{3}\b)/g, "")
+    .replace(/(\d),(\d)/g, "$1.$2")
+    .replace(/^(-?\d+)\s+(-?\d+)$/g, "$1/$2")
+    .replace(/[.,;:]$/g, "");
+}
+
+function choiceDisplayKey(choice: QuestionBankQuestion["choices"][number] | undefined, index: number) {
+  return choice?.key || ["A", "B", "C", "D"][index] || String(index + 1);
+}
+
+function questionStem(question: QuestionBankQuestion | null | undefined) {
+  return String(question?.stemMarkdown || question?.stem || question?.rawText || "").trim();
+}
+
+function questionChoices(question: QuestionBankQuestion | null | undefined) {
+  return (question?.choices ?? [])
+    .map((choice) => String(choice.text ?? "").trim())
+    .filter(Boolean);
+}
+
+function questionAnswer(question: QuestionBankQuestion | null | undefined) {
+  if (!question) return "";
+  if (question.answerTextMarkdown?.trim()) return question.answerTextMarkdown.trim();
+  if (question.answerText?.trim()) return question.answerText.trim();
+
+  const expected = normalizeAnswer(question.answer);
+  const matchingChoice = (question.choices ?? []).find((choice, index) => (
+    normalizeAnswer(choiceDisplayKey(choice, index)) === expected || normalizeAnswer(choice.text) === expected
+  ));
+
+  return matchingChoice?.text?.trim() || question.answer?.trim() || "";
+}
+
+function slideAnswer(slide: LessonSlide) {
+  if (Array.isArray(slide.answer)) return slide.answer[0] ?? "";
+  return String(slide.answer ?? "");
+}
+
+function optionIsCorrect(
+  option: string,
+  index: number,
+  slide: LessonSlide,
+  question: QuestionBankQuestion | null | undefined
+) {
+  const submitted = normalizeAnswer(option);
+  if (!submitted) return false;
+
+  if (question) {
+    const expectedAnswer = normalizeAnswer(question.answer);
+    const expectedText = normalizeAnswer(question.answerText);
+    const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
+    const choice = question.choices?.[index];
+    const choiceKey = normalizeAnswer(choiceDisplayKey(choice, index));
+
+    if (expectedAnswer && (submitted === expectedAnswer || choiceKey === expectedAnswer)) return true;
+    if (expectedText && submitted === expectedText) return true;
+    if (expectedMarkdown && submitted === expectedMarkdown) return true;
+    if (choice?.text && expectedText && normalizeAnswer(choice.text) === expectedText) return submitted === normalizeAnswer(choice.text);
+    if (choice?.text && expectedMarkdown && normalizeAnswer(choice.text) === expectedMarkdown) return submitted === normalizeAnswer(choice.text);
+  }
+
+  return submitted === normalizeAnswer(slideAnswer(slide));
+}
+
 interface SlideRendererProps {
   slide: LessonSlide;
+  question?: QuestionBankQuestion | null;
   onComplete: (xp: number) => void;
   onQuizAnswer?: (correct: boolean) => void;
 }
@@ -70,17 +143,18 @@ function TextSlide({ slide, onComplete }: SlideRendererProps) {
   );
 }
 
-function QuizSlide({ slide, onComplete, onQuizAnswer }: SlideRendererProps) {
-  const [selected, setSelected] = useState<string | null>(null);
+function QuizSlide({ slide, question, onComplete, onQuizAnswer }: SlideRendererProps) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [state, setState] = useState<AnswerState>("idle");
   const [recordedAnswer, setRecordedAnswer] = useState(false);
 
-  const correctAnswer = slide.answer as string;
+  const stem = questionStem(question) || slide.content;
+  const options = question ? questionChoices(question) : (slide.options ?? []);
 
-  function handleSelect(opt: string) {
+  function handleSelect(opt: string, index: number) {
     if (state !== "idle") return;
-    setSelected(opt);
-    const isCorrect = opt === correctAnswer;
+    setSelectedIndex(index);
+    const isCorrect = optionIsCorrect(opt, index, slide, question);
     if (!recordedAnswer) {
       onQuizAnswer?.(isCorrect);
       setRecordedAnswer(true);
@@ -92,7 +166,7 @@ function QuizSlide({ slide, onComplete, onQuizAnswer }: SlideRendererProps) {
     } else {
       setTimeout(() => {
         setState("idle");
-        setSelected(null);
+        setSelectedIndex(null);
       }, 1500);
     }
   }
@@ -103,20 +177,20 @@ function QuizSlide({ slide, onComplete, onQuizAnswer }: SlideRendererProps) {
         <div className="font-display text-[0.7rem] text-[#888] mb-2 tracking-widest uppercase">
           Câu hỏi
         </div>
-        <h2 className="font-display text-h2 leading-snug">{slide.content}</h2>
+        <h2 className="font-display text-h2 leading-snug">{stem}</h2>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {(slide.options ?? []).map((opt, i) => {
+        {options.map((opt, i) => {
           const letter = ["A", "B", "C", "D"][i];
-          const isSelected = selected === opt;
+          const isSelected = selectedIndex === i;
           const isCorrect = isSelected && state === "correct";
           const isWrong = isSelected && state === "wrong";
 
           return (
             <button
-              key={opt}
-              onClick={() => handleSelect(opt)}
+              key={`${slide.id}-${i}-${opt}`}
+              onClick={() => handleSelect(opt, i)}
               disabled={state !== "idle"}
               className={cn(
                 "flex items-center gap-4 [border:var(--nb-border)] rounded-[18px] p-5",
@@ -186,6 +260,7 @@ export default function LessonPlayerPage({
   const router = useRouter();
   const { user } = useAuthContext();
   const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [questionById, setQuestionById] = useState<Record<string, QuestionBankQuestion>>({});
   const [currentSlideIdx, setCurrentSlideIdx] = useState(0);
   const [totalXp, setTotalXp] = useState(0);
   const [completed, setCompleted] = useState(false);
@@ -211,9 +286,36 @@ export default function LessonPlayerPage({
     quizCorrectRef.current = 0;
     quizTotalRef.current = 0;
 
-    getLessonById(id).then((storedLesson) => {
+    getLessonById(id).then(async (storedLesson) => {
       if (!mounted) return;
+      setCurrentSlideIdx(0);
+      setTotalXp(0);
+      setCompleted(false);
+      setQuestionById({});
       setLesson(storedLesson ?? null);
+
+      const questionIds = Array.from(new Set(
+        (storedLesson?.slides ?? [])
+          .map((item) => item.questionId)
+          .filter((questionId): questionId is string => Boolean(questionId))
+      ));
+
+      if (questionIds.length === 0) return;
+
+      const entries = await Promise.all(questionIds.map(async (questionId) => {
+        try {
+          const question = await getDocument(collections.questionBank, questionId);
+          return question ? ([questionId, question] as const) : null;
+        } catch {
+          return null;
+        }
+      }));
+
+      if (!mounted) return;
+      const foundEntries = entries.filter((entry): entry is readonly [string, QuestionBankQuestion] => Boolean(entry));
+      setQuestionById(Object.fromEntries(foundEntries));
+    }).catch(() => {
+      if (mounted) setLesson(null);
     });
 
     return () => {
@@ -222,6 +324,7 @@ export default function LessonPlayerPage({
   }, [id]);
 
   const slide = lesson?.slides?.[currentSlideIdx];
+  const slideQuestion = slide?.questionId ? questionById[slide.questionId] ?? null : null;
 
   const handleQuizAnswer = useCallback((correct: boolean) => {
     quizCorrectRef.current += correct ? 1 : 0;
@@ -318,8 +421,8 @@ export default function LessonPlayerPage({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          question: slide.content,
-          correctAnswer: typeof slide.answer === "string" ? slide.answer : undefined,
+          question: questionStem(slideQuestion) || slide.content,
+          correctAnswer: slideQuestion ? questionAnswer(slideQuestion) : slideAnswer(slide),
           topic: lesson?.title ?? "Bài học",
         }),
       });
@@ -466,6 +569,7 @@ export default function LessonPlayerPage({
               {slide.type === "quiz" && (
                 <QuizSlide
                   slide={slide}
+                  question={slideQuestion}
                   onComplete={handleSlideComplete}
                   onQuizAnswer={handleQuizAnswer}
                 />

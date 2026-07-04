@@ -20,12 +20,18 @@ export function useSubscription(): UseSubscriptionReturn {
     subscription: null,
     entitlements: null,
     isPro: false,
-    loading: Boolean(auth),
+    loading: true,
   });
 
   useEffect(() => {
     if (!auth) {
-      return;
+      let mounted = true;
+      Promise.resolve().then(() => {
+        if (mounted) setData({ subscription: null, entitlements: null, isPro: false, loading: false });
+      });
+      return () => {
+        mounted = false;
+      };
     }
 
     const unsubscribe = auth.onIdTokenChanged(async (user) => {

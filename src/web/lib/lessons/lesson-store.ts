@@ -3,13 +3,14 @@ import { getDocument, queryDocuments, setDocument } from "@/lib/db/firestore-hel
 import { where } from "firebase/firestore";
 
 export type LessonType = "video" | "interactive" | "quiz" | "reading";
-export type Subject = "math" | "science" | "english" | "history" | "coding";
+export type Subject = "math";
 
 export interface LessonSlide {
   id: string;
   type: "text" | "quiz" | "drag-drop" | "fill-blank";
   title: string;
   content: string;
+  questionId?: string;
   options?: string[];
   answer?: string | string[];
   xp: number;
@@ -32,6 +33,8 @@ export interface Lesson {
   thumbnailBg: string;
   cloudinaryUrl?: string;
   pdfUrl?: string;
+  archived?: boolean;
+  deletedAt?: string;
   updatedAt?: string;
   createdAt: string;
 }
@@ -448,7 +451,6 @@ export const MATH_CURRICULUM_LESSONS: Lesson[] = [
 export const MOCK_LESSONS = MATH_CURRICULUM_LESSONS;
 
 export function isCurrentMathLesson(lesson: Lesson): boolean {
-  if (lesson.subject !== "math") return false;
   if (lesson.tags?.includes(CURRICULUM_TAG)) return true;
   return lesson.tags?.some((tag) => GRADE_TAGS.has(tag)) ?? false;
 }
@@ -456,9 +458,7 @@ export function isCurrentMathLesson(lesson: Lesson): boolean {
 function uniqueLessons(lessons: Lesson[]): Lesson[] {
   const byId = new Map<string, Lesson>();
   for (const item of lessons) {
-    if (!byId.has(item.id)) {
-      byId.set(item.id, item);
-    }
+    byId.set(item.id, item);
   }
   return Array.from(byId.values());
 }
@@ -474,9 +474,12 @@ function sortLessons(lessons: Lesson[]): Lesson[] {
 }
 
 function mergeWithCurriculum(docs: Lesson[]): Lesson[] {
+  const archivedIds = new Set(docs.filter((lesson) => lesson.archived).map((lesson) => lesson.id));
+  const activeDocs = docs.filter((lesson) => !lesson.archived);
+
   return sortLessons(uniqueLessons([
-    ...MATH_CURRICULUM_LESSONS,
-    ...docs.filter(isCurrentMathLesson),
+    ...MATH_CURRICULUM_LESSONS.filter((lesson) => !archivedIds.has(lesson.id)),
+    ...activeDocs,
   ]));
 }
 
@@ -504,7 +507,8 @@ export async function getLessonById(id: string): Promise<Lesson | undefined> {
 
   try {
     const doc = await getDocument(collections.lessons, id);
-    if (doc && isCurrentMathLesson(doc)) return doc;
+    if (doc?.archived) return undefined;
+    if (doc) return doc;
     return fallback;
   } catch {
     return fallback;
@@ -514,8 +518,8 @@ export async function getLessonById(id: string): Promise<Lesson | undefined> {
 export async function getLessonsBySubject(subject: Subject): Promise<Lesson[]> {
   try {
     const docs = await queryDocuments(collections.lessons, where("subject", "==", subject));
-    return subject === "math" ? mergeWithCurriculum(docs) : [];
+    return mergeWithCurriculum(docs);
   } catch {
-    return subject === "math" ? MATH_CURRICULUM_LESSONS : [];
+    return MATH_CURRICULUM_LESSONS;
   }
 }

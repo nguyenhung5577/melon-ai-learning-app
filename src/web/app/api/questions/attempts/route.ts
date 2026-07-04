@@ -97,9 +97,34 @@ function normalizeAnswer(value: unknown): string {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ")
+    .replace(/(?<=\d)\s(?=\d{3}\b)/g, "")
     .replace(/(\d),(\d)/g, "$1.$2")
     .replace(/^(-?\d+)\s+(-?\d+)$/g, "$1/$2")
     .replace(/[.,;:]$/g, "");
+}
+
+function normalizePartLabel(value: unknown, index = 0): string {
+  const fallback = String.fromCharCode(97 + index);
+  const text = repairMojibake(value).trim().toLowerCase();
+  return text.match(/([a-z])\s*$/i)?.[1]?.toLowerCase() ?? fallback;
+}
+
+function choiceDisplayKey(choice: Record<string, unknown>, index: number): string {
+  return repairMojibake(choice.key).trim() || ["A", "B", "C", "D"][index] || String(index + 1);
+}
+
+function isExpectedChoice(question: Record<string, unknown>, choice: Record<string, unknown>, index: number): boolean {
+  const expectedAnswer = normalizeAnswer(question.answer);
+  const expectedText = normalizeAnswer(question.answerText);
+  const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
+  const choiceKey = normalizeAnswer(choiceDisplayKey(choice, index));
+  const choiceText = normalizeAnswer(choice.text);
+
+  return Boolean(
+    (expectedAnswer && (choiceKey === expectedAnswer || choiceText === expectedAnswer)) ||
+      (expectedText && (choiceKey === expectedText || choiceText === expectedText)) ||
+      (expectedMarkdown && (choiceKey === expectedMarkdown || choiceText === expectedMarkdown))
+  );
 }
 
 function labeledParts(value: unknown): Record<string, string> | null {
@@ -121,6 +146,21 @@ function labeledParts(value: unknown): Record<string, string> | null {
   return Object.keys(parts).length >= 2 ? parts : null;
 }
 
+function subQuestionAnswerParts(question: Record<string, unknown>): Record<string, string> | null {
+  if (!Array.isArray(question.subQuestions)) return null;
+
+  const parts: Record<string, string> = {};
+  question.subQuestions.forEach((item, index) => {
+    if (!item || typeof item !== "object") return;
+    const subQuestion = item as { label?: unknown; answerText?: unknown; answerTextMarkdown?: unknown };
+    const answer = repairMojibake(subQuestion.answerTextMarkdown || subQuestion.answerText).trim();
+    if (!answer) return;
+    parts[normalizePartLabel(subQuestion.label, index)] = answer;
+  });
+
+  return Object.keys(parts).length > 0 ? parts : null;
+}
+
 function answersEquivalent(submittedAnswer: string, expectedAnswer: unknown): boolean {
   const submitted = normalizeAnswer(submittedAnswer);
   const expected = normalizeAnswer(expectedAnswer);
@@ -133,6 +173,21 @@ function answersEquivalent(submittedAnswer: string, expectedAnswer: unknown): bo
 
   return Object.entries(expectedParts).every(([label, expectedPart]) => (
     submittedParts[label] === expectedPart
+  ));
+}
+
+function subQuestionAnswersCorrect(question: Record<string, unknown>, submittedAnswer: string): boolean {
+  const expectedParts = subQuestionAnswerParts(question);
+  if (!expectedParts) return false;
+
+  const submittedParts = labeledParts(submittedAnswer);
+  if (!submittedParts) {
+    const expectedValues = Object.values(expectedParts);
+    return expectedValues.length === 1 && answersEquivalent(submittedAnswer, expectedValues[0]);
+  }
+
+  return Object.entries(expectedParts).every(([label, expectedAnswer]) => (
+    answersEquivalent(submittedParts[label] ?? "", expectedAnswer)
   ));
 }
 
@@ -155,23 +210,31 @@ function finalAnswerFromExplanation(value: unknown): string {
 function isAnswerCorrect(question: Record<string, unknown>, submittedAnswer: string): boolean {
   const submitted = normalizeAnswer(submittedAnswer);
   const answerText = question.answerText;
+  const answerTextMarkdown = question.answerTextMarkdown;
   const explanationAnswer = finalAnswerFromExplanation(question.explanation);
 
   if (!submitted) return false;
+  if (subQuestionAnswersCorrect(question, submittedAnswer)) return true;
   if (answersEquivalent(submittedAnswer, question.answer)) return true;
   if (answersEquivalent(submittedAnswer, question.answerText)) return true;
+  if (answersEquivalent(submittedAnswer, question.answerTextMarkdown)) return true;
   if (explanationAnswer && submitted === explanationAnswer) return true;
 
   const choices = Array.isArray(question.choices) ? question.choices : [];
-  const selectedChoice = choices.find((choice) => {
+  return choices.some((choice, index) => {
     if (!choice || typeof choice !== "object") return false;
-    return normalizeAnswer((choice as { key?: unknown }).key) === submitted;
+    const typedChoice = choice as Record<string, unknown>;
+    const selected =
+      normalizeAnswer(choiceDisplayKey(typedChoice, index)) === submitted ||
+      normalizeAnswer(typedChoice.text) === submitted;
+    if (!selected) return false;
+
+    return (
+      isExpectedChoice(question, typedChoice, index) ||
+      Boolean(answerText && answersEquivalent(String(typedChoice.text ?? ""), answerText)) ||
+      Boolean(answerTextMarkdown && answersEquivalent(String(typedChoice.text ?? ""), answerTextMarkdown))
+    );
   });
-  return Boolean(
-    selectedChoice &&
-      answerText &&
-      answersEquivalent(String((selectedChoice as { text?: unknown }).text ?? ""), answerText)
-  );
 }
 
 function stringList(value: unknown): string[] {

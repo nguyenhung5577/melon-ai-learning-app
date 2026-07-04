@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -9,10 +10,12 @@ import {
   Clock3,
   Eye,
   FileText,
+  History,
   RefreshCcw,
   Sparkles,
   Target,
   Trophy,
+  XCircle,
 } from "lucide-react";
 import { auth } from "@/lib/auth/firebase";
 import { NbButton } from "@/components/shared/NbButton";
@@ -42,6 +45,27 @@ type ExamResult = {
   durationSeconds: number;
 };
 
+type ExamHistoryItem = {
+  id: string;
+  questionSetId: string;
+  title: string;
+  grade?: number;
+  submittedAt: string;
+  total: number;
+  answered: number;
+  correct: number;
+  durationSeconds: number;
+  source: "saved" | "local";
+};
+
+type CompoundPart = {
+  key: string;
+  label: string;
+  text: string;
+  answerText?: string;
+  explanation?: string;
+};
+
 function textValue(value: unknown) {
   return String(value ?? "");
 }
@@ -51,19 +75,26 @@ function normalizeAnswer(value: unknown) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ")
+    .replace(/(?<=\d)\s(?=\d{3}\b)/g, "")
     .replace(/(\d),(\d)/g, "$1.$2")
     .replace(/^(-?\d+)\s+(-?\d+)$/g, "$1/$2")
     .replace(/[.,;:]$/g, "");
 }
 
 function hasAnswerData(question: QuestionBankQuestion) {
-  return Boolean(textValue(question.answer).trim() || textValue(question.answerText).trim());
+  return Boolean(
+      textValue(question.answer).trim() ||
+      textValue(question.answerText).trim() ||
+      textValue(question.answerTextMarkdown).trim() ||
+      (question.subQuestions ?? []).some((subQuestion) => (
+        textValue(subQuestion.answerText).trim() || textValue(subQuestion.answerTextMarkdown).trim()
+      ))
+  );
 }
 
 function hasValidChoices(question: QuestionBankQuestion) {
   const choices = question.choices ?? [];
-  return choices.length >= 2 &&
-    choices.every((choice) => textValue(choice.key).trim() && textValue(choice.text).trim());
+  return choices.length >= 2 && choices.every((choice) => textValue(choice.text).trim());
 }
 
 function questionReferencesVisual(question: QuestionBankQuestion) {
@@ -73,6 +104,118 @@ function questionReferencesVisual(question: QuestionBankQuestion) {
 
 function hasQuestionImage(question: QuestionBankQuestion) {
   return (question.imageUrls ?? []).some((url) => /^https?:\/\//i.test(textValue(url).trim()) || /^data:image\//i.test(textValue(url).trim()));
+}
+
+function fallbackCompoundLabel(index: number) {
+  return String.fromCharCode(97 + index);
+}
+
+function normalizeCompoundLabel(value: unknown, index: number) {
+  const fallback = fallbackCompoundLabel(index);
+  const label = textValue(value).trim().toLowerCase();
+  return label.match(/([a-z])\s*$/i)?.[1]?.toLowerCase() ?? fallback;
+}
+
+function displayCompoundLabel(value: unknown, index: number) {
+  return textValue(value).trim().match(/([a-z])\s*$/i)?.[1] || fallbackCompoundLabel(index);
+}
+
+function subQuestionCompoundParts(question: QuestionBankQuestion): CompoundPart[] {
+  return (question.subQuestions ?? [])
+    .map((subQuestion, index) => ({
+      key: normalizeCompoundLabel(subQuestion.label, index),
+      label: displayCompoundLabel(subQuestion.label, index),
+      text: textValue(subQuestion.stemMarkdown || subQuestion.stem).trim(),
+      answerText: textValue(subQuestion.answerTextMarkdown || subQuestion.answerText).trim(),
+      explanation: textValue(subQuestion.explanation).trim(),
+    }))
+    .filter((part) => part.text.length > 0 || textValue(part.answerText).trim().length > 0);
+}
+
+function splitCompoundPrompt(stem: string): { lead: string; parts: CompoundPart[] } {
+  const matches = Array.from(stem.matchAll(/([a-dA-D])\)\s*/g));
+  if (matches.length < 2) return { lead: stem, parts: [] };
+
+  const firstIndex = matches[0].index ?? 0;
+  const lead = stem.slice(0, firstIndex).trim().replace(/:\s*$/, "");
+  const parts = matches.map((match, index) => {
+    const start = (match.index ?? 0) + match[0].length;
+    const end = matches[index + 1]?.index ?? stem.length;
+    const key = match[1].toLowerCase();
+    return {
+      key,
+      label: key,
+      text: stem.slice(start, end).trim().replace(/[.;,]\s*$/, ""),
+    };
+  }).filter((part) => part.text.length > 0);
+
+  return parts.length >= 2 ? { lead, parts } : { lead: stem, parts: [] };
+}
+
+function compoundPromptForQuestion(question: QuestionBankQuestion) {
+  const subQuestionParts = subQuestionCompoundParts(question);
+  if (subQuestionParts.length > 0) {
+    return { lead: textValue(question.stemMarkdown || question.stem), parts: subQuestionParts };
+  }
+
+  return splitCompoundPrompt(textValue(question.stemMarkdown || question.stem));
+}
+
+function answerKey(question: QuestionBankQuestion, part?: CompoundPart) {
+  return part ? `${question.id}::${part.key}` : question.id;
+}
+
+function submittedAnswerForQuestion(question: QuestionBankQuestion, answers: Record<string, string>) {
+  const parts = compoundPromptForQuestion(question).parts;
+  if (parts.length === 0) return answers[question.id] ?? "";
+
+  return parts
+    .map((part) => `${part.key}) ${(answers[answerKey(question, part)] ?? "").trim()}`)
+    .join("; ");
+}
+
+function hasAnyQuestionAnswer(question: QuestionBankQuestion, answers: Record<string, string>) {
+  const parts = compoundPromptForQuestion(question).parts;
+  if (parts.length === 0) return (answers[question.id] ?? "").trim().length > 0;
+  return parts.some((part) => (answers[answerKey(question, part)] ?? "").trim().length > 0);
+}
+
+function isQuestionAnswered(question: QuestionBankQuestion, answers: Record<string, string>) {
+  const parts = compoundPromptForQuestion(question).parts;
+  if (parts.length === 0) return (answers[question.id] ?? "").trim().length > 0;
+  return parts.every((part) => (answers[answerKey(question, part)] ?? "").trim().length > 0);
+}
+
+function parseLabeledAnswerParts(value: unknown, labels: string[]): Record<string, string> | null {
+  const text = textValue(value).trim();
+  if (!text) return null;
+
+  const matches = Array.from(text.matchAll(/([a-z])\s*[\).:]\s*/giu))
+    .filter((match) => match.index !== undefined);
+
+  if (matches.length > 0) {
+    const parts: Record<string, string> = {};
+    for (let index = 0; index < matches.length; index += 1) {
+      const label = matches[index][1].toLowerCase();
+      const start = (matches[index].index ?? 0) + matches[index][0].length;
+      const end = matches[index + 1]?.index ?? text.length;
+      const answer = text.slice(start, end).trim().replace(/^[\s;,-]+|[\s;,-]+$/g, "");
+      if (labels.includes(label) && answer) parts[label] = answer;
+    }
+
+    return Object.keys(parts).length > 0 ? parts : null;
+  }
+
+  const chunks = text
+    .split(/\s*(?:;|\n|\|)\s*/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (chunks.length !== labels.length) return null;
+
+  return labels.reduce<Record<string, string>>((items, label, index) => {
+    items[label] = chunks[index];
+    return items;
+  }, {});
 }
 
 function isExamReadyQuestion(question: QuestionBankQuestion) {
@@ -119,13 +262,106 @@ function rubricLabel(level: RubricLevel) {
 function isLocallyCorrect(question: QuestionBankQuestion, submittedAnswer: string) {
   const submitted = normalizeAnswer(submittedAnswer);
   if (!submitted) return false;
+
+  const compoundPrompt = compoundPromptForQuestion(question);
+  const expectedSubAnswers = compoundPrompt.parts.filter((part) => textValue(part.answerText).trim());
+  if (expectedSubAnswers.length > 0) {
+    const labels = compoundPrompt.parts.map((part) => part.key);
+    const submittedParts = parseLabeledAnswerParts(submittedAnswer, labels);
+    if (submittedParts) {
+      return expectedSubAnswers.every((part) => (
+        normalizeAnswer(submittedParts[part.key]) === normalizeAnswer(part.answerText)
+      ));
+    }
+  }
+
   const expectedAnswer = normalizeAnswer(question.answer);
   const expectedText = normalizeAnswer(question.answerText);
+  const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
   if (expectedAnswer && submitted === expectedAnswer) return true;
   if (expectedText && submitted === expectedText) return true;
+  if (expectedMarkdown && submitted === expectedMarkdown) return true;
 
-  const selectedChoice = (question.choices ?? []).find((choice) => normalizeAnswer(choice.key) === submitted);
-  return Boolean(selectedChoice && expectedText && normalizeAnswer(selectedChoice.text) === expectedText);
+  const selectedChoice = (question.choices ?? []).find((choice, index) => (
+    normalizeAnswer(choiceDisplayKey(choice, index)) === submitted ||
+    normalizeAnswer(choice.text) === submitted
+  ));
+  const expectedChoiceText = expectedText || expectedMarkdown;
+  return Boolean(selectedChoice && expectedChoiceText && normalizeAnswer(selectedChoice.text) === expectedChoiceText);
+}
+
+function choiceDisplayKey(choice: QuestionBankQuestion["choices"][number], index: number) {
+  return choice.key || ["A", "B", "C", "D"][index] || String(index + 1);
+}
+
+function isCorrectChoice(question: QuestionBankQuestion, choice: QuestionBankQuestion["choices"][number], index: number) {
+  const expectedAnswer = normalizeAnswer(question.answer);
+  const expectedText = normalizeAnswer(question.answerText);
+  const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
+  const choiceKey = normalizeAnswer(choiceDisplayKey(choice, index));
+  const choiceText = normalizeAnswer(choice.text);
+
+  return Boolean(
+    (expectedAnswer && (choiceKey === expectedAnswer || choiceText === expectedAnswer)) ||
+      (expectedText && (choiceKey === expectedText || choiceText === expectedText)) ||
+      (expectedMarkdown && (choiceKey === expectedMarkdown || choiceText === expectedMarkdown))
+  );
+}
+
+function correctChoiceLabel(question: QuestionBankQuestion) {
+  const choice = (question.choices ?? []).find((item, index) => isCorrectChoice(question, item, index));
+  if (choice) {
+    const index = question.choices.indexOf(choice);
+    return `${choiceDisplayKey(choice, index)}. ${choice.text}`;
+  }
+  return standardAnswerText(question);
+}
+
+function submittedChoiceLabel(question: QuestionBankQuestion, answer: string) {
+  const submitted = normalizeAnswer(answer);
+  const choice = (question.choices ?? []).find((item, index) => (
+    normalizeAnswer(choiceDisplayKey(item, index)) === submitted || normalizeAnswer(item.text) === submitted
+  ));
+  if (choice) {
+    const index = question.choices.indexOf(choice);
+    return `${choiceDisplayKey(choice, index)}. ${choice.text}`;
+  }
+  return answer;
+}
+
+function standardAnswerText(question: QuestionBankQuestion) {
+  return textValue(question.answerTextMarkdown || question.answerText || question.answer).trim();
+}
+
+function shortAnswerPlaceholder(question: QuestionBankQuestion) {
+  const expected = normalizeAnswer(standardAnswerText(question));
+  if (/^-?\d+\s*\/\s*-?\d+$/.test(expected)) return "Vi du: 3/4";
+  if (/^-?\d+(?:[.,]\d+)?$/.test(expected)) return "Vi du: 124349 (khong can dau cach)";
+  return "Nhap dap an ngan";
+}
+
+function subAnswerResults(question: QuestionBankQuestion, answers: Record<string, string>) {
+  const parts = compoundPromptForQuestion(question).parts;
+  const expectedFromSubQuestions = parts.reduce<Record<string, string>>((items, part) => {
+    if (textValue(part.answerText).trim()) items[part.key] = textValue(part.answerText);
+    return items;
+  }, {});
+  const labels = parts.map((part) => part.key);
+  const expected = Object.keys(expectedFromSubQuestions).length > 0
+    ? expectedFromSubQuestions
+    : parseLabeledAnswerParts(question.answerText, labels) ??
+      parseLabeledAnswerParts(question.answer, labels) ??
+      parseLabeledAnswerParts(question.explanation, labels);
+
+  if (!expected) return {};
+
+  return parts.reduce<Record<string, boolean>>((items, part) => {
+    const correct = normalizeAnswer(expected[part.key]);
+    if (correct) {
+      items[part.key] = normalizeAnswer(answers[answerKey(question, part)]) === correct;
+    }
+    return items;
+  }, {});
 }
 
 function resultTone(correct: number, total: number) {
@@ -151,6 +387,28 @@ function resultTone(correct: number, total: number) {
   };
 }
 
+function historyStorageKey(uid: string) {
+  return `melon:practice-exam-history:${uid}`;
+}
+
+function writeLocalExamHistory(uid: string, items: ExamHistoryItem[]) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(historyStorageKey(uid), JSON.stringify(items.slice(0, 20)));
+}
+
+function readLocalExamHistory(uid: string): ExamHistoryItem[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage.getItem(historyStorageKey(uid));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ExamHistoryItem[];
+    return Array.isArray(parsed) ? parsed.filter((item) => item?.questionSetId && item?.submittedAt) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function PracticeExamPanel({
   uid,
   questionSets,
@@ -158,6 +416,7 @@ export function PracticeExamPanel({
   loading = false,
   onSessionChange,
 }: PracticeExamPanelProps) {
+  const router = useRouter();
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -194,7 +453,7 @@ export function PracticeExamPanel({
   );
   const currentQuestion = activeExam?.questions[currentIndex] ?? null;
   const answeredCount = activeExam
-    ? activeExam.questions.filter((question) => (answers[question.id] ?? "").trim().length > 0).length
+    ? activeExam.questions.filter((question) => isQuestionAnswered(question, answers)).length
     : 0;
 
   useEffect(() => {
@@ -218,11 +477,12 @@ export function PracticeExamPanel({
 
     try {
       await Promise.all(activeExam.questions.map(async (question) => {
-        const submittedAnswer = answers[question.id] ?? "";
-        if (submittedAnswer.trim()) answered += 1;
+        const submittedAnswer = submittedAnswerForQuestion(question, answers);
+        const hasAnyAnswer = hasAnyQuestionAnswer(question, answers);
+        if (isQuestionAnswered(question, answers)) answered += 1;
 
-        if (!token || !submittedAnswer.trim()) {
-          if (submittedAnswer.trim() && isLocallyCorrect(question, submittedAnswer)) {
+        if (!token || !hasAnyAnswer) {
+          if (hasAnyAnswer && isLocallyCorrect(question, submittedAnswer)) {
             correct += 1;
           }
           return;
@@ -247,17 +507,33 @@ export function PracticeExamPanel({
         if (isCorrect) correct += 1;
       }));
 
-      setResult({
+      const nextResult = {
         total: activeExam.questions.length,
         correct,
         answered,
         durationSeconds: Math.max(1, Math.round(totalElapsedMs / 1000)),
-      });
+      };
+      setResult(nextResult);
+      if (uid) {
+        const historyItem: ExamHistoryItem = {
+          id: `local-${activeExam.set.id}-${Date.now()}`,
+          questionSetId: activeExam.set.id,
+          title: activeExam.set.title,
+          grade: activeExam.set.grade,
+          submittedAt: new Date().toISOString(),
+          total: nextResult.total,
+          answered: nextResult.answered,
+          correct: nextResult.correct,
+          durationSeconds: nextResult.durationSeconds,
+          source: "local",
+        };
+        writeLocalExamHistory(uid, [historyItem, ...readLocalExamHistory(uid)]);
+      }
       setReviewMode(false);
     } finally {
       setSubmitting(false);
     }
-  }, [activeExam, answers, result, submitting]);
+  }, [activeExam, answers, result, submitting, uid]);
 
   useEffect(() => {
     if (!activeExam) return;
@@ -442,9 +718,9 @@ export function PracticeExamPanel({
             <div className="text-[0.78rem] font-black uppercase text-[#666]">Tiến độ từng câu</div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
               {activeExam.questions.map((question, index) => {
-                const answer = answers[question.id] ?? "";
-                const isAnswered = answer.trim().length > 0;
-                const isCorrect = isAnswered && isLocallyCorrect(question, answer);
+                const submittedAnswer = submittedAnswerForQuestion(question, answers);
+                const isAnswered = isQuestionAnswered(question, answers);
+                const isCorrect = isAnswered && isLocallyCorrect(question, submittedAnswer);
                 const cardTone = !isAnswered ? "bg-[#fff7e8]" : isCorrect ? "bg-[#eafaf0]" : "bg-[#ffe8e8]";
 
                 return (
@@ -478,6 +754,11 @@ export function PracticeExamPanel({
   if (activeExam && currentQuestion) {
     const isMultipleChoice = currentQuestion.type === "multiple_choice" && currentQuestion.choices.length > 0;
     const currentAnswer = answers[currentQuestion.id] ?? "";
+    const compoundPrompt = compoundPromptForQuestion(currentQuestion);
+    const isCompoundQuestion = !isMultipleChoice && compoundPrompt.parts.length > 0;
+    const currentSubResults = result ? subAnswerResults(currentQuestion, answers) : {};
+    const correctAnswerLabel = isMultipleChoice ? correctChoiceLabel(currentQuestion) : standardAnswerText(currentQuestion);
+    const submittedAnswerLabel = isMultipleChoice && currentAnswer ? submittedChoiceLabel(currentQuestion, currentAnswer) : "";
 
     return (
       <div className="flex min-h-dvh flex-col bg-nb-bg">
@@ -527,7 +808,7 @@ export function PracticeExamPanel({
               Câu {currentQuestion.questionNumber}
             </div>
             <h2 className="mt-2 font-display text-[clamp(1.15rem,2.2vw,1.6rem)] leading-relaxed text-nb-black">
-              {currentQuestion.stem}
+              {isCompoundQuestion ? compoundPrompt.lead : currentQuestion.stem}
             </h2>
 
             <div className="mt-5">
@@ -535,28 +816,114 @@ export function PracticeExamPanel({
             </div>
 
             {isMultipleChoice ? (
-              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {currentQuestion.choices.map((choice, index) => {
-                  const letter = choice.key || ["A", "B", "C", "D"][index] || String(index + 1);
-                  const selected = currentAnswer === letter;
+              <div className="mt-6">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {currentQuestion.choices.map((choice, index) => {
+                    const letter = choiceDisplayKey(choice, index);
+                    const selected = currentAnswer === letter;
+                    const correctChoice = result ? isCorrectChoice(currentQuestion, choice, index) : false;
+                    const wrongSelected = Boolean(result && selected && !correctChoice);
+
+                    return (
+                      <button
+                        key={`${currentQuestion.id}-choice-${index}-${choice.key || "missing"}`}
+                        type="button"
+                        disabled={Boolean(result)}
+                        onClick={() => setAnswers((items) => ({ ...items, [currentQuestion.id]: letter }))}
+                        className={cn(
+                          "flex min-h-24 items-center gap-4 rounded-[18px] p-5 text-left",
+                          "[border:var(--nb-border)] [box-shadow:6px_6px_0_var(--nb-black)] transition-all duration-150",
+                          !result && (selected ? "bg-nb-yellow" : "bg-white hover:-translate-x-0.5 hover:-translate-y-0.5"),
+                          result && correctChoice && "bg-[#e9fff1] [border-color:var(--nb-green)] [box-shadow:6px_6px_0_var(--nb-green)]",
+                          result && wrongSelected && "bg-[#ffe8e8] [border-color:var(--nb-red)] [box-shadow:6px_6px_0_var(--nb-red)]",
+                          result && !correctChoice && !wrongSelected && "bg-white opacity-75",
+                          result ? "cursor-default hover:translate-x-0 hover:translate-y-0" : ""
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-10 w-10 items-center justify-center rounded-full [border:3px_solid_var(--nb-black)] font-display text-[0.85rem]",
+                            result && correctChoice && "bg-nb-green text-white",
+                            result && wrongSelected && "bg-nb-red text-white"
+                          )}
+                        >
+                          {result && correctChoice ? <CheckCircle2 className="h-5 w-5" /> : result && wrongSelected ? <XCircle className="h-5 w-5" /> : letter}
+                        </span>
+                        <span className="font-body flex-1 text-base font-bold leading-snug">{choice.text}</span>
+                        {result && correctChoice ? (
+                          <span className="rounded-full bg-nb-green px-3 py-1 text-xs font-black uppercase text-white">
+                            Đáp án đúng
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {result && correctAnswerLabel ? (
+                  <div className="mt-4 rounded-[18px] bg-[#e9fff1] p-4 text-sm font-bold leading-relaxed text-nb-black [border:var(--nb-border)]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-nb-green" />
+                      <span>Đáp án đúng: {correctAnswerLabel}</span>
+                    </div>
+                    {submittedAnswerLabel && submittedAnswerLabel !== correctAnswerLabel ? (
+                      <div className="mt-2 text-[#666]">Con đã chọn: {submittedAnswerLabel}</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : isCompoundQuestion ? (
+              <div className="mt-6 grid grid-cols-1 gap-4">
+                {compoundPrompt.parts.map((part) => {
+                  const key = answerKey(currentQuestion, part);
+                  const partAnswer = answers[key] ?? "";
+                  const partResult = currentSubResults[part.key];
+                  const hasPartResult = partResult !== undefined;
+
                   return (
-                    <button
-                      key={`${currentQuestion.id}-choice-${index}-${choice.key || "missing"}`}
-                      type="button"
-                      disabled={Boolean(result)}
-                      onClick={() => setAnswers((items) => ({ ...items, [currentQuestion.id]: letter }))}
+                    <div
+                      key={part.key}
                       className={cn(
-                        "flex min-h-24 items-center gap-4 rounded-[18px] p-5 text-left",
-                        "[border:var(--nb-border)] [box-shadow:6px_6px_0_var(--nb-black)] transition-all duration-150",
-                        selected ? "bg-nb-yellow" : "bg-white hover:-translate-x-0.5 hover:-translate-y-0.5",
-                        result ? "cursor-default hover:translate-x-0 hover:translate-y-0" : ""
+                        "rounded-[18px] bg-white p-4 [border:var(--nb-border)]",
+                        hasPartResult && partResult && "bg-[#e9fff1]",
+                        hasPartResult && !partResult && "bg-[#fff0c8]"
                       )}
                     >
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full [border:3px_solid_var(--nb-black)] font-display text-[0.85rem]">
-                        {letter}
-                      </span>
-                      <span className="font-body flex-1 text-base font-bold leading-snug">{choice.text}</span>
-                    </button>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(220px,0.45fr)_auto] md:items-center">
+                        <div>
+                          <div className="inline-flex rounded-md bg-nb-black px-2 py-1 font-display text-[0.65rem] uppercase text-white">
+                            Ý {part.label}
+                          </div>
+                          <div className="mt-3 whitespace-pre-line text-base font-black leading-relaxed text-nb-black">
+                            {part.text}
+                          </div>
+                          {result && textValue(part.answerText).trim() ? (
+                            <div className="mt-2 text-sm font-bold text-[#555]">
+                              Đáp án chuẩn: {part.answerText}
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <input
+                          className={cn(
+                            "nb-input text-base",
+                            hasPartResult && partResult && "border-nb-green",
+                            hasPartResult && !partResult && "border-nb-red"
+                          )}
+                          value={partAnswer}
+                          disabled={Boolean(result)}
+                          onChange={(event) => setAnswers((items) => ({ ...items, [key]: event.target.value }))}
+                          placeholder={`Nhập đáp án ${part.label}`}
+                        />
+
+                        {hasPartResult ? (
+                          <div className={cn("flex items-center gap-1 font-display text-[0.78rem]", partResult ? "text-nb-green" : "text-nb-red")}>
+                            {partResult ? <CheckCircle2 className="h-6 w-6" /> : <XCircle className="h-6 w-6" />}
+                            {partResult ? "Đúng" : "Sai"}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -568,8 +935,19 @@ export function PracticeExamPanel({
                   value={currentAnswer}
                   disabled={Boolean(result)}
                   onChange={(event) => setAnswers((items) => ({ ...items, [currentQuestion.id]: event.target.value }))}
-                  placeholder="Nhập đáp án ngắn"
+                  placeholder={shortAnswerPlaceholder(currentQuestion)}
                 />
+                {result && correctAnswerLabel ? (
+                  <div className="mt-4 rounded-[18px] bg-[#e9fff1] p-4 text-sm font-bold leading-relaxed text-nb-black [border:var(--nb-border)]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-nb-green" />
+                      <span>Đáp án chuẩn: {correctAnswerLabel}</span>
+                    </div>
+                    {currentAnswer.trim() && normalizeAnswer(currentAnswer) !== normalizeAnswer(correctAnswerLabel) ? (
+                      <div className="mt-2 text-[#666]">Con đã nhập: {currentAnswer}</div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -630,9 +1008,20 @@ export function PracticeExamPanel({
             </NbPill>
           </div>
         </div>
-        <NbPill color="yellow" icon={<Clock3 className="h-3 w-3" />}>
-          {exams.length} đề
-        </NbPill>
+        <div className="flex flex-wrap items-center gap-2">
+          <NbButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/practice/history")}
+            icon={<History className="h-4 w-4" />}
+          >
+            Lịch sử
+          </NbButton>
+          <NbPill color="yellow" icon={<Clock3 className="h-3 w-3" />}>
+            {exams.length} đề
+          </NbPill>
+        </div>
       </div>
 
       {loading ? (

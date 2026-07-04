@@ -40,8 +40,11 @@ interface PersonalizedExercisePanelProps {
 type AnswerState = "idle" | "correct" | "wrong";
 
 type CompoundPart = {
+  key: string;
   label: string;
   text: string;
+  answerText?: string;
+  explanation?: string;
 };
 
 type FractionValue = {
@@ -258,6 +261,7 @@ function normalizeAnswer(value: unknown) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ")
+    .replace(/(?<=\d)\s(?=\d{3}\b)/g, "")
     .replace(/(\d),(\d)/g, "$1.$2")
     .replace(/^(-?\d+)\s+(-?\d+)$/g, "$1/$2")
     .replace(/[.,;:]$/g, "");
@@ -335,6 +339,32 @@ function inferQuestionConcepts(question: QuestionBankQuestion): string[] {
   return concepts.size > 0 ? Array.from(concepts) : explicit;
 }
 
+function fallbackCompoundLabel(index: number) {
+  return String.fromCharCode(97 + index);
+}
+
+function normalizeCompoundLabel(value: unknown, index: number) {
+  const fallback = fallbackCompoundLabel(index);
+  const label = cleanQuestionText(value).toLowerCase();
+  return label.match(/([a-z])\s*$/i)?.[1]?.toLowerCase() ?? fallback;
+}
+
+function displayCompoundLabel(value: unknown, index: number) {
+  return cleanQuestionText(value).match(/([a-z])\s*$/i)?.[1] || fallbackCompoundLabel(index);
+}
+
+function subQuestionCompoundParts(question: QuestionBankQuestion): CompoundPart[] {
+  return (question.subQuestions ?? [])
+    .map((subQuestion, index) => ({
+      key: normalizeCompoundLabel(subQuestion.label, index),
+      label: displayCompoundLabel(subQuestion.label, index),
+      text: cleanQuestionText(subQuestion.stemMarkdown || subQuestion.stem),
+      answerText: cleanQuestionText(subQuestion.answerTextMarkdown || subQuestion.answerText),
+      explanation: cleanQuestionText(subQuestion.explanation),
+    }))
+    .filter((part) => part.text.length > 0 || textValue(part.answerText).trim().length > 0);
+}
+
 function splitCompoundPrompt(stem: string): { lead: string; parts: CompoundPart[] } {
   const matches = Array.from(stem.matchAll(/([a-dA-D])\)\s*/g));
   if (matches.length < 2) {
@@ -346,8 +376,10 @@ function splitCompoundPrompt(stem: string): { lead: string; parts: CompoundPart[
   const parts = matches.map((match, index) => {
     const start = (match.index ?? 0) + match[0].length;
     const end = matches[index + 1]?.index ?? stem.length;
+    const key = match[1].toLowerCase();
     return {
-      label: match[1].toLowerCase(),
+      key,
+      label: key,
       text: stem.slice(start, end).trim().replace(/[.;,]\s*$/, ""),
     };
   }).filter((part) => part.text.length > 0);
@@ -355,9 +387,18 @@ function splitCompoundPrompt(stem: string): { lead: string; parts: CompoundPart[
   return parts.length >= 2 ? { lead, parts } : { lead: stem, parts: [] };
 }
 
+function compoundPromptForQuestion(question: QuestionBankQuestion, stem: string) {
+  const subQuestionParts = subQuestionCompoundParts(question);
+  if (subQuestionParts.length > 0) {
+    return { lead: stem, parts: subQuestionParts };
+  }
+
+  return splitCompoundPrompt(stem);
+}
+
 function formatCompoundAnswer(parts: CompoundPart[], answers: Record<string, string>) {
   return parts
-    .map((part) => `${part.label}) ${(answers[part.label] ?? "").trim()}`)
+    .map((part) => `${part.key}) ${(answers[part.key] ?? "").trim()}`)
     .join("; ");
 }
 
@@ -398,18 +439,23 @@ function compoundAnswerResults(
   parts: CompoundPart[],
   answers: Record<string, string>
 ): Record<string, boolean> | null {
-  const labels = parts.map((part) => part.label);
-  const expected =
-    parseLabeledAnswerParts(question.answerText, labels) ??
-    parseLabeledAnswerParts(question.answer, labels) ??
-    parseLabeledAnswerParts(question.explanation, labels);
+  const labels = parts.map((part) => part.key);
+  const expectedFromSubQuestions = parts.reduce<Record<string, string>>((items, part) => {
+    if (textValue(part.answerText).trim()) items[part.key] = textValue(part.answerText);
+    return items;
+  }, {});
+  const expected = Object.keys(expectedFromSubQuestions).length > 0
+    ? expectedFromSubQuestions
+    : parseLabeledAnswerParts(question.answerText, labels) ??
+      parseLabeledAnswerParts(question.answer, labels) ??
+      parseLabeledAnswerParts(question.explanation, labels);
 
   if (!expected) return null;
 
-  return labels.reduce<Record<string, boolean>>((items, label) => {
-    const submitted = normalizeAnswer(answers[label]);
-    const correct = normalizeAnswer(expected[label]);
-    if (correct) items[label] = submitted === correct;
+  return parts.reduce<Record<string, boolean>>((items, part) => {
+    const submitted = normalizeAnswer(answers[part.key]);
+    const correct = normalizeAnswer(expected[part.key]);
+    if (correct) items[part.key] = submitted === correct;
     return items;
   }, {});
 }
@@ -499,13 +545,23 @@ function hasQuestionVisual(question: QuestionBankQuestion) {
 }
 
 function hasAnswerData(question: QuestionBankQuestion) {
-  return Boolean(textValue(question.answer).trim() || textValue(question.answerText).trim());
+  return Boolean(
+      textValue(question.answer).trim() ||
+      textValue(question.answerText).trim() ||
+      textValue(question.answerTextMarkdown).trim() ||
+      (question.subQuestions ?? []).some((subQuestion) => (
+        textValue(subQuestion.answerText).trim() || textValue(subQuestion.answerTextMarkdown).trim()
+      ))
+  );
 }
 
 function hasValidChoices(question: QuestionBankQuestion) {
   const choices = question.choices ?? [];
-  return choices.length >= 2 &&
-    choices.every((choice) => textValue(choice.key).trim() && textValue(choice.text).trim());
+  return choices.length >= 2 && choices.every((choice) => textValue(choice.text).trim());
+}
+
+function choiceDisplayKey(choice: QuestionBankQuestion["choices"][number], index: number) {
+  return choice.key || ["A", "B", "C", "D"][index] || String(index + 1);
 }
 
 function emptySessionStats(): SessionCompletionStats {
@@ -591,13 +647,32 @@ function isLocallyCorrect(question: QuestionBankQuestion, answer: string) {
   const submitted = normalizeAnswer(answer);
   const expectedAnswer = normalizeAnswer(question.answer);
   const expectedText = normalizeAnswer(question.answerText);
+  const expectedMarkdown = normalizeAnswer(question.answerTextMarkdown);
 
   if (!submitted) return false;
+
+  const compoundPrompt = compoundPromptForQuestion(question, question.stemMarkdown || question.stem);
+  const expectedSubAnswers = compoundPrompt.parts.filter((part) => textValue(part.answerText).trim());
+  if (expectedSubAnswers.length > 0) {
+    const labels = compoundPrompt.parts.map((part) => part.key);
+    const submittedParts = parseLabeledAnswerParts(answer, labels);
+    if (submittedParts) {
+      return expectedSubAnswers.every((part) => (
+        normalizeAnswer(submittedParts[part.key]) === normalizeAnswer(part.answerText)
+      ));
+    }
+  }
+
   if (expectedAnswer && submitted === expectedAnswer) return true;
   if (expectedText && submitted === expectedText) return true;
+  if (expectedMarkdown && submitted === expectedMarkdown) return true;
 
-  const selectedChoice = (question.choices ?? []).find((choice) => normalizeAnswer(choice.key) === submitted);
-  return Boolean(selectedChoice && expectedText && normalizeAnswer(selectedChoice.text) === expectedText);
+  const selectedChoice = (question.choices ?? []).find((choice, index) => (
+    normalizeAnswer(choiceDisplayKey(choice, index)) === submitted ||
+    normalizeAnswer(choice.text) === submitted
+  ));
+  const expectedChoiceText = expectedText || expectedMarkdown;
+  return Boolean(selectedChoice && expectedChoiceText && normalizeAnswer(selectedChoice.text) === expectedChoiceText);
 }
 
 function conceptMatches(question: QuestionBankQuestion, action: PersonalizedNextAction) {
@@ -1180,8 +1255,8 @@ export function PersonalizedExercisePanel({
   const currentQuestion = sessionQuestions[currentIndex] ?? null;
   const displayStem = currentQuestion?.stemMarkdown || currentQuestion?.stem || "";
   const compoundPrompt = useMemo(
-    () => splitCompoundPrompt(displayStem),
-    [displayStem]
+    () => currentQuestion ? compoundPromptForQuestion(currentQuestion, displayStem) : { lead: displayStem, parts: [] },
+    [currentQuestion, displayStem]
   );
   const currentQuestionConcepts = useMemo(
     () => currentQuestion ? inferQuestionConcepts(currentQuestion) : [],
@@ -1197,7 +1272,7 @@ export function PersonalizedExercisePanel({
       ? formatFractionAnswer(fractionAnswer)
     : answer;
   const hasSubmittedAnswer = compoundPrompt.parts.length > 0
-    ? compoundPrompt.parts.every((part) => (partAnswers[part.label] ?? "").trim().length > 0)
+    ? compoundPrompt.parts.every((part) => (partAnswers[part.key] ?? "").trim().length > 0)
     : expectsFractionAnswer
       ? fractionAnswer.numerator.trim().length > 0 && fractionAnswer.denominator.trim().length > 0
     : answer.trim().length > 0;
@@ -1386,7 +1461,10 @@ export function PersonalizedExercisePanel({
         body: JSON.stringify({
           question: currentQuestion.stem,
           studentAnswer: answerForHint,
-          correctAnswer: currentQuestion.answerText || currentQuestion.answer,
+          correctAnswer: currentQuestion.answerText || currentQuestion.answer || compoundPrompt.parts
+            .filter((part) => textValue(part.answerText).trim())
+            .map((part) => `${part.key}) ${part.answerText}`)
+            .join("; "),
           topic: currentCoachingAction.concepts.map(conceptLabel).join(", ") || currentCoachingAction.title,
         }),
       });
@@ -1638,7 +1716,7 @@ export function PersonalizedExercisePanel({
               {compoundPrompt.parts.length > 0 && (
                 <div className="mt-5 grid grid-cols-1 gap-3">
                   {compoundPrompt.parts.map((part) => (
-                    <div key={part.label} className="rounded-[18px] bg-white p-4 [border:var(--nb-border)] [box-shadow:4px_4px_0_var(--nb-black)]">
+                    <div key={part.key} className="rounded-[18px] bg-white p-4 [border:var(--nb-border)] [box-shadow:4px_4px_0_var(--nb-black)]">
                       <span className="mr-3 font-display text-[0.75rem] uppercase text-nb-orange">{part.label})</span>
                       <span className="font-body text-base font-bold leading-relaxed">
                         <MathText value={part.text} renderSpacePairAsFraction={isFractionQuestion} />
@@ -1665,7 +1743,7 @@ export function PersonalizedExercisePanel({
           {isMultipleChoice ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {currentQuestion.choices.map((choice, choiceIndex) => {
-                const letter = choice.key || ["A", "B", "C", "D"][choiceIndex] || String(choiceIndex + 1);
+                const letter = choiceDisplayKey(choice, choiceIndex);
                 const isSelected = answer === letter;
                 const isCorrectChoice = answerState === "correct" && isSelected;
                 const isWrongChoice = answerState === "wrong" && isSelected;
@@ -1711,11 +1789,11 @@ export function PersonalizedExercisePanel({
           ) : compoundPrompt.parts.length > 0 ? (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {compoundPrompt.parts.map((part) => {
-                const partResult = partResults[part.label];
+                const partResult = partResults[part.key];
                 const hasPartResult = partResult !== undefined;
 
                 return (
-                  <label key={part.label} className="flex flex-col gap-2">
+                  <label key={part.key} className="flex flex-col gap-2">
                     <span className="text-xs font-black uppercase">Đáp án {part.label})</span>
                     <input
                       className={cn(
@@ -1723,10 +1801,10 @@ export function PersonalizedExercisePanel({
                         hasPartResult && partResult && "border-nb-green bg-[#e9fff1]",
                         hasPartResult && !partResult && "border-nb-red bg-[#fff0c8]"
                       )}
-                      value={partAnswers[part.label] ?? ""}
+                      value={partAnswers[part.key] ?? ""}
                       disabled={answerState === "correct"}
                       onChange={(event) => {
-                        setPartAnswers((items) => ({ ...items, [part.label]: event.target.value }));
+                        setPartAnswers((items) => ({ ...items, [part.key]: event.target.value }));
                         if (canRetry) {
                           setAnswerState("idle");
                           setPartResults({});

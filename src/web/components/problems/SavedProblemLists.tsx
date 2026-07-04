@@ -1376,6 +1376,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
         </div>
       )}
 
+      {mode === "admin" && (
       <div className="nb-card rounded-2xl bg-white p-5">
         <div className="flex items-center justify-between gap-3">
           <h4 className="font-display text-xs">
@@ -1486,6 +1487,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
           onPageChange={setSubmissionPage}
         />
       </div>
+      )}
     </div>
   );
 }
