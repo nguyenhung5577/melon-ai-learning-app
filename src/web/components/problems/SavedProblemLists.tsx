@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { where } from "firebase/firestore";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bot, ChevronLeft, ChevronRight, Eye, Pencil, Plus, RefreshCw, Save, Sparkles, Trash2, X } from "lucide-react";
 import { auth } from "@/lib/auth/firebase";
 import { collections } from "@/lib/db/firestore";
@@ -25,6 +26,14 @@ interface SavedProblemListsProps {
   mode: "admin" | "student";
   uid?: string;
   onExerciseSessionChange?: (active: boolean) => void;
+}
+
+interface SavedProblemsCacheData {
+  questionSets: QuestionSet[];
+  questions: QuestionBankQuestion[];
+  submissions: StudentSubmission[];
+  generatedSets: GeneratedQuestionSet[];
+  generatedQuestions: GeneratedQuestion[];
 }
 
 function formatDate(value?: string) {
@@ -432,6 +441,7 @@ function QuestionEditor({
 }
 
 export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedProblemListsProps) {
+  const queryClient = useQueryClient();
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [questions, setQuestions] = useState<QuestionBankQuestion[]>([]);
   const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
@@ -477,73 +487,109 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
     });
   }, [generatedSets, todayKey]);
 
-  const loadSavedProblems = useCallback(async () => {
+  const savedProblemsQueryKey = useMemo(
+    () => ["savedProblemLists", mode, uid ?? "guest"] as const,
+    [mode, uid]
+  );
+
+  const loadSavedProblems = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
-      if (mode === "admin") {
-        const [savedSets, savedQuestions, savedSubmissions] = await Promise.all([
-          queryDocuments(collections.questionSets),
-          queryDocuments(collections.questionBank),
-          queryDocuments(collections.studentSubmissions),
-        ]);
-        setQuestionSets(sortNewest(savedSets));
-        setQuestions(savedQuestions);
-        setSubmissions(sortNewest(savedSubmissions));
-      } else if (uid) {
-        const savedSubmissions = await queryDocuments(
-          collections.studentSubmissions,
-          where("uid", "==", uid)
-        );
-        const [savedSets, savedQuestions, genSets, genQuestions] = await Promise.all([
-          queryDocuments(collections.questionSets),
-          queryDocuments(collections.questionBank),
-          queryDocuments(collections.generatedQuestionSets, where("childUid", "==", uid)).catch((err) => {
-            console.error("Lỗi tải generatedQuestionSets:", err);
-            return [] as GeneratedQuestionSet[];
-          }),
-          queryDocuments(collections.generatedQuestions, where("childUid", "==", uid)).catch((err) => {
-            console.error("Lỗi tải generatedQuestions:", err);
-            return [] as GeneratedQuestion[];
-          }),
-        ]);
-        setGeneratedSets(sortNewest(genSets));
-        setGeneratedQuestions(genQuestions);
-
-        // Gộp đề AI vào danh sách đề để PracticeExamPanel dùng chung.
-        const genAsSets: QuestionSet[] = genSets.map((gs) => ({
-          id: gs.id,
-          title: gs.title,
-          grade: gs.grade,
-          subject: gs.subject,
-          language: "vi" as const,
-          sourceFiles: [],
-          createdAt: gs.createdAt,
-          updatedAt: gs.updatedAt,
-          isAiGenerated: true,
-        }));
-        const genAsQuestions: QuestionBankQuestion[] = genQuestions.map((gq) => ({
-          ...gq,
-          sourceSetId: gq.generatedSetId,
-          sourceTitle: genSets.find((s) => s.id === gq.generatedSetId)?.title ?? "Đề AI",
-          sourceFiles: [],
-          sourcePageRange: "",
-          rubricLevel: gq.rubricLevel ?? "unclassified",
-          createdBy: "ai-smart-gen",
-          updatedBy: "ai-smart-gen",
-          classifiedAt: gq.createdAt ?? null,
-        }));
-
-        setQuestionSets(sortNewest([...savedSets, ...genAsSets]));
-        setQuestions([...savedQuestions, ...genAsQuestions]);
-        setSubmissions(sortNewest(savedSubmissions));
+      if (forceRefresh) {
+        await queryClient.invalidateQueries({ queryKey: savedProblemsQueryKey });
       }
+
+      const data = await queryClient.fetchQuery<SavedProblemsCacheData>({
+        queryKey: savedProblemsQueryKey,
+        staleTime: 5 * 60 * 1000,
+        queryFn: async () => {
+          if (mode === "admin") {
+            const [savedSets, savedQuestions, savedSubmissions] = await Promise.all([
+              queryDocuments(collections.questionSets),
+              queryDocuments(collections.questionBank),
+              queryDocuments(collections.studentSubmissions),
+            ]);
+            return {
+              questionSets: sortNewest(savedSets),
+              questions: savedQuestions,
+              submissions: sortNewest(savedSubmissions),
+              generatedSets: [],
+              generatedQuestions: [],
+            };
+          }
+
+          if (!uid) {
+            return {
+              questionSets: [],
+              questions: [],
+              submissions: [],
+              generatedSets: [],
+              generatedQuestions: [],
+            };
+          }
+
+          const savedSubmissions = await queryDocuments(
+            collections.studentSubmissions,
+            where("uid", "==", uid)
+          );
+          const [savedSets, savedQuestions, genSets, genQuestions] = await Promise.all([
+            queryDocuments(collections.questionSets),
+            queryDocuments(collections.questionBank),
+            queryDocuments(collections.generatedQuestionSets, where("childUid", "==", uid)).catch((err) => {
+              console.error("Lỗi tải generatedQuestionSets:", err);
+              return [] as GeneratedQuestionSet[];
+            }),
+            queryDocuments(collections.generatedQuestions, where("childUid", "==", uid)).catch((err) => {
+              console.error("Lỗi tải generatedQuestions:", err);
+              return [] as GeneratedQuestion[];
+            }),
+          ]);
+
+          const genAsSets: QuestionSet[] = genSets.map((gs) => ({
+            id: gs.id,
+            title: gs.title,
+            grade: gs.grade,
+            subject: gs.subject,
+            language: "vi" as const,
+            sourceFiles: [],
+            createdAt: gs.createdAt,
+            updatedAt: gs.updatedAt,
+            isAiGenerated: true,
+          }));
+          const genAsQuestions: QuestionBankQuestion[] = genQuestions.map((gq) => ({
+            ...gq,
+            sourceSetId: gq.generatedSetId,
+            sourceTitle: genSets.find((s) => s.id === gq.generatedSetId)?.title ?? "Đề AI",
+            sourceFiles: [],
+            sourcePageRange: "",
+            rubricLevel: gq.rubricLevel ?? "unclassified",
+            createdBy: "ai-smart-gen",
+            updatedBy: "ai-smart-gen",
+            classifiedAt: gq.createdAt ?? null,
+          }));
+
+          return {
+            questionSets: sortNewest([...savedSets, ...genAsSets]),
+            questions: [...savedQuestions, ...genAsQuestions],
+            submissions: sortNewest(savedSubmissions),
+            generatedSets: sortNewest(genSets),
+            generatedQuestions: genQuestions,
+          };
+        },
+      });
+
+      setQuestionSets(data.questionSets);
+      setQuestions(data.questions);
+      setSubmissions(data.submissions);
+      setGeneratedSets(data.generatedSets);
+      setGeneratedQuestions(data.generatedQuestions);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Không tải được danh sách đề đã lưu.");
     } finally {
       setLoading(false);
     }
-  }, [mode, uid]);
+  }, [mode, queryClient, savedProblemsQueryKey, uid]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -675,7 +721,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
       const contentType = res.headers.get("content-type") ?? "";
       if (!contentType.includes("text/event-stream")) {
         await res.json();
-        void loadSavedProblems();
+        void loadSavedProblems(true);
         return;
       }
 
@@ -982,7 +1028,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
         <div>
           <h3 className="font-display text-sm">Đề đã lưu</h3>
         </div>
-        <NbButton variant="ghost" size="sm" loading={loading} onClick={loadSavedProblems}>
+        <NbButton variant="ghost" size="sm" loading={loading} onClick={() => void loadSavedProblems(true)}>
           <RefreshCw className="w-4 h-4" />
         </NbButton>
       </div>
@@ -1037,7 +1083,7 @@ export function SavedProblemLists({ mode, uid, onExerciseSessionChange }: SavedP
                     if (data.cached && data.message) {
                       setError(data.message);
                     }
-                    await loadSavedProblems();
+                    await loadSavedProblems(true);
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Không thể tạo đề ôn tập.");
                   } finally {
