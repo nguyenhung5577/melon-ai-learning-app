@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   BatteryCharging,
@@ -531,45 +532,31 @@ export default function LessonsPage() {
   const { user, logout } = useAuthContext();
   const userUid = user?.uid;
   const [authOpen, setAuthOpen] = useState(false);
-  const [runs, setRuns] = useState<CourseRunSnapshot[]>([]);
-  const [loading, setLoading] = useState(false);
   const [showMoreCourses, setShowMoreCourses] = useState(false);
   const [moreCoursesTab, setMoreCoursesTab] = useState<"next" | "review" | "completed">("next");
   const moreCoursesRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!userUid) return;
-
-    let mounted = true;
-
-    async function loadRuns() {
-      setLoading(true);
-      try {
-        const token = await auth?.currentUser?.getIdToken();
-        if (!token) throw new Error("Bạn cần đăng nhập để tải khóa học.");
-        const res = await fetch(`/api/v1/course-run/${userUid}?status=all`, {
-          cache: "no-store",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error ?? "Không tải được khóa học.");
-        }
-        if (!mounted) return;
-        setRuns((data.runs ?? []) as CourseRunSnapshot[]);
-      } catch {
-        if (mounted) setRuns([]);
-      } finally {
-        if (mounted) setLoading(false);
+  const runsQuery = useQuery({
+    queryKey: ["courseRuns", userUid, "all"],
+    queryFn: async () => {
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) throw new Error("Bạn cần đăng nhập để tải khóa học.");
+      const res = await fetch(`/api/v1/course-run/${userUid}?status=all`, {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Không tải được khóa học.");
       }
-    }
+      return (data.runs ?? []) as CourseRunSnapshot[];
+    },
+    enabled: Boolean(userUid && user?.role === "kid"),
+    staleTime: 2 * 60 * 1000,
+  });
 
-    void loadRuns();
-
-    return () => {
-      mounted = false;
-    };
-  }, [userUid]);
+  const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
+  const loading = runsQuery.isLoading || runsQuery.isFetching;
 
   const activeRuns = useMemo(
     () => sortRunsForLearning(runs.filter((snapshot) => snapshot.run.status === "active")),

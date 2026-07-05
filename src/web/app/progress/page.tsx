@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, BookOpen, Clock3, Sparkles, Target, TrendingUp, Trophy, Zap } from "lucide-react";
 import Link from "next/link";
 import { KidShell } from "@/components/layout/KidShell";
@@ -67,58 +68,45 @@ function difficultyLabel(rubricLevels: string[]) {
 export default function ProgressPage() {
   const { user, logout } = useAuthContext();
   const [authOpen, setAuthOpen] = useState(false);
-  const [summary, setSummary] = useState<ProgressSummary | null>(null);
-  const [plan, setPlan] = useState<StudentPersonalizedPlanRecord | null>(null);
-  const [courseRuns, setCourseRuns] = useState<CourseRunSnapshot[]>([]);
-  const [loading, setLoading] = useState(false);
+  const uid = user?.uid;
+  const progressQuery = useQuery({
+    queryKey: ["kidProgressOverview", uid],
+    queryFn: async () => {
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) throw new Error("Bạn cần đăng nhập để xem tiến độ.");
+      const headers = { Authorization: `Bearer ${token}` };
+      const [progressRes, runsRes] = await Promise.all([
+        fetch(`/api/v1/progress/${uid}`, { cache: "no-store", headers }),
+        fetch(`/api/v1/course-run/${uid}?status=all`, { cache: "no-store", headers }),
+      ]);
 
-  useEffect(() => {
-    const uid = user?.uid;
-    if (!uid) return;
+      const progressData = await progressRes.json();
+      const runsData = await runsRes.json();
 
-    let mounted = true;
-
-    async function loadData() {
-      setLoading(true);
-      try {
-        const token = await auth?.currentUser?.getIdToken();
-        if (!token) throw new Error("Bạn cần đăng nhập để xem tiến độ.");
-        const headers = { Authorization: `Bearer ${token}` };
-        const [progressRes, runsRes] = await Promise.all([
-          fetch(`/api/v1/progress/${uid}`, { cache: "no-store", headers }),
-          fetch(`/api/v1/course-run/${uid}?status=all`, { cache: "no-store", headers }),
-        ]);
-
-        const progressData = await progressRes.json();
-        const runsData = await runsRes.json();
-
-        if (!progressRes.ok) {
-          throw new Error(progressData.error ?? "Không tải được tiến độ.");
-        }
-        if (!runsRes.ok) {
-          throw new Error(runsData.error ?? "Không tải được lộ trình học.");
-        }
-
-        if (!mounted) return;
-        setSummary(progressData.summary as ProgressSummary);
-        setPlan(progressData.plan as StudentPersonalizedPlanRecord);
-        setCourseRuns((runsData.runs ?? []) as CourseRunSnapshot[]);
-      } catch {
-        if (!mounted) return;
-        setSummary(null);
-        setPlan(null);
-        setCourseRuns([]);
-      } finally {
-        if (mounted) setLoading(false);
+      if (!progressRes.ok) {
+        throw new Error(progressData.error ?? "Không tải được tiến độ.");
       }
-    }
+      if (!runsRes.ok) {
+        throw new Error(runsData.error ?? "Không tải được lộ trình học.");
+      }
 
-    void loadData();
+      return {
+        summary: progressData.summary as ProgressSummary,
+        plan: progressData.plan as StudentPersonalizedPlanRecord,
+        courseRuns: (runsData.runs ?? []) as CourseRunSnapshot[],
+      };
+    },
+    enabled: Boolean(uid && user?.role === "kid"),
+    staleTime: 2 * 60 * 1000,
+  });
 
-    return () => {
-      mounted = false;
-    };
-  }, [user?.uid]);
+  const summary = progressQuery.data?.summary ?? null;
+  const plan = progressQuery.data?.plan ?? null;
+  const courseRuns = useMemo(
+    () => progressQuery.data?.courseRuns ?? [],
+    [progressQuery.data?.courseRuns]
+  );
+  const loading = progressQuery.isLoading || progressQuery.isFetching;
 
   const activeRuns = useMemo(
     () => courseRuns.filter((snapshot) => snapshot.run.status === "active"),

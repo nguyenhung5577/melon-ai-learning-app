@@ -1,6 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { KidShell } from "@/components/layout/KidShell";
 import { PersonalizedExercisePanel } from "@/components/problems/PersonalizedExercisePanel";
@@ -8,38 +9,27 @@ import { SectionContainer } from "@/components/shared/SectionHeader";
 import { KidOnlyGuard } from "@/components/shared/KidOnlyGuard";
 import { collections } from "@/lib/db/firestore";
 import { queryDocuments } from "@/lib/db/firestore-helpers";
-import type { QuestionBankQuestion } from "@/lib/problems/types";
 import { useAuthContext } from "@/lib/auth/auth-context";
 import { useSearchParams } from "next/navigation";
 
 function StudyPageContent() {
   const { user, logout } = useAuthContext();
   const [authOpen, setAuthOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [questions, setQuestions] = useState<QuestionBankQuestion[]>([]);
   const searchParams = useSearchParams();
   const preferredCourseRunId = searchParams.get("courseRunId") ?? undefined;
+  const canLoadKidData = user?.role === "kid";
 
-  useEffect(() => {
-    let mounted = true;
+  const questionsQuery = useQuery({
+    queryKey: ["questionBank", "study"],
+    queryFn: () => queryDocuments(collections.questionBank),
+    enabled: canLoadKidData,
+    staleTime: 5 * 60 * 1000,
+  });
 
-    async function loadQuestions() {
-      setLoading(true);
-      try {
-        const savedQuestions = await queryDocuments(collections.questionBank);
-        if (!mounted) return;
-        setQuestions(savedQuestions.sort((a, b) => a.questionNumber - b.questionNumber));
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-
-    void loadQuestions();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const questions = useMemo(
+    () => [...(questionsQuery.data ?? [])].sort((a, b) => a.questionNumber - b.questionNumber),
+    [questionsQuery.data]
+  );
 
   return (
     <KidShell
@@ -54,7 +44,7 @@ function StudyPageContent() {
           <PersonalizedExercisePanel
             uid={user?.uid}
             questions={questions}
-            loadingQuestions={loading}
+            loadingQuestions={questionsQuery.isLoading || questionsQuery.isFetching}
             preferredCourseRunId={preferredCourseRunId}
             autoStart
           />
