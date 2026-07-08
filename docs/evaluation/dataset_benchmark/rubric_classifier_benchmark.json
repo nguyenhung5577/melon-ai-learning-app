@@ -1,0 +1,537 @@
+[
+  {
+    "id": "q1",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Kết quả của phép tính 25 x 4 là:",
+    "choices": [
+      {"key": "A", "text": "100"},
+      {"key": "B", "text": "90"},
+      {"key": "C", "text": "80"},
+      {"key": "D", "text": "110"}
+    ],
+    "answer": "A",
+    "answerText": "100",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q2",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Số gồm 5 trăm nghìn, 7 chục nghìn, 6 trăm và 2 đơn vị viết là:",
+    "choices": [
+      {"key": "A", "text": "570 602"},
+      {"key": "B", "text": "507 602"},
+      {"key": "C", "text": "576 002"},
+      {"key": "D", "text": "570 062"}
+    ],
+    "answer": "A",
+    "answerText": "570 602",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q3",
+    "grade": 4,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Đổi đơn vị: 4 tấn 50 kg = ... kg",
+    "choices": [],
+    "answer": "4050",
+    "answerText": "4050",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q4",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Hình nào dưới đây là hình thang?",
+    "choices": [
+      {"key": "A", "text": "Hình có 4 cạnh bằng nhau"},
+      {"key": "B", "text": "Hình có một cặp cạnh đối song song"},
+      {"key": "C", "text": "Hình có hai cặp cạnh đối song song"},
+      {"key": "D", "text": "Hình có 4 góc vuông"}
+    ],
+    "answer": "B",
+    "answerText": "Hình có một cặp cạnh đối song song",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q5",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Phân số 3/5 viết dưới dạng số thập phân là:",
+    "choices": [
+      {"key": "A", "text": "0,6"},
+      {"key": "B", "text": "0,06"},
+      {"key": "C", "text": "6,0"},
+      {"key": "D", "text": "0,35"}
+    ],
+    "answer": "A",
+    "answerText": "0,6",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q6",
+    "grade": 4,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Tìm x, biết: x - 45 = 120",
+    "choices": [],
+    "answer": "165",
+    "answerText": "165",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q7",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Công thức tính diện tích hình tròn bán kính r là:",
+    "choices": [
+      {"key": "A", "text": "S = r x 2 x 3,14"},
+      {"key": "B", "text": "S = r x r x 3,14"},
+      {"key": "C", "text": "S = r x 3,14"},
+      {"key": "D", "text": "S = r x r x 2"}
+    ],
+    "answer": "B",
+    "answerText": "S = r x r x 3,14",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q8",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Số thích hợp điền vào chỗ chấm để 3m² 5dm² = ... dm² là:",
+    "choices": [
+      {"key": "A", "text": "35"},
+      {"key": "B", "text": "305"},
+      {"key": "C", "text": "350"},
+      {"key": "D", "text": "3005"}
+    ],
+    "answer": "B",
+    "answerText": "305",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q9",
+    "grade": 5,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Chữ số 5 trong số thập phân 124,357 chỉ giá trị nào?",
+    "choices": [],
+    "answer": "5/100",
+    "answerText": "5 phần trăm",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q10",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Một góc bẹt bằng bao nhiêu độ?",
+    "choices": [
+      {"key": "A", "text": "90 độ"},
+      {"key": "B", "text": "180 độ"},
+      {"key": "C", "text": "45 độ"},
+      {"key": "D", "text": "360 độ"}
+    ],
+    "answer": "B",
+    "answerText": "180 độ",
+    "rubricLevel": "nhan_biet"
+  },
+  {
+    "id": "q11",
+    "grade": 4,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Tính diện tích một hình chữ nhật có chiều dài 15 cm và chiều rộng bằng 2/3 chiều dài.",
+    "choices": [],
+    "answer": "150",
+    "answerText": "150 cm²",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q12",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Một lớp học có 30 học sinh, trong đó có 12 học sinh nữ. Tỉ số phần trăm của học sinh nữ so với học sinh cả lớp là:",
+    "choices": [
+      {"key": "A", "text": "40%"},
+      {"key": "B", "text": "30%"},
+      {"key": "C", "text": "12%"},
+      {"key": "D", "text": "60%"}
+    ],
+    "answer": "A",
+    "answerText": "40%",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q13",
+    "grade": 4,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Tính trung bình cộng của các số sau: 23, 45, 12, 80.",
+    "choices": [],
+    "answer": "40",
+    "answerText": "40",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q14",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Diện tích hình thang có đáy lớn 12cm, đáy bé 8cm và chiều cao 5cm là:",
+    "choices": [
+      {"key": "A", "text": "50 cm²"},
+      {"key": "B", "text": "100 cm²"},
+      {"key": "C", "text": "80 cm²"},
+      {"key": "D", "text": "48 cm²"}
+    ],
+    "answer": "A",
+    "answerText": "50 cm²",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q15",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Chu vi hình vuông có diện tích 36 cm² là:",
+    "choices": [
+      {"key": "A", "text": "24 cm"},
+      {"key": "B", "text": "16 cm"},
+      {"key": "C", "text": "36 cm"},
+      {"key": "D", "text": "12 cm"}
+    ],
+    "answer": "A",
+    "answerText": "24 cm",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q16",
+    "grade": 5,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Một ô tô đi được 120 km trong 2 giờ 30 phút. Tính vận tốc của ô tô đó theo đơn vị km/giờ.",
+    "choices": [],
+    "answer": "48",
+    "answerText": "48 km/giờ",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q17",
+    "grade": 4,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Tìm x, biết: (x + 12) x 3 = 90",
+    "choices": [],
+    "answer": "18",
+    "answerText": "18",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q18",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Thể tích hình lập phương có cạnh 4dm là:",
+    "choices": [
+      {"key": "A", "text": "64 dm³"},
+      {"key": "B", "text": "16 dm³"},
+      {"key": "C", "text": "96 dm³"},
+      {"key": "D", "text": "12 dm³"}
+    ],
+    "answer": "A",
+    "answerText": "64 dm³",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q19",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Phân số nào sau đây lớn hơn phân số 4/7?",
+    "choices": [
+      {"key": "A", "text": "3/7"},
+      {"key": "B", "text": "5/7"},
+      {"key": "C", "text": "4/9"},
+      {"key": "D", "text": "1/2"}
+    ],
+    "answer": "B",
+    "answerText": "5/7",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q20",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Một bể cá dạng hình hộp chữ nhật có chiều dài 1,2m, chiều rộng 0,8m và chiều cao 0,6m. Diện tích kính dùng để làm bể cá đó (bể không có nắp) là:",
+    "choices": [
+      {"key": "A", "text": "3,36 m²"},
+      {"key": "B", "text": "2,4 m²"},
+      {"key": "C", "text": "3,0 m²"},
+      {"key": "D", "text": "1,92 m²"}
+    ],
+    "answer": "A",
+    "answerText": "3,36 m²",
+    "rubricLevel": "thong_hieu"
+  },
+  {
+    "id": "q21",
+    "grade": 4,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Một cửa hàng ngày thứ nhất bán được 120 kg gạo. Ngày thứ hai bán được bằng 3/4 số gạo ngày thứ nhất. Ngày thứ ba bán được nhiều hơn ngày thứ hai 20 kg gạo. Hỏi trung bình mỗi ngày cửa hàng bán được bao nhiêu kg gạo?",
+    "choices": [],
+    "answer": "103.33",
+    "answerText": "103.33 kg",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q22",
+    "grade": 5,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Hiện nay tuổi mẹ gấp 3 lần tuổi con. Biết rằng 4 năm trước, mẹ hơn con 24 tuổi. Hỏi hiện nay mẹ bao nhiêu tuổi, con bao nhiêu tuổi?",
+    "choices": [],
+    "answer": "mẹ 36 tuổi, con 12 tuổi",
+    "answerText": "mẹ: 36 tuổi, con: 12 tuổi",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q23",
+    "grade": 4,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Hai vòi nước cùng chảy vào một bể không có nước. Vòi thứ nhất mỗi giờ chảy được 1/4 bể, vòi thứ hai mỗi giờ chảy được 1/5 bể. Hỏi sau bao lâu thì bể đầy nước?",
+    "choices": [],
+    "answer": "20/9",
+    "answerText": "20/9 giờ (hoặc 2 giờ 13 phút 20 giây)",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q24",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Một mảnh đất hình chữ nhật có chu vi là 120m. Chiều rộng bằng 3/5 chiều dài. Người ta trồng rau trên mảnh đất đó, cứ 10m² thu hoạch được 15kg rau. Hỏi cả mảnh đất thu hoạch được bao nhiêu tạ rau?",
+    "choices": [
+      {"key": "A", "text": "12,65 tạ"},
+      {"key": "B", "text": "12,66 tạ"},
+      {"key": "C", "text": "12,75 tạ"},
+      {"key": "D", "text": "12,85 tạ"}
+    ],
+    "answer": "C",
+    "answerText": "12,75 tạ",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q25",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Tổng của hai số là 156. Nếu giảm số thứ nhất đi 3 lần thì được số thứ hai. Tìm hai số đó.",
+    "choices": [
+      {"key": "A", "text": "117 và 39"},
+      {"key": "B", "text": "120 và 36"},
+      {"key": "C", "text": "100 và 56"},
+      {"key": "D", "text": "110 và 46"}
+    ],
+    "answer": "A",
+    "answerText": "117 và 39",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q26",
+    "grade": 5,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Một người đi xe máy từ A đến B với vận tốc 35 km/giờ. Sau khi xe máy đi được 1 giờ 30 phút, một ô tô cũng đi từ A đến B với vận tốc 50 km/giờ. Hỏi sau bao lâu kể từ lúc ô tô bắt đầu đi thì ô tô đuổi kịp xe máy?",
+    "choices": [],
+    "answer": "3.5",
+    "answerText": "3,5 giờ (3 giờ 30 phút)",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q27",
+    "grade": 4,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Một thửa ruộng hình chữ nhật có chiều dài gấp đôi chiều rộng. Nếu tăng chiều rộng thêm 5m và giảm chiều dài đi 5m thì diện tích thửa ruộng tăng thêm 25 m². Tính diện tích ban đầu của thửa ruộng.",
+    "choices": [],
+    "answer": "200",
+    "answerText": "200 m²",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q28",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Lượng nước trong hạt tươi là 16%. Người ta đem phơi 200 kg hạt tươi thì thu được hạt khô đã giảm bớt 20 kg. Hỏi lượng nước trong hạt khô chiếm bao nhiêu phần trăm?",
+    "choices": [
+      {"key": "A", "text": "6,67%"},
+      {"key": "B", "text": "6,75%"},
+      {"key": "C", "text": "7%"},
+      {"key": "D", "text": "8%"}
+    ],
+    "answer": "A",
+    "answerText": "6,67%",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q29",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Tìm một số tự nhiên có hai chữ số, biết rằng nếu viết thêm chữ số 9 vào bên trái số đó ta được một số lớn gấp 13 lần số phải tìm.",
+    "choices": [
+      {"key": "A", "text": "75"},
+      {"key": "B", "text": "65"},
+      {"key": "C", "text": "85"},
+      {"key": "D", "text": "55"}
+    ],
+    "answer": "A",
+    "answerText": "75",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q30",
+    "grade": 5,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Một công việc nếu chỉ một mình tổ 1 làm thì hết 6 giờ, nếu chỉ một mình tổ 2 làm thì hết 9 giờ. Lúc đầu cả hai tổ cùng làm chung trong 2 giờ, sau đó tổ 1 đi làm việc khác, chỉ còn tổ 2 làm tiếp cho đến khi hoàn thành công việc. Hỏi tổ 2 phải làm tiếp trong bao lâu nữa để xong công việc?",
+    "choices": [],
+    "answer": "4",
+    "answerText": "4 giờ",
+    "rubricLevel": "van_dung"
+  },
+  {
+    "id": "q31",
+    "grade": 5,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Tính nhanh giá trị của biểu thức sau: A = 1/2 + 1/6 + 1/12 + 1/20 + 1/30 + 1/42 + 1/56 + 1/72 + 1/90",
+    "choices": [],
+    "answer": "9/10",
+    "answerText": "9/10 (hoặc 0,9)",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q32",
+    "grade": 4,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Tìm số tự nhiên có 3 chữ số, biết rằng nếu viết thêm chữ số 5 vào bên phải số đó thì ta được số mới lớn hơn số phải tìm là 1112 đơn vị.",
+    "choices": [],
+    "answer": "123",
+    "answerText": "123",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q33",
+    "grade": 5,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Cho hình tam giác ABC. Trên cạnh BC lấy điểm D sao cho BD = 1/3 BC. Trên cạnh AC lấy điểm E sao cho AE = 1/2 EC. Nối AD và BE cắt nhau tại I. Tính tỉ số diện tích hai tam giác AIB và BIC.",
+    "choices": [],
+    "answer": "1/2",
+    "answerText": "1/2 (hoặc 0,5)",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q34",
+    "grade": 4,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Có 3 hòm bi A, B, C chứa tổng cộng 120 viên bi. Nếu chuyển 15 viên bi từ hòm A sang hòm B, chuyển 10 viên bi từ hòm B sang hòm C, rồi chuyển 4 viên bi từ hòm C sang hòm A thì lúc này số bi ở hòm A gấp đôi số bi ở hòm B và số bi ở hòm B bằng 3/5 số bi ở hòm C. Tìm số bi ban đầu ở mỗi hòm.",
+    "choices": [],
+    "answer": "A: 51 viên, B: 33 viên, C: 36 viên",
+    "answerText": "Hòm A: 51 viên, Hòm B: 33 viên, Hòm C: 36 viên",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q35",
+    "grade": 5,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Một cửa hàng bán một sản phẩm được lãi 20% so với giá bán. Hỏi cửa hàng đó được lãi bao nhiêu phần trăm so với giá vốn (giá mua)?",
+    "choices": [
+      {"key": "A", "text": "25%"},
+      {"key": "B", "text": "20%"},
+      {"key": "C", "text": "16,67%"},
+      {"key": "D", "text": "15%"}
+    ],
+    "answer": "A",
+    "answerText": "25%",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q36",
+    "grade": 4,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Tính diện tích của một hình chữ nhật biết rằng nếu tăng chiều dài thêm 20% và giảm chiều rộng đi 20% thì diện tích giảm đi 16 m².",
+    "choices": [],
+    "answer": "400",
+    "answerText": "400 m²",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q37",
+    "grade": 5,
+    "section": "Điền đáp số",
+    "type": "short_answer",
+    "stem": "Cho dãy số: 1, 3, 7, 15, 31, ... Tìm số hạng thứ 10 của dãy số đó.",
+    "choices": [],
+    "answer": "1023",
+    "answerText": "1023",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q38",
+    "grade": 4,
+    "section": "Trắc nghiệm",
+    "type": "multiple_choice",
+    "stem": "Một người bán cam, lần thứ nhất bán được 1/2 số cam và thêm 1 quả. Lần thứ hai bán được 1/2 số cam còn lại và thêm 1 quả. Lần thứ ba bán được 1/2 số cam còn lại sau hai lần bán và thêm 1 quả thì vừa hết số cam. Hỏi người đó ban đầu có bao nhiêu quả cam?",
+    "choices": [
+      {"key": "A", "text": "14 quả"},
+      {"key": "B", "text": "15 quả"},
+      {"key": "C", "text": "16 quả"},
+      {"key": "D", "text": "18 quả"}
+    ],
+    "answer": "A",
+    "answerText": "14 quả",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q39",
+    "grade": 5,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Hai địa điểm A và B cách nhau 96 km. Cùng một lúc, một xe máy đi từ A và một xe đạp đi từ B đi cùng chiều nhau về phía C. Sau 3 giờ xe máy đuổi kịp xe đạp tại C. Biết vận tốc xe máy gấp 3 lần vận tốc xe đạp. Tính vận tốc của mỗi xe.",
+    "choices": [],
+    "answer": "xe máy: 48 km/h, xe đạp: 16 km/h",
+    "answerText": "vận tốc xe máy: 48 km/giờ, vận tốc xe đạp: 16 km/giờ",
+    "rubricLevel": "van_dung_cao"
+  },
+  {
+    "id": "q40",
+    "grade": 5,
+    "section": "Tự luận",
+    "type": "essay",
+    "stem": "Để đánh số trang của một cuốn sách từ trang 1 cần dùng tất cả 321 chữ số. Hỏi cuốn sách đó dày bao nhiêu trang?",
+    "choices": [],
+    "answer": "143",
+    "answerText": "143 trang",
+    "rubricLevel": "van_dung_cao"
+  }
+]

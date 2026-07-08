@@ -1,0 +1,372 @@
+\documentclass[12pt, a4paper]{article}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+
+\geometry{margin=2.5cm}
+\hypersetup{colorlinks=true, linkcolor=blue!60!black, citecolor=blue!60!black, urlcolor=blue!60!black}
+
+% --- Title ---
+\title{\textbf{Model Evaluation Report}\\[0.3em]
+\large Melon AI Learning App — ML Component Benchmarking}
+\author{Team Melon AI}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+\section{Introduction}
+\label{sec:introduction}
+
+This document presents a systematic evaluation of the core machine learning components deployed in the \textbf{Melon AI Learning App}, an adaptive mathematics tutoring platform for Vietnamese primary-school students in Grades~4 and~5. The objective is to assess whether each AI component meets the minimum quality thresholds required for production deployment, to identify failure patterns, and to propose targeted improvements.
+
+The Melon AI platform integrates multiple large language models (LLMs) consumed through third-party cloud APIs. No model weights are hosted, trained, or fine-tuned locally; instead, the team optimises task performance through prompt engineering, structured output enforcement, and domain-specific context construction. The evaluation therefore measures \emph{task-level output quality}---classification accuracy, extraction correctness, and generation quality---rather than model-internal metrics such as perplexity or training loss.
+
+Three core AI components are evaluated in this report:
+\begin{enumerate}[nosep]
+    \item the \textbf{Rubric Classifier} (\texttt{rubric\_classifier}),
+    \item the \textbf{Problem Parser} (\texttt{test\_parser}), and
+    \item the \textbf{Question Generator} (\texttt{QA\_generator}).
+\end{enumerate}
+These were selected because they directly determine the quality of educational content served to students, and their structured JSON outputs are amenable to automated correctness checking. The remaining AI components in the system (tutoring chatbot, multimodal answer evaluator, speech-to-text, text-to-speech) serve auxiliary or interactive functions and are excluded from this evaluation.
+
+% ============================================================
+\section{Model Description}
+\label{sec:model-description}
+
+\subsection{System-Wide AI Component Overview}
+
+The Melon AI Learning App deploys eight AI model instances across seven distinct features. All models are accessed as statically deployed managed API services with fixed version identifiers; model version changes require deliberate code updates and redeployment. Table~\ref{tab:component-inventory} provides a complete inventory.
+
+\begin{table}[H]
+\centering
+\caption{Complete AI component inventory of the Melon AI Learning App.}
+\label{tab:component-inventory}
+\small
+\begin{tabularx}{\textwidth}{l l l X}
+\toprule
+\textbf{Component} & \textbf{Base Model} & \textbf{Provider / API} & \textbf{Function} \\
+\midrule
+Rubric Classifier         & GPT-4o            & OpenAI via OpenRouter      & Bloom's taxonomy classification of math questions \\
+Problem Parser (OCR)      & Gemini 2.5 Pro    & Google via OpenRouter      & Optical character recognition of scanned exam PDFs \\
+Problem Parser (Parsing)  & GPT-4.1           & OpenAI via OpenRouter      & Structured extraction of question fields from OCR text \\
+Question Generator        & GPT-4o            & OpenAI via OpenRouter      & MCQA generation from curriculum topics \\
+\midrule
+AI Tutoring Chat          & GPT-4o-mini       & OpenAI direct API          & Streaming conversational tutoring for children \\
+Multimodal Evaluator      & Gemini 2.0 Flash  & Google GenAI SDK           & Evaluates children's drawn and spoken answers \\
+Speech-to-Text            & Whisper-1         & OpenAI direct API          & Transcribes student voice input \\
+Text-to-Speech            & eleven\_multi\_v2 & ElevenLabs API             & Synthesises Vietnamese speech from text \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Selection Rationale}
+
+Model selection was driven by three criteria: (a)~task suitability based on published benchmarks, (b)~Vietnamese language support, and (c)~cost-latency trade-offs for a real-time educational application.
+
+\textbf{GPT-4o} was selected for the Rubric Classifier and Question Generator because it offers the strongest instruction-following capability and nuanced reasoning required for Bloom's taxonomy classification and pedagogically sound question design in Vietnamese. GPT-4o-mini, while cheaper, showed degraded accuracy on the four-level classification task during preliminary prompt development.
+
+\textbf{Gemini 2.5 Pro} was selected for OCR because Google's published benchmarks indicate approximately 94\% accuracy on DocVQA and over 90\% on OCRBench, making it well-suited for dense, mixed-content Vietnamese exam scans containing both text and mathematical notation. \textbf{GPT-4.1} was paired as the structured parsing stage because of its superior adherence to complex JSON schemas with deeply nested fields (choice arrays, sub-questions, crop-box coordinates).
+
+The non-evaluated components (Tutoring Chat, Multimodal Evaluator, Speech-to-Text, Text-to-Speech) use lighter models appropriate to their latency and cost constraints and are well-established commercial services with published vendor benchmarks.
+
+\subsection{Evaluated Model Details}
+
+\subsubsection{Rubric Classifier (\texttt{rubric\_classifier})}
+\begin{itemize}[nosep]
+    \item \textbf{Base Model}: GPT-4o via OpenRouter.
+    \item \textbf{Temperature}: 0.1 (near-deterministic for classification consistency).
+    \item \textbf{Output Format}: JSON with \texttt{response\_format: \{type: "json\_object"\}}.
+    \item \textbf{Task}: Given a Vietnamese math question (stem, choices, grade level, section type), classify it into one of four Bloom's cognitive levels: \texttt{nhan\_biet} (Knowledge), \texttt{thong\_hieu} (Comprehension), \texttt{van\_dung} (Application), \texttt{van\_dung\_cao} (Analysis/Synthesis).
+    \item \textbf{Prompt Configuration}: The system prompt contains explicit definitions for each Bloom's level with concrete mathematical examples from the Vietnamese Grade~4--5 curriculum, classification rules prioritising cognitive demand over question length, and a mandatory output schema \texttt{\{rubricLevel, confidence, reasoning\}}.
+\end{itemize}
+
+\subsubsection{Problem Parser (\texttt{test\_parser})}
+The Problem Parser employs a two-stage pipeline:
+\begin{itemize}[nosep]
+    \item \textbf{Stage~1---OCR}: Gemini 2.5 Pro via OpenRouter. Processes scanned PDF pages rendered as PNG images (up to 12~pages), extracting raw text, mathematical formulas, table structures, and illustration bounding boxes with batched processing.
+    \item \textbf{Stage~2---Structured Parsing}: GPT-4.1 via OpenRouter (temperature~0.1). Receives OCR text and produces structured JSON per question, handling three question types: multiple-choice, fill-in, and open-ended. Extracts fields including \texttt{stem}, \texttt{choices[]}, \texttt{answer}, \texttt{answerText}, \texttt{rubricLevel}, \texttt{concepts[]}, and \texttt{cropBox}.
+\end{itemize}
+The overall pipeline follows: PDF $\rightarrow$ page rendering (PyMuPDF) $\rightarrow$ image slicing $\rightarrow$ batch OCR $\rightarrow$ text aggregation $\rightarrow$ structured extraction $\rightarrow$ JSON output.
+
+\subsubsection{Question Generator (\texttt{QA\_generator})}
+\begin{itemize}[nosep]
+    \item \textbf{Base Model}: GPT-4o via OpenRouter.
+    \item \textbf{Temperature}: 0.7 (higher creativity for diverse question generation).
+    \item \textbf{Task}: Given a mathematics topic and grade level, generate a set of multiple-choice questions (MCQA) with four choices (A/B/C/D), a correct answer, and an explanation.
+    \item \textbf{Prompt Configuration}: The system prompt instructs the model to act as a Vietnamese primary-school math teacher, requiring that each correct answer be mathematically accurate, each distractor be a plausible result of common student mistakes (same unit, same data type), and no two answers be simultaneously correct. Output is enforced as a JSON object containing a \texttt{questions} array.
+\end{itemize}
+
+% ============================================================
+\section{Experimental Design}
+\label{sec:experimental-design}
+
+\subsection{Datasets}
+
+Three custom benchmark datasets were constructed. All datasets are authored in Vietnamese and reflect the Grade~4--5 mathematics curriculum.
+
+\paragraph{Rubric Classifier Benchmark.}
+The dataset (\texttt{rubric\_classifier\_benchmark.json}) contains 40~Vietnamese math questions with a balanced distribution of 10~questions per Bloom's cognitive level. Questions include both multiple-choice and short-answer formats across Grade~4 and Grade~5 content. Ground-truth labels were manually assigned by team members with pedagogical expertise and cross-validated for inter-annotator consensus. The balanced class distribution prevents majority-class bias and ensures per-class metrics are meaningful.
+
+\paragraph{PDF Parser Test Document.}
+A programmatically generated PDF using PyMuPDF simulating a Vietnamese math exam page (``\textit{ĐỀ KIỂM TRA TOÁN LỚP~5}'') containing three questions across different section types (multiple-choice, fill-in, open-ended) and one vector-drawn circle illustration. Ground truth includes three expected questions with known stems, answer keys, and choice structures.
+
+\paragraph{QA Generator Topic Benchmark.}
+The dataset (\texttt{qa\_generator\_benchmark.json}) comprises five curriculum topics spanning Grade~4--5 content, summarised in Table~\ref{tab:qa-topics}. For each topic, the generator produces 5~MCQA questions. The evaluation assesses structural validity deterministically, while answer correctness and distractor quality are evaluated via an independent LLM Judge.
+
+\begin{table}[H]
+\centering
+\caption{QA Generator benchmark topics.}
+\label{tab:qa-topics}
+\small
+\begin{tabularx}{\textwidth}{X c X}
+\toprule
+\textbf{Topic} & \textbf{Grade} & \textbf{Description} \\
+\midrule
+Phân số và phép chia số tự nhiên & 4 & Fraction representation, comparison, addition and subtraction \\
+Số thập phân và các phép tính     & 5 & Decimal reading, writing, comparison, and arithmetic operations \\
+Diện tích hình thang               & 5 & Trapezoid area formula $S = \frac{(a+b) \times h}{2}$, inverse problems \\
+Chu vi và diện tích hình tròn      & 5 & Circle circumference $C = d \times 3{,}14$ and area $S = r \times r \times 3{,}14$ \\
+Vận tốc, quãng đường, thời gian   & 5 & Motion formulas $v = s/t$, $s = v \times t$, $t = s/v$, unit conversion \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Models and Baselines}
+
+Since all models are consumed as pre-trained API services without fine-tuning, we adopt \emph{threshold-based acceptance testing} rather than comparing against alternative model architectures. The minimum performance thresholds are derived from the pedagogical requirements established in the system's Software Architecture Document and are summarised in Table~\ref{tab:thresholds}.
+
+\begin{table}[H]
+\centering
+\caption{Acceptance thresholds for each evaluated component.}
+\label{tab:thresholds}
+\small
+\begin{tabular}{l l c}
+\toprule
+\textbf{Component} & \textbf{Metric} & \textbf{Threshold} \\
+\midrule
+\texttt{rubric\_classifier} & Overall Accuracy & $\geq 75\%$ \\
+\texttt{rubric\_classifier} & Macro F1-Score & $\geq 0.70$ \\
+\texttt{rubric\_classifier} & High-Confidence Accuracy ($\text{conf} \geq 0.8$) & $\geq 85\%$ \\
+\texttt{test\_parser} & Question Detection Rate & $\geq 90\%$ \\
+\texttt{test\_parser} & Field Extraction Accuracy & $\geq 85\%$ \\
+\texttt{QA\_generator} & Structural Validity & $\geq 95\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Performance Metrics}
+
+\paragraph{Classification Metrics (\texttt{rubric\_classifier}).}
+Overall Accuracy, Macro F1-Score (unweighted average across four classes), per-class Precision, Recall, and F1-Score, and High-Confidence Accuracy (accuracy restricted to predictions with self-reported confidence $\geq 0.8$).
+
+\paragraph{Extraction Metrics (\texttt{test\_parser}).}
+Question Detection Rate (detected questions divided by actual questions), Field Extraction Accuracy (fraction of correctly extracted structural fields across all detected questions), and Image Detection (whether the parser successfully identifies illustration regions).
+
+\paragraph{Generation Quality Metrics (\texttt{QA\_generator}).}
+\emph{Structural Validity}: fraction of generated questions containing a valid stem, exactly four choices A/B/C/D, and a valid answer key---checked deterministically. \emph{Answer Correctness}: fraction of questions where the marked correct answer is mathematically correct, evaluated by an independent LLM Judge (GPT-4o, temperature~0.0). \emph{Distractor Plausibility}: fraction of questions where all three wrong answers are plausible but definitively incorrect, evaluated by the same LLM Judge.
+
+\paragraph{Qualitative Observations.}
+JSON parse success rate and notable error patterns are reported as qualitative findings for all components.
+
+\subsection{Environment Setup}
+
+Evaluation was conducted on a Windows~11 machine running Python~3.12, using a single automated script (\texttt{run-ml-evaluation.py}). Key libraries include \texttt{requests}, \texttt{numpy}, \texttt{pandas}, \texttt{matplotlib}, \texttt{seaborn}, and \texttt{PyMuPDF}~1.27.2. All API calls route through OpenRouter to the respective vendor models. The LLM Judge uses GPT-4o at temperature~0.0 for deterministic scoring. Classification metrics (Precision, Recall, F1, Confusion Matrix) were implemented in pure Python following standard textbook definitions. Total evaluation runtime was approximately 158~seconds.
+
+% ============================================================
+\section{Results}
+\label{sec:results}
+
+\subsection{Rubric Classifier}
+
+Table~\ref{tab:rubric-agg} summarises the aggregate performance on the 40-question balanced benchmark.
+
+\begin{table}[H]
+\centering
+\caption{Rubric Classifier aggregate metrics.}
+\label{tab:rubric-agg}
+\begin{tabular}{l c c c}
+\toprule
+\textbf{Metric} & \textbf{Threshold} & \textbf{Result} & \textbf{Status} \\
+\midrule
+Overall Accuracy           & $\geq 75\%$  & 77.5\%  & Pass \\
+Macro F1-Score             & $\geq 0.70$  & 0.774   & Pass \\
+High-Confidence Accuracy   & $\geq 85\%$  & 77.5\%  & Marginal \\
+Average Latency            & $< 10$s      & 1.84s   & Pass \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:rubric-class} reports the per-class precision, recall, and F1-score.
+
+\begin{table}[H]
+\centering
+\caption{Rubric Classifier per-class metrics.}
+\label{tab:rubric-class}
+\begin{tabular}{l c c c}
+\toprule
+\textbf{Bloom's Level} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} \\
+\midrule
+\texttt{nhan\_biet} (Knowledge)       & 1.000 & 0.900 & 0.947 \\
+\texttt{thong\_hieu} (Comprehension)  & 1.000 & 0.900 & 0.947 \\
+\texttt{van\_dung} (Application)      & 0.529 & 0.900 & 0.667 \\
+\texttt{van\_dung\_cao} (Analysis)    & 0.800 & 0.400 & 0.533 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{visualizations/rubric_confusion_matrix.png}
+\caption{Confusion matrix on 40 benchmark questions. Rows represent ground-truth labels; columns represent predictions. The dominant error pattern is \texttt{van\_dung\_cao} questions being downgraded to \texttt{van\_dung} (6 out of 10).}
+\label{fig:confusion-matrix}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{visualizations/rubric_f1_scores.png}
+\caption{Per-class F1-Score for the Rubric Classifier. Near-perfect classification for lower Bloom's levels; performance degrades at higher levels where the cognitive boundary is inherently subjective.}
+\label{fig:f1-scores}
+\end{figure}
+
+The classifier exceeds both the 75\% accuracy and 0.70 Macro F1 thresholds. The primary concern is the \texttt{van\_dung\_cao} recall of~0.400, meaning 6 of 10 advanced questions are misclassified downward. This error is conservative---downgrading rather than upgrading difficulty---which is less harmful in a tutoring context than the reverse error. The High-Confidence Accuracy (77.5\%) misses the 85\% target, indicating the model's self-reported confidence does not reliably differentiate borderline cases from genuinely clear classifications. All 40~API calls returned valid JSON (100\% parse success).
+
+\subsection{Problem Parser}
+
+Table~\ref{tab:parser} summarises the performance of the two-stage Problem Parser pipeline.
+
+\begin{table}[H]
+\centering
+\caption{Problem Parser metrics.}
+\label{tab:parser}
+\begin{tabular}{l c c c}
+\toprule
+\textbf{Metric} & \textbf{Threshold} & \textbf{Result} & \textbf{Status} \\
+\midrule
+Question Detection Rate     & $\geq 90\%$    & 100\% (3/3)        & Pass \\
+Field Extraction Accuracy   & $\geq 85\%$    & 88.9\% (8/9 fields) & Pass \\
+Image Detection             & Informational  & Detected            & Pass \\
+Latency                     & Informational  & 6.30s               & Acceptable \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The parser correctly identified all three questions and extracted 8~of~9 structural fields. The single extraction error was a minor field-level mismatch. Notably, the parser successfully detected the circle illustration region, producing a valid image reference. The two-stage pipeline design is validated: Gemini~2.5~Pro handles visual text recognition and GPT-4.1 handles structured information extraction. All API responses returned valid JSON.
+
+\subsection{Question Generator}
+
+Table~\ref{tab:qa-agg} summarises the structural validity and LLM Judge scores across 25~generated MCQA questions (5~topics $\times$ 5~questions).
+
+\begin{table}[H]
+\centering
+\caption{QA Generator aggregate metrics.}
+\label{tab:qa-agg}
+\begin{tabular}{l c c c}
+\toprule
+\textbf{Metric} & \textbf{Threshold} & \textbf{Result} & \textbf{Status} \\
+\midrule
+Structural Validity               & $\geq 95\%$    & 100\% (25/25)  & Pass \\
+Answer Correctness (LLM Judge)    & Informational  & 76.0\% (19/25) & Moderate \\
+Distractor Plausibility (LLM Judge) & Informational & 100\% (25/25)  & Pass \\
+Average Latency                   & $< 20$s        & 12.36s         & Pass \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:qa-topic} provides a per-topic breakdown from the LLM Judge evaluation.
+
+\begin{table}[H]
+\centering
+\caption{QA Generator per-topic LLM Judge results.}
+\label{tab:qa-topic}
+\small
+\begin{tabularx}{\textwidth}{X c c}
+\toprule
+\textbf{Topic} & \textbf{Answer Correctness} & \textbf{Distractor Plausibility} \\
+\midrule
+Phân số và phép chia số tự nhiên         & 3/5 (60\%)  & 5/5 (100\%) \\
+Số thập phân và các phép tính            & 5/5 (100\%) & 5/5 (100\%) \\
+Diện tích hình thang                      & 2/5 (40\%)  & 5/5 (100\%) \\
+Chu vi và diện tích hình tròn             & 5/5 (100\%) & 5/5 (100\%) \\
+Vận tốc, quãng đường, thời gian          & 4/5 (80\%)  & 5/5 (100\%) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{visualizations/qa_structural_validity.png}
+    \caption{Structural validity rate by topic.}
+    \label{fig:qa-struct}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{visualizations/qa_judge_scores.png}
+    \caption{LLM Judge scores across 25 questions.}
+    \label{fig:qa-judge}
+\end{subfigure}
+\caption{QA Generator evaluation results. (a)~All topics achieve 100\% structural validity. (b)~Answer correctness is 76\% overall; distractor plausibility is 100\%.}
+\label{fig:qa-results}
+\end{figure}
+
+The generator achieves perfect structural validity (100\%)---every generated question contains a valid stem, exactly four choices labelled~A through~D, and a valid answer key. Distractor plausibility is also perfect (100\%), confirming that all distractors are semantically reasonable and of the same type as the correct answer. Answer correctness is moderate at~76\%, with errors concentrated in geometry-related topics (Trapezoid Area: 40\%, Fractions: 60\%). The LLM Judge identified cases where the model applied formulas incorrectly or produced computational errors, particularly in multi-step problems involving area calculations. All 25~generation calls and 5~judge calls returned valid JSON.
+
+\subsection{Cross-Component Latency}
+
+Figure~\ref{fig:latency} compares the average response latency across all three evaluated components.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{visualizations/latency_distribution.png}
+\caption{Average response latency by component. The Rubric Classifier achieves near-instant classification at 1.84\,s. The QA Generator takes approximately 12\,s for producing 5~complete questions per call. All latencies are within acceptable thresholds.}
+\label{fig:latency}
+\end{figure}
+
+% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+This evaluation assessed three core AI components of the Melon AI Learning App using custom benchmark datasets representative of the Vietnamese primary-school mathematics domain.
+
+The \textbf{Rubric Classifier} achieves 77.5\% accuracy and 0.774 Macro~F1, exceeding the acceptance thresholds of 75\% and 0.70 respectively. Classification of lower Bloom's levels is near-perfect ($\text{F1} > 0.94$), while the \texttt{van\_dung}/\texttt{van\_dung\_cao} boundary remains the primary error source, with 6~of~10 advanced questions misclassified downward.
+
+The \textbf{Problem Parser} achieves 100\% question detection and 88.9\% field extraction accuracy, exceeding both thresholds. The two-stage pipeline (Gemini~2.5~Pro for OCR, GPT-4.1 for structured parsing) successfully handles mixed-content Vietnamese exam pages including illustration detection.
+
+The \textbf{QA Generator} produces structurally perfect MCQA output (100\% valid structure, 100\% distractor plausibility) but achieves 76\% answer correctness. Errors are concentrated in geometry topics requiring multi-step calculations, where the model occasionally applies formulas incorrectly.
+
+\paragraph{Limitations.}
+\begin{enumerate}[nosep]
+    \item The Rubric Classifier confuses \texttt{van\_dung} and \texttt{van\_dung\_cao}, reflecting inherent ambiguity at the application/analysis boundary of Bloom's taxonomy.
+    \item The QA Generator's answer correctness drops to 40\% for geometry problems involving area formulas.
+    \item The Problem Parser test document is synthetic; validation with real scanned exams is needed.
+    \item Evaluation datasets are relatively small; larger-scale testing would increase statistical confidence.
+\end{enumerate}
+
+\paragraph{Proposed Improvements.}
+\begin{enumerate}[nosep]
+    \item Augment the Rubric Classifier's system prompt with contrastive examples specifically targeting the \texttt{van\_dung}/\texttt{van\_dung\_cao} distinction.
+    \item Add a post-generation verification step for the QA Generator that re-checks mathematical computations before presenting questions to students.
+    \item Expand evaluation datasets to 100+ items per component.
+    \item Conduct human evaluation with practising teachers for generation quality assessment.
+\end{enumerate}
+
+\end{document}

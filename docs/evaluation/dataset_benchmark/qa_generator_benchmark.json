@@ -1,0 +1,37 @@
+[
+  {
+    "id": "topic_1",
+    "topic": "Phân số và phép chia số tự nhiên",
+    "grade": 4,
+    "description": "Khái niệm phân số, quy đồng mẫu số, so sánh phân số, phép cộng trừ phân số cùng mẫu và khác mẫu.",
+    "expected_question_count": 5
+  },
+  {
+    "id": "topic_2",
+    "topic": "Số thập phân và các phép tính với số thập phân",
+    "grade": 5,
+    "description": "Đọc, viết, so sánh số thập phân. Phép cộng, trừ, nhân, chia số thập phân. Đổi phân số thành số thập phân.",
+    "expected_question_count": 5
+  },
+  {
+    "id": "topic_3",
+    "topic": "Diện tích hình thang",
+    "grade": 5,
+    "description": "Công thức S = (a + b) × h / 2. Tính diện tích khi biết hai đáy và chiều cao. Bài toán ngược tìm chiều cao hoặc đáy.",
+    "expected_question_count": 5
+  },
+  {
+    "id": "topic_4",
+    "topic": "Chu vi và diện tích hình tròn",
+    "grade": 5,
+    "description": "Công thức C = d × 3,14, S = r × r × 3,14. Tính chu vi, diện tích khi biết bán kính hoặc đường kính.",
+    "expected_question_count": 5
+  },
+  {
+    "id": "topic_5",
+    "topic": "Vận tốc, quãng đường, thời gian",
+    "grade": 5,
+    "description": "Công thức v = s / t, s = v × t, t = s / v. Bài toán chuyển động đều, đổi đơn vị km/h sang m/phút.",
+    "expected_question_count": 5
+  }
+]

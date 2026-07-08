@@ -1,0 +1,112 @@
+{
+  "rubric_classifier": {
+    "accuracy": 0.775,
+    "macro_f1": 0.7737,
+    "high_confidence_accuracy": 0.775,
+    "json_success_rate": 1.0,
+    "avg_latency": 1.84,
+    "per_class": {
+      "nhan_biet": {
+        "precision": 1.0,
+        "recall": 0.9,
+        "f1": 0.947
+      },
+      "thong_hieu": {
+        "precision": 1.0,
+        "recall": 0.9,
+        "f1": 0.947
+      },
+      "van_dung": {
+        "precision": 0.529,
+        "recall": 0.9,
+        "f1": 0.667
+      },
+      "van_dung_cao": {
+        "precision": 0.8,
+        "recall": 0.4,
+        "f1": 0.533
+      }
+    },
+    "confusion_matrix": [
+      [
+        9,
+        0,
+        1,
+        0
+      ],
+      [
+        0,
+        9,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        9,
+        1
+      ],
+      [
+        0,
+        0,
+        6,
+        4
+      ]
+    ]
+  },
+  "test_parser": {
+    "question_detection_rate": 1.0,
+    "field_extraction_accuracy": 0.8889,
+    "image_detected": true,
+    "latency": 6.3
+  },
+  "qa_generator": {
+    "structural_validity": 1.0,
+    "total_generated": 25,
+    "json_success_rate": 1.0,
+    "avg_latency": 12.36,
+    "per_topic": [
+      {
+        "topic": "Phân số và phép chia số tự nhiên",
+        "generated_count": 5,
+        "structural_validity": 1.0,
+        "json_success": true,
+        "latency": 9.65
+      },
+      {
+        "topic": "Số thập phân và các phép tính với số thập phân",
+        "generated_count": 5,
+        "structural_validity": 1.0,
+        "json_success": true,
+        "latency": 28.2
+      },
+      {
+        "topic": "Diện tích hình thang",
+        "generated_count": 5,
+        "structural_validity": 1.0,
+        "json_success": true,
+        "latency": 9.38
+      },
+      {
+        "topic": "Chu vi và diện tích hình tròn",
+        "generated_count": 5,
+        "structural_validity": 1.0,
+        "json_success": true,
+        "latency": 7.66
+      },
+      {
+        "topic": "Vận tốc, quãng đường, thời gian",
+        "generated_count": 5,
+        "structural_validity": 1.0,
+        "json_success": true,
+        "latency": 6.9
+      }
+    ],
+    "judge": {
+      "answer_correctness": 0.76,
+      "distractor_plausibility": 1.0,
+      "total_judged": 25
+    }
+  },
+  "total_evaluation_time_seconds": 158.0
+}
