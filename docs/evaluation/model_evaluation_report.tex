@@ -341,6 +341,83 @@ Figure~\ref{fig:latency} compares the average response latency across all three 
 \label{fig:latency}
 \end{figure}
 
+\subsection{Qualitative Analysis}
+
+Beyond the aggregate scores, the evaluation artifacts show several qualitative patterns that are important for interpreting system readiness.
+
+\paragraph{Rubric Classifier.}
+The confusion matrix indicates that most errors occur at the boundary between \texttt{van\_dung} and \texttt{van\_dung\_cao}. Lower cognitive levels are stable: \texttt{nhan\_biet}, \texttt{thong\_hieu}, and \texttt{van\_dung} each achieve 9/10 correct classifications. The main failure mode is conservative downgrading, where 6/10 \texttt{van\_dung\_cao} questions are classified as \texttt{van\_dung}. In a tutoring system, this is less harmful than overestimating difficulty, but it can under-challenge stronger students and weaken the adaptive learning path.
+
+\paragraph{Problem Parser.}
+The parser artifact is a synthetic PDF generated at evaluation time with three math questions and one vector-drawn circle. Qualitatively, the parser recovers all three question types represented in the test case: one multiple-choice item, one short-answer algebra item, and one geometry item with an illustration. The detected image flag confirms that the parser can surface visual content, but the current metric does not verify whether the image is attached to the correct question or whether a crop box is geometrically accurate. Because the PDF contains a text layer, this benchmark primarily validates structured extraction from PDF/text plus basic illustration detection; it should not be interpreted as a full OCR benchmark on noisy scanned exams.
+
+\paragraph{QA Generator.}
+The generated MCQA artifacts are structurally consistent: questions contain stems, four answer options, valid answer keys, and explanations. The LLM Judge results suggest that distractors are pedagogically plausible, usually matching the unit and answer type of the correct option. The main qualitative weakness is mathematical reliability in multi-step topics. Errors are concentrated in geometry and fraction topics, where the model may apply a formula incorrectly or produce an inconsistent answer key. This suggests that a post-generation solver or verification pass is needed before generated questions are shown to students.
+
+\paragraph{Artifacts Produced.}
+The evaluation persists \texttt{evaluation\_results.json} as the machine-readable summary and generates five visualization artifacts: \texttt{rubric\_confusion\_matrix.png}, \texttt{rubric\_f1\_scores.png}, \texttt{qa\_structural\_validity.png}, \texttt{qa\_judge\_scores.png}, and \texttt{latency\_distribution.png}. Raw per-question parser outputs and generated MCQA samples are not currently saved, so qualitative review depends on console output and aggregate artifacts. Saving these raw outputs in future runs would make error analysis more reproducible.
+
+\subsubsection{Artifact Examples and Evaluation Interpretation}
+
+The qualitative artifact section was expanded from plain metric commentary into concrete run artifacts: rendered source input, extracted parser output, command log, and compact model-output examples.
+
+\paragraph{Parser visual artifact.}
+Figure~\ref{fig:parser-artifact} compares the generated benchmark PDF page with the structured output returned by \texttt{parse\_problem\_sources()}. The left side is the rendered PDF source; the right side summarizes detected questions, answers, choice counts, and raw extracted text.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{artifacts/parser_pdf_vs_extracted.png}
+\caption{Parser source PDF vs extracted structured output artifact.}
+\label{fig:parser-artifact}
+\end{figure}
+
+\paragraph{Parser command/log artifact.}
+\begin{verbatim}
+Wrote artifacts:
+docs/evaluation/artifacts/parser_test_source.pdf
+docs/evaluation/artifacts/parser_test_source_page.png
+docs/evaluation/artifacts/parser_extracted_output.json
+docs/evaluation/artifacts/parser_source_vs_extracted.md
+Parser error: None
+Question count: 3
+\end{verbatim}
+
+\paragraph{Parser extracted JSON artifact (condensed).}
+\begin{verbatim}
+{
+  "questionSet": {"title": "DE KIEM TRA TOAN LOP 5", "grade": 5},
+  "questions": [
+    {"questionNumber": 1, "type": "multiple_choice",
+     "choices": 4, "answer": "B", "answerText": "40 cm"},
+    {"questionNumber": 2, "type": "short_answer",
+     "choices": 0, "answerText": "x = 5"},
+    {"questionNumber": 3, "type": "short_answer",
+     "choices": 0, "answerText": "78,5 cm2"}
+  ]
+}
+\end{verbatim}
+
+Parser evaluation interpretation: the visual and JSON artifacts make the metric easier to audit. The parser detected 3/3 questions, recovered the answer fields, preserved 4/4 choices for the MCQ item, and surfaced an image-related signal. The artifact also reveals a limitation not captured by the current numeric metric: some normalized stem text can contain encoding noise, so future evaluation should persist raw outputs and add text-quality checks beyond keyword matching.
+
+\paragraph{Rubric classifier output artifact.}
+\begin{verbatim}
+{"expected": "van_dung_cao", "predicted": "van_dung",
+ "confidence": 0.82,
+ "reasoning": "Borderline multi-step reasoning was treated
+               as ordinary application."}
+\end{verbatim}
+This artifact is evaluated by comparing expected vs predicted labels and then aggregating all outputs into accuracy, Macro F1, per-class precision/recall/F1, high-confidence accuracy, and the confusion matrix. It illustrates the main qualitative failure mode: advanced questions are often downgraded from \texttt{van\_dung\_cao} to \texttt{van\_dung}.
+
+\paragraph{QA generator output artifact.}
+\begin{verbatim}
+{"stem": "Mot hinh thang co day lon 12 cm, day be 8 cm...",
+ "choices": {"A": "40 cm2", "B": "50 cm2",
+             "C": "60 cm2", "D": "100 cm2"},
+ "answer": "B",
+ "explanation": "S = (12 + 8) x 5 / 2 = 50 cm2."}
+\end{verbatim}
+This artifact is evaluated in two layers: rule-based structural validation checks stem, four choices A/B/C/D, and answer key format; then an independent GPT-4o judge checks mathematical correctness and distractor plausibility. This explains why structure can reach 100\% while answer correctness remains 76\%.
+
 % ============================================================
 \section{Conclusion}
 \label{sec:conclusion}
