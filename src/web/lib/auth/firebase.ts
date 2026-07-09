@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
-import { initializeFirestore, getFirestore, type Firestore } from "firebase/firestore";
+import { getAuth, connectAuthEmulator, type Auth } from "firebase/auth";
+import { initializeFirestore, getFirestore, connectFirestoreEmulator, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
@@ -25,6 +25,17 @@ if (typeof window !== "undefined" && firebaseConfig.apiKey) {
     });
   } else {
     db = getFirestore(app);
+  }
+
+  // Kết nối Emulator nếu được cấu hình
+  if (process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATOR === 'true') {
+    try {
+      connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+      connectFirestoreEmulator(db, "127.0.0.1", 8080);
+      console.log("🔥 Connected to Firebase Emulator Suite");
+    } catch (e) {
+      // Bỏ qua lỗi kết nối nhiều lần do HMR của Next.js
+    }
   }
 }
 
