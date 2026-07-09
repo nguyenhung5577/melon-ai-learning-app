@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
 
     const childrenSnap = await db.collection("children").where("linkedParentUid", "==", parentUid).get();
     const children = childrenSnap.docs
-      .map((doc) => ({ ...doc.data(), uid: doc.id }))
+      .map((doc): ChildListItem => ({ ...doc.data(), uid: doc.id }))
       .sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
 
     return NextResponse.json({ children });
