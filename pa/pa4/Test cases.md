@@ -13,7 +13,7 @@
 | Parent   | `http://localhost:3000/` | `/parent`             | ``       |
 | Admin    | `http://localhost:3000/` | `/admin`              | ``        |
 
-Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code tính năng
+Quy ước: [x]: Đạt | [!]: Lỗi
 
 ---
 
@@ -130,5 +130,3 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 - Tổng số Test Cases: 40 kịch bản.
 - Đạt `[x]`: 26 kịch bản.
 - Báo Lỗi `[!]`: 7 kịch bản.
-- Chưa code tính năng `[-]`: 11 kịch bản.
-- Chưa test `[ ]`: 7 kịch bản.
