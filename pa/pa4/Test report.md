@@ -21,7 +21,7 @@
 **Ngày báo cáo:** 21/06/2026
 **Môi trường:** Localhost (Next.js + FastAPI)
 
-Dưới đây là danh sách 8 Lỗi (Bugs) nghiêm trọng được phát hiện trong quá trình chạy 58 kịch bản Test Automation. Yêu cầu team Dev ưu tiên fix gấp trước khi release!
+Dưới đây là danh sách 7 lỗi (Bugs) nghiêm trọng được phát hiện trong quá trình chạy 51 kịch bản Test Automation. Yêu cầu team Dev ưu tiên fix gấp trước khi release!
 
 ---
 

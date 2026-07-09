@@ -19,7 +19,7 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 
 ## 2. Checklist Test Chi tiết
 
-### 2.1. Use Case 1: Authentication & Security
+### 2.1. Phân hệ Xác thực & Phân quyền (ML-AUTH)
 
 | STT | Mã YC   | Vai trò    | Tên Test Case                     | Mô tả thao tác chi tiết                                            | Kết quả mong đợi (Expected)                                                                 | Trạng thái |
 | --: | ------- | ---------- | --------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ---------- |
@@ -33,8 +33,7 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 |   8 | AUTH-08 | Kid/Parent | Chặn User thường truy cập Admin   | Đăng nhập Kid hoặc Parent -> Gõ URL `/admin`                       | Chặn truy cập, hệ thống đá văng về trang chủ hoặc `/login`                                  | [!]        |
 |   9 | AUTH-09 | All        | Đăng xuất khỏi hệ thống           | Đăng nhập thành công -> Bấm Avatar -> Chọn Đăng xuất               | Trình duyệt xóa Firebase Token, UI chuyển về trạng thái Guest, tự động redirect về `/login` | [x]        |
 
-### 2.2. Use Case 2: Application Features & Payments
-
+### 2.2. Phân hệ Subscription & Thanh toán Stripe (ML-SUBS)
 
 | STT | Mã YC   | Vai trò  | Tên Test Case                            | Mô tả thao tác chi tiết                                                                    | Kết quả mong đợi (Expected)                                                  | Trạng thái |
 | --: | ------- | -------- | ---------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ---------- |
@@ -45,8 +44,7 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 |  14 | SUBS-05 | Parent   | Stripe Portal quản lý Billing            | Bấm nút "Quản lý thanh toán" trong Profile                                                 | Chuyển hướng thành công sang giao diện Stripe Customer Portal để hủy/sửa thẻ | [!]        |
 |  15 | SUBS-06 | Kid Pro  | Mở khóa Tách Đề AI cho Kid Pro           | Đăng nhập Kid Pro -> Mở `/practice`                                                        | Nút Upload sáng lên, cho phép bấm vào để chọn file PDF/Docx                  | [x]        |
 
-### 2.3. Use Case 3: Knowledge Base & Parsing
-
+### 2.3. Phân hệ OCR & Bóc tách đề thông minh (ML-PARSE)
 
 | STT | Mã YC    | Vai trò | Tên Test Case                     | Mô tả thao tác chi tiết                                                         | Kết quả mong đợi (Expected)                                                             | Trạng thái |
 | --: | -------- | ------- | --------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------- |
@@ -56,16 +54,16 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 |  19 | PARSE-04 | Kid Pro | Phân rã Trang (Pagination)        | Upload PDF 10 trang -> Chọn Tùy chọn nâng cao -> Nhập trang "2-4" -> Bấm Đọc đề | API backend chỉ gửi ảnh trang 2, 3, 4 lên OpenRouter, bỏ qua các trang khác             | [x]        |
 |  20 | PARSE-05 | Kid Pro | Cơ chế tự sửa lỗi (JSON Repair)   | (Test Backend) Gửi nội dung vỡ format JSON từ LLM vào hàm `_parse_json_object`  | Hàm bắt Exception và tự động gọi lại LLM (Prompt Repair) để trả về JSON chuẩn           | [x]        |
 
-### 2.4. Use Case 4: Practice & Personalization
-
+### 2.4. Phân hệ Cá nhân hóa Đề thi (ML-PERSONALIZE)
 
 | STT | Mã YC   | Vai trò | Tên Test Case                         | Mô tả thao tác chi tiết                                             | Kết quả mong đợi (Expected)                                                                          | Trạng thái |
 | --: | ------- | ------- | ------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------- |
-|  21 | PERS-01 | Kid     | Hiển thị Đề Luyện Cân Bằng (Mặc định) | Truy cập `/practice` khi mới tạo tài khoản, chưa có lịch sử làm bài | Load khối `PersonalizedExercisePanel`, hiển thị mục tiêu: "Luyện cân bằng" do chưa có data điểm yếu. | [x]        |
-|  22 | PERS-02 | Kid     | AI phân tích điểm yếu                 | Cố tình làm sai liên tục 5 câu hỏi Toán Hình học (Geometry)         | Database lưu dấu `concepts: ['geometry']` bị sai nhiều.                                              | [x]        |
-|  23 | PERS-03 | Kid     | Tạo Đề Cá Nhân Hóa theo điểm yếu      | F5 tải lại trang `/practice` sau khi làm sai ở PERS-02              | Block đề xuất chuyển thành "Tập trung Hình học", API tự động sinh 5 câu Hình Học.                    | [x]        |
-|  24 | PERS-04 | Kid     | Sửa lỗi font Mojibake (Encoding)      | Kéo data lỗi font từ DB (VD: `ÃÂÄÅÆ`) vào PersonalizedExercisePanel | Hàm `repairMojibake` kích hoạt, dịch lại tiếng Việt chuẩn không bị lỗi hiển thị.                     | [x]        |
+|  21 | PERS-01 | Kid     | Hiển thị Đề Luyện Cân Bằng (Mặc định) | Truy cập `/practice` khi mới tạo tài khoản, chưa có lịch sử làm bài | Load khối `PersonalizedExercisePanel`, hiển thị mục tiêu: "Luyện cân bằng" do chưa có data điểm yếu. | [-]        |
+|  22 | PERS-02 | Kid     | AI phân tích điểm yếu                 | Cố tình làm sai liên tục 5 câu hỏi Toán Hình học (Geometry)         | Database lưu dấu `concepts: ['geometry']` bị sai nhiều.                                              | [-]        |
+|  23 | PERS-03 | Kid     | Tạo Đề Cá Nhân Hóa theo điểm yếu      | F5 tải lại trang `/practice` sau khi làm sai ở PERS-02              | Block đề xuất chuyển thành "Tập trung Hình học", API tự động sinh 5 câu Hình Học.                    | [-]        |
+|  24 | PERS-04 | Kid     | Sửa lỗi font Mojibake (Encoding)      | Kéo data lỗi font từ DB (VD: `ÃÂÄÅÆ`) vào PersonalizedExercisePanel | Hàm `repairMojibake` kích hoạt, dịch lại tiếng Việt chuẩn không bị lỗi hiển thị.                     | [-]        |
 
+### 2.5. Phân hệ Luyện tập & Gia sư RAG (ML-PRAC)
 
 | STT | Mã YC   | Vai trò | Tên Test Case                         | Mô tả thao tác chi tiết                                      | Kết quả mong đợi (Expected)                                                           | Trạng thái |
 | --: | ------- | ------- | ------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------- | ---------- |
@@ -75,8 +73,7 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 |  28 | PRAC-04 | Kid     | Kích hoạt AI Tutor (RAG) cho câu sai  | Nộp bài xong -> Bấm "Hỏi Gia sư AI" ở một câu tô đỏ          | UI hiện Loading, Backend (RAG Service) trả lời giải thích step-by-step vào khung chat | [x]        |
 |  29 | PRAC-05 | Kid     | Tính năng TTS (Text-to-Speech)        | Bấm icon Loa bên cạnh lời giải thích của AI                  | Trình duyệt phát ra âm thanh tiếng Việt đọc lại lời giải                              | [!]        |
 
-### 2.5. Use Case 5: Gamification & System Administration
-
+### 2.6. Phân hệ Gamification & Xếp hạng (ML-GAMI)
 
 | STT | Mã YC   | Vai trò | Tên Test Case                     | Mô tả thao tác chi tiết                                                      | Kết quả mong đợi (Expected)                                                    | Trạng thái |
 | --: | ------- | ------- | --------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------- |
@@ -86,20 +83,22 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 |  33 | GAMI-04 | Kid     | Bảng xếp hạng (Leaderboard)       | Truy cập `/leaderboard`                                                      | Hiển thị danh sách Top Users sắp xếp giảm dần theo tổng EXP                    | []        |
 |  34 | GAMI-05 | Kid     | Nhận Huy hiệu (Badges)            | Đạt mốc hoàn thành 5 bài học đầu tiên (Nếu có logic badge)                   | Unlock Huy hiệu "Chăm chỉ", hiển thị sáng lên trong Profile                    | []        |
 
+### 2.7. Phân hệ Gia đình & Phụ huynh (ML-FAM)
 
 | STT | Mã YC  | Vai trò | Tên Test Case                 | Mô tả thao tác chi tiết                                                           | Kết quả mong đợi (Expected)                                          | Trạng thái |
 | --: | ------ | ------- | ----------------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------- |
 |  35 | FAM-01 | Parent  | Xem danh sách tài khoản con   | Đăng nhập Parent -> Vào trang Quản lý Gia đình                                    | Hiển thị danh sách các tài khoản Kid do Phụ huynh đã tạo             | [!]        |
-|  36 | FAM-02 | Parent  | Cập nhật thông tin con        | Bấm nút Chỉnh sửa (Edit) trên thẻ của một Kid -> Đổi Tên/Mật khẩu -> Lưu          | Thông tin của Kid được cập nhật thành công trên giao diện và DB      | [x]        |
-|  37 | FAM-03 | Parent  | Xem biểu đồ tiến độ của con   | Bấm vào thẻ của đứa con -> Chuyển sang Tab Báo cáo/Tiến độ                        | Hiển thị biểu đồ số bài đã làm, điểm trung bình, thời gian học       | [x]        |
+|  36 | FAM-02 | Parent  | Cập nhật thông tin con        | Bấm nút Chỉnh sửa (Edit) trên thẻ của một Kid -> Đổi Tên/Mật khẩu -> Lưu          | Thông tin của Kid được cập nhật thành công trên giao diện và DB      | [-]        |
+|  37 | FAM-03 | Parent  | Xem biểu đồ tiến độ của con   | Bấm vào thẻ của đứa con -> Chuyển sang Tab Báo cáo/Tiến độ                        | Hiển thị biểu đồ số bài đã làm, điểm trung bình, thời gian học       | [-]        |
 
 
+### 2.8. Phân hệ Quản trị viên (ML-ADM)
 
 | STT | Mã YC  | Vai trò | Tên Test Case               | Mô tả thao tác chi tiết                                       | Kết quả mong đợi (Expected)                                                     | Trạng thái |
 | --: | ------ | ------- | --------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------- |
 |  38 | ADM-01 | Admin   | Hiển thị Dashboard Quản trị | Truy cập `/admin`                                             | Load đầy đủ thông số: Tổng User, Tỷ lệ Free/Pro, Doanh thu ước tính             | [x]        |
-|  39 | ADM-02 | Admin   | Tìm kiếm người dùng         | Truy cập `/admin/users` -> Gõ "kidpro@melon.com" vào ô search | Bảng table lọc ra đúng dòng chứa email đó                                       | [x]        |
-|  40 | ADM-03 | Admin   | Khóa tài khoản (Lock/Ban)   | Bấm nút Khóa tài khoản của Kid A                              | Cột trạng thái đổi thành "Locked". Kid A F5 trình duyệt sẽ bị đăng xuất         | [x]        |
+|  39 | ADM-02 | Admin   | Tìm kiếm người dùng         | Truy cập `/admin/users` -> Gõ "kidpro@melon.com" vào ô search | Bảng table lọc ra đúng dòng chứa email đó                                       | [-]        |
+|  40 | ADM-03 | Admin   | Khóa tài khoản (Lock/Ban)   | Bấm nút Khóa tài khoản của Kid A                              | Cột trạng thái đổi thành "Locked". Kid A F5 trình duyệt sẽ bị đăng xuất         | [-]        |
 |  41 | ADM-04 | Admin   | Xóa tài khoản               | Bấm nút Xóa vĩnh viễn (Delete) tài khoản Kid B                | Tài khoản bốc hơi khỏi DB (Hoặc đổi cờ isDeleted = true)                        | [x]        |
 |  42 | ADM-05 | Admin   | Cấp quyền Pro thủ công      | Bấm Edit User -> Chỉnh cột Subscription thành Pro -> Save     | User nhận ngay quyền Pro mà không cần thanh toán Stripe                         | [x]        |
 |  43 | ADM-06 | Admin   | Quản lý Ngân hàng Câu hỏi   | Mở trang Question Bank -> Bấm nút Upload PDF Thô              | Admin up PDF -> Gọi API Background Parse -> Bơm hàng loạt câu hỏi vào Kho chung | [x]        |
@@ -110,16 +109,18 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 
 | STT | Mã YC   | Vai trò | Tên Test Case                 | Mô tả thao tác chi tiết                                       | Kết quả mong đợi (Expected)                                                                      | Trạng thái |
 | --: | ------- | ------- | ----------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ---------- |
-|  44 | STUD-01 | Kid     | Xem Slide Lý thuyết Bài giảng | Mở `/lessons/[id]` -> Đọc nội dung text/video -> Bấm Tiếp tục | Trình duyệt chuyển mượt mà sang Slide tiếp theo                                                  | [x]        |
-|  45 | STUD-02 | Kid     | Trả lời Slide Quiz Giữa giờ   | Tới Slide Quiz -> Chọn một đáp án sai                         | Nút Tiếp tục bị mờ, UI báo lỗi màu đỏ, bắt buộc làm lại                                          | [x]        |
-|  46 | STUD-03 | Kid     | Hoàn thành Bài giảng          | Bấm nút Hoàn thành ở Slide cuối cùng                          | Hệ thống ghi nhận Tiến độ (`logActivityEvent`), cộng XP, tự động quay về trang Tổng quan Bài học | [x]        |
+|  44 | STUD-01 | Kid     | Xem Slide Lý thuyết Bài giảng | Mở `/lessons/[id]` -> Đọc nội dung text/video -> Bấm Tiếp tục | Trình duyệt chuyển mượt mà sang Slide tiếp theo                                                  | [-]        |
+|  45 | STUD-02 | Kid     | Trả lời Slide Quiz Giữa giờ   | Tới Slide Quiz -> Chọn một đáp án sai                         | Nút Tiếp tục bị mờ, UI báo lỗi màu đỏ, bắt buộc làm lại                                          | [-]        |
+|  46 | STUD-03 | Kid     | Hoàn thành Bài giảng          | Bấm nút Hoàn thành ở Slide cuối cùng                          | Hệ thống ghi nhận Tiến độ (`logActivityEvent`), cộng XP, tự động quay về trang Tổng quan Bài học | [-]        |
 
+### 2.10. Phân hệ Nạp Kiến thức AI & RAG (ML-RAG-INGEST)
 
 | STT | Mã YC  | Vai trò | Tên Test Case                                  | Mô tả thao tác chi tiết                                     | Kết quả mong đợi (Expected)                                                              | Trạng thái |
 | --: | ------ | ------- | ---------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------- |
 |  47 | RAG-01 | Admin   | Upload tài liệu nạp Vector (Ingestion)         | Gọi POST `/api/v1/rag/ingest` kèm file Sách Toán 10.pdf     | Dữ liệu được đẩy sang Backend FastAPI, băm nhỏ và lưu trữ thành dạng Vector Embeddings   | []        |
 |  48 | RAG-02 | Admin   | Sinh đề trắc nghiệm tự động từ Sách (RAG Quiz) | Gọi POST `/api/v1/rag/quiz` với chủ đề "Phương trình bậc 2" | AI lôi kiến thức từ VectorDB để sinh ra đề trắc nghiệm sát với Sách giáo khoa vừa upload | []        |
 
+### 2.11. Phân hệ Hồ sơ cá nhân (ML-PROFILE)
 
 | STT | Mã YC   | Vai trò | Tên Test Case       | Mô tả thao tác chi tiết                  | Kết quả mong đợi (Expected)                                                                | Trạng thái |
 | --: | ------- | ------- | ------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------ | ---------- |
@@ -128,6 +129,7 @@ Quy ước: `[ ]`: Chưa test | `[x]`: Đạt | `[!]`: Lỗi | `[-]`: chưa code
 
 
 
+### 2.14. Phân hệ Xử lý Lỗi & Webhook (ML-ERR)
 
 | STT | Mã YC  | Vai trò | Tên Test Case                               | Mô tả thao tác chi tiết                                                            | Kết quả mong đợi (Expected)                                                                            | Trạng thái |
 | --: | ------ | ------- | ------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------- |
