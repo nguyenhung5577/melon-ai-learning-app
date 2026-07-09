@@ -12,7 +12,7 @@ def pack_pa4():
     os.makedirs(group_dir)
     
     # 1. Copy documents
-    docs = ["Test plan.docx", "Test cases.md", "Test report.md"]
+    docs = ["Test plan.docx", "Test cases.md", "Test report.md", "Test cases.docx", "Test report.docx"]
     for d in docs:
         src = os.path.join(pa4_dir, d)
         if os.path.exists(src):
