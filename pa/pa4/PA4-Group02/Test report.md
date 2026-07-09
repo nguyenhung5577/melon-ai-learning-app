@@ -12,6 +12,7 @@
 3. **Knowledge Base & Parsing:** 5 tests (4 pass, 1 fail, 0 Skip/Unimplemented)
 4. **Practice & Personalization:** 5 tests (4 pass, 1 fail, 0 Skip/Unimplemented)
 5. **Gamification & System Administration:** 10 tests (9 pass, 1 fail, 0 Skip/Unimplemented)
+6. **Bài giảng & Các tính năng khác:** 5 tests (4 pass, 1 fail, 0 Skip/Unimplemented)
 
 ---
 
