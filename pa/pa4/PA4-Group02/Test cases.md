@@ -1,7 +1,5 @@
 # KẾ HOẠCH KIỂM THỬ (TEST PLAN) - MELON AI LEARNING APP
 
-**Mục tiêu:** Tài liệu này liệt kê Exhaustive Test Cases (Kiểm thử Toàn diện) cho toàn bộ hệ thống Melon AI. Mỗi test case được tách biệt rõ ràng, chỉ định đích danh vai trò và kết quả cụ thể, không mô tả chung chung.
-
 ---
 
 ## 1. Thông tin Test nhanh

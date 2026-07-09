@@ -1,17 +1,17 @@
 
 ## Test Summary Report
 - **Number of Use-Cases tested:** 5
-- **Total Test Cases:** 48
-- **Passed Test Cases:** 27
-- **Failed Test Cases:** 8
-- **Skipped/Unimplemented Test Cases:** 13
+- **Total Test Cases:** 40
+- **Passed Test Cases:** 33
+- **Failed Test Cases:** 7
+- **Skipped/Unimplemented Test Cases:** 0
 
 ### Breakdown by Use-Case:
-1. **Authentication & Security:** 9 tests (33 pass, 7 fail, 0 Skip/Unimplemented)
-2. **Application Features & Payments:** 6 tests (33 pass, 7 fail, 0 Skip/Unimplemented)
-3. **Knowledge Base & Parsing:** 5 tests (33 pass, 7 fail, 0 Skip/Unimplemented)
-4. **Practice & Personalization:** 9 tests (33 pass, 7 fail, 4 Skip/Unimplemented)
-5. **Gamification & System Administration:** 19 tests (33 pass, 7 fail, 9 Skip/Unimplemented)
+1. **Authentication & Security:** 9 tests (8 pass, 1 fail, 0 Skip/Unimplemented)
+2. **Application Features & Payments:** 6 tests (4 pass, 2 fail, 0 Skip/Unimplemented)
+3. **Knowledge Base & Parsing:** 5 tests (4 pass, 1 fail, 0 Skip/Unimplemented)
+4. **Practice & Personalization:** 5 tests (4 pass, 1 fail, 0 Skip/Unimplemented)
+5. **Gamification & System Administration:** 10 tests (9 pass, 1 fail, 0 Skip/Unimplemented)
 
 ---
 
