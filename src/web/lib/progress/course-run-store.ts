@@ -116,6 +116,10 @@ function stageIndex(pipeline: CoursePipelineDefinition, stageId: string): number
   return Math.max(0, pipeline.stages.findIndex((stage) => stage.id === stageId));
 }
 
+function orderedStageIds(pipeline: CoursePipelineDefinition, stageIds: string[]): string[] {
+  return unique(stageIds).sort((left, right) => stageIndex(pipeline, left) - stageIndex(pipeline, right));
+}
+
 function stageById(pipeline: CoursePipelineDefinition, stageId: string): CoursePipelineStage {
   return pipeline.stages.find((stage) => stage.id === stageId) ?? pipeline.stages[0];
 }
@@ -395,7 +399,7 @@ function createCourseRun(
   const stageProgress: Record<string, StudentCourseStageProgress> = {
     [startingStage.id]: stageProgressRecord(startingStage.id, "in_progress", now),
   };
-  const visibleStageIds = unique([
+  const visibleStageIds = orderedStageIds(pipeline, [
     ...visibleStageIdsForRun(pipeline, course, progress, child),
     startingStage.id,
   ]);
@@ -519,7 +523,7 @@ export async function ensureCourseRunsForChild(childUid: string): Promise<void> 
     const nextPriority = priorityScoreForCourse(course, progress, child);
     const nextReason = courseReasonText(course, progress);
     const currentStage = current ? stageById(pipeline, current.currentStageId) : undefined;
-    const nextVisibleStageIds = unique([
+    const nextVisibleStageIds = orderedStageIds(pipeline, [
       ...visibleStageIdsForRun(pipeline, course, progress, child),
       ...(current?.currentStageId ? [current.currentStageId] : []),
     ]);

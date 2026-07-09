@@ -103,6 +103,21 @@ export const userStore = {
   },
 
   async getChildrenForParent(parentUid: string): Promise<ChildProfile[]> {
+    const token = await auth?.currentUser?.getIdToken();
+    if (token && auth?.currentUser?.uid === parentUid) {
+      const res = await fetch("/api/parents/children", {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error ?? "Không tải được danh sách tài khoản con.");
+      }
+      return data.children as ChildProfile[];
+    }
+
     return queryDocuments(collections.children, where("linkedParentUid", "==", parentUid));
   },
 
