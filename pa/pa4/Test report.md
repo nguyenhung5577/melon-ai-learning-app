@@ -12,7 +12,7 @@
 3. **Knowledge Base & Parsing:** 5 tests (4 pass, 1 fail, 0 Skip/Unimplemented)
 4. **Practice & Personalization:** 5 tests (4 pass, 1 fail, 0 Skip/Unimplemented)
 5. **Gamification & System Administration:** 10 tests (9 pass, 1 fail, 0 Skip/Unimplemented)
-6. **Bài giảng & Các tính năng khác:** 5 tests (4 pass, 1 fail, 0 Skip/Unimplemented)
+6. **Bài giảng & Các tính năng khác:** 5 tests (3 pass, 2 fail, 0 Skip/Unimplemented)
 
 ---
 
@@ -22,7 +22,7 @@
 **Ngày báo cáo:** 21/06/2026
 **Môi trường:** Localhost (Next.js + FastAPI)
 
-Dưới đây là danh sách 7 lỗi (Bugs) nghiêm trọng được phát hiện trong quá trình chạy 40 kịch bản Test Automation. Yêu cầu team Dev ưu tiên fix gấp trước khi release!
+Dưới đây là danh sách 8 lỗi (Bugs) nghiêm trọng được phát hiện trong quá trình chạy 40 kịch bản Test Automation. Yêu cầu team Dev ưu tiên fix gấp trước khi release!
 
 ---
 

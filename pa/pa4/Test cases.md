@@ -110,7 +110,7 @@ Quy ước: [x]: Đạt | [!]: Lỗi
 
 | STT | Mã YC   | Vai trò | Tên Test Case       | Mô tả thao tác chi tiết                  | Kết quả mong đợi (Expected)                                                                | Trạng thái |
 | --: | ------- | ------- | ------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------ | ---------- |
-|  38 | PROF-01 | Kid/Parent | Xem thông tin hồ sơ | Mở `/profile`                            | Load thông tin cơ bản: Tên hiển thị, Mã UID, Lớp, Avatar (Kid) hoặc Email (Parent) | [x]        |
+|  38 | PROF-01 | Kid/Parent | Xem thông tin hồ sơ | Mở `/profile`                            | Load thông tin cơ bản: Tên hiển thị, Mã UID, Lớp, Avatar (Kid) hoặc Email (Parent) | [!]        |
 |  39 | PROF-02 | Kid/Parent | Cập nhật thông tin  | Đổi tên thành "Học sinh Giỏi" -> Bấm Lưu | Cập nhật thành công vào Database, Tên mới xuất hiện lập tức trên Thanh điều hướng (Navbar) | [x]        |
 
 
