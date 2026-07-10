@@ -42,10 +42,46 @@ const CreateChildSchema = z.object({
   learningPreferences: LearningPreferencesSchema,
 });
 
+type ChildListItem = {
+  uid: string;
+  createdAt?: string;
+} & Record<string, unknown>;
+
 function getBearerToken(req: NextRequest): string | null {
   const header = req.headers.get("authorization");
   if (!header?.startsWith("Bearer ")) return null;
   return header.slice("Bearer ".length).trim();
+}
+
+export async function GET(req: NextRequest) {
+  const token = getBearerToken(req);
+  if (!token) {
+    return NextResponse.json({ error: "Missing parent auth token." }, { status: 401 });
+  }
+
+  try {
+    const auth = adminAuth();
+    const db = adminDb();
+    const decoded = await auth.verifyIdToken(token);
+    const parentUid = decoded.uid;
+    const parentSnap = await db.collection("users").doc(parentUid).get();
+    const parent = parentSnap.data();
+
+    if (!parentSnap.exists || parent?.role !== "parent") {
+      return NextResponse.json({ error: "Only parent accounts can view child accounts." }, { status: 403 });
+    }
+
+    const childrenSnap = await db.collection("children").where("linkedParentUid", "==", parentUid).get();
+    const children = childrenSnap.docs
+      .map((doc): ChildListItem => ({ ...doc.data(), uid: doc.id }))
+      .sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
+
+    return NextResponse.json({ children });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Không tải được danh sách tài khoản học sinh.";
+    const status = message.startsWith("Missing FIREBASE_ADMIN_") ? 500 : 400;
+    return NextResponse.json({ error: message }, { status });
+  }
 }
 
 export async function POST(req: NextRequest) {

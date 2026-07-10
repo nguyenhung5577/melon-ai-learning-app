@@ -102,13 +102,10 @@ function stageJourneyState(
 }
 
 function visibleStages(snapshot: CourseRunSnapshot) {
-  const allowed = snapshot.run.visibleStageIds?.length
-    ? snapshot.run.visibleStageIds
-    : snapshot.pipeline.stages.map((stage) => stage.id);
-  const byId = new Map(snapshot.pipeline.stages.map((stage) => [stage.id, stage] as const));
-  return allowed
-    .map((stageId) => byId.get(stageId))
-    .filter((stage): stage is CourseRunSnapshot["pipeline"]["stages"][number] => Boolean(stage));
+  if (!snapshot.run.visibleStageIds?.length) return snapshot.pipeline.stages;
+
+  const allowed = new Set([...snapshot.run.visibleStageIds, snapshot.currentStage.id]);
+  return snapshot.pipeline.stages.filter((stage) => allowed.has(stage.id));
 }
 
 function energyValue(snapshot: CourseRunSnapshot) {

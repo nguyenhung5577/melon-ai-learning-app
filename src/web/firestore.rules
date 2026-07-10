@@ -63,7 +63,12 @@ service cloud.firestore {
 
     // Children Profile Collection
     match /children/{childId} {
-      allow read: if isOwner(childId) || isParentOfChild(childId) || isAdmin();
+      allow read: if isOwner(childId)
+        || isAdmin()
+        || (
+          isParent()
+          && resource.data.linkedParentUid == request.auth.uid
+        );
       allow create, update: if isOwner(childId) || isAdmin();
       allow delete: if isAdmin();
     }
