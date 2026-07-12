@@ -1,155 +1,183 @@
 # Melon AI Learning App
 
-AI-assisted learning app with a Next.js frontend and a FastAPI AI backend.
 
-## Project Structure
 
-```text
-.
-├── src/
-│   ├── web/                 # Next.js frontend
-│   └── melon-ai-backend/    # FastAPI AI backend
-├── docs/                    # Project documentation
-├── pa/                      # Course/project assets
-└── README.md
-```
+Melon AI Learning App là nền tảng học tập có hỗ trợ AI dành cho học sinh và phụ huynh. Ứng dụng tập trung vào học bài, luyện đề và theo dõi tiến độ học tập trong một môi trường trực quan, dễ sử dụng. Bên cạnh đó, hệ thống có trợ lý AI, nội dung luyện tập thích ứng và các cơ chế gamification như XP, huy hiệu và bảng xếp hạng.
 
-Runtime artifacts such as `.env`, `__pycache__`, Chroma databases, uploads, generated audio, logs, `.next`, and `node_modules` are ignored by Git.
 
-## Prerequisites
 
-- Node.js compatible with Next.js 16
-- npm
-- Conda
-- A conda environment named `myenv`
+## Tính năng chính
 
-Create the conda environment if it does not exist:
 
-```bash
-conda create -n myenv python=3.11
-```
 
-## Backend Setup
+- Học bài tương tác theo nội dung trên hệ thống.
 
-Install Python dependencies:
+- Luyện đề và tạo bộ câu hỏi bằng AI.
 
-```bash
-cd <repo>/src/melon-ai-backend
-conda activate myenv
-pip install -r requirements.txt
-```
+- Hỏi đáp với trợ lý AI trong quá trình học.
 
-Create backend environment file:
+- Phân tích đề từ văn bản, PDF và hình ảnh.
 
-```bash
-cp .env.example .env
-```
+- Theo dõi tiến độ, kết quả và lịch sử học tập.
 
-At minimum, set keys needed by the backend features you want to test:
+- Tích lũy XP, huy hiệu và tham gia bảng xếp hạng.
 
-```env
-OPENROUTER_API_KEY=...
-ELEVENLABS_API_KEY=...
-```
+- Khu vực phụ huynh để theo dõi việc học của con.
 
-Run the backend:
 
-```bash
-cd <repo>/src/melon-ai-backend
-conda activate myenv
-uvicorn main:app --host 127.0.0.1 --port 8001 --reload
-```
 
-Check backend health:
+## Công nghệ sử dụng
 
-```bash
-curl http://127.0.0.1:8001/health
-```
 
-Expected response:
 
-```json
-{"status":"ok","message":"Melon AI is running"}
-```
+- **Frontend:** Next.js 16, React 19, TypeScript, Tailwind CSS, Radix UI, Framer Motion, Recharts.
 
-Backend docs:
+- **Backend:** FastAPI, Uvicorn, Pydantic, PyMuPDF.
 
-```text
-http://127.0.0.1:8001/docs
-```
+- **Database:** Firebase Firestore.
 
-## Frontend Setup
+- **Authentication:** Firebase Authentication, Firebase Admin SDK.
 
-Install dependencies:
+- **AI services:** OpenAI, Google Gemini, ElevenLabs.
 
-```bash
-cd <repo>/src/web
-npm install
-```
+- **Storage:** Cloudinary.
 
-Create frontend environment file:
+- **Deployment:** Vercel, Render.
 
-```bash
-cp .env.example .env.local
-```
 
-Set the backend URL:
 
-```env
-MELON_AI_BACKEND_URL=http://127.0.0.1:8001
-```
+## Truy cập hệ thống
 
-Fill Firebase, Cloudinary, and other keys as needed for the features you are testing.
 
-Run the frontend:
 
-```bash
-cd <repo>/src/web
-npm run dev
-```
+- [Website](https://melon-ai-learning-app.vercel.app/)
 
-Frontend URL:
+- [Tài liệu dự án](https://github.com/nguyenhung5577/melon-ai-learning-app/tree/main/docs)
 
-```text
-http://localhost:3000
-```
 
-To expose the frontend on the local network:
 
-```bash
-npm run dev -- -H 0.0.0.0
-```
+## Hướng dẫn chạy cục bộ
 
-Then open the Network URL printed by Next.js from another device on the same Wi-Fi.
 
-## Common Development Flow
 
-1. Start backend from `src/melon-ai-backend` using conda env `myenv`.
-2. Start frontend from `src/web`.
-3. Open `http://localhost:3000`.
-4. Use lesson, practice, and question-bank flows to call the backend through Next.js API routes.
+1. Clone repository.
 
-## Useful Commands
 
-Frontend:
 
-```bash
-cd <repo>/src/web
-npm run dev
-npm run build
-npm run lint
-npm run type-check
-```
+   ```bash
 
-Backend:
+   git clone https://github.com/nguyenhung5577/melon-ai-learning-app.git
 
-```bash
-cd <repo>/src/melon-ai-backend
-conda activate myenv
-uvicorn main:app --host 127.0.0.1 --port 8001 --reload
-```
+   cd melon-ai-learning-app
 
-## Notes
+   ```
 
-- Generated audio and uploaded files are runtime artifacts and are ignored by Git.
-- Local `.env` files are ignored by Git. Share secrets through the team secret manager, not commits.
+
+
+2. Cài đặt dependencies cho frontend.
+
+
+
+   ```bash
+
+   cd src/web
+
+   npm install
+
+   ```
+
+
+
+3. Cài đặt dependencies cho backend.
+
+
+
+   ```bash
+
+   cd ../melon-ai-backend
+
+   conda create -n myenv python=3.11
+
+   conda activate myenv
+
+   pip install -r requirements.txt
+
+   ```
+
+
+
+4. Cấu hình các biến môi trường cần thiết.
+
+
+
+   ```bash
+
+   cd ../web
+
+   cp .env.example .env.local
+
+   ```
+
+
+
+   Tạo thêm file `src/melon-ai-backend/.env` và điền các khóa cần thiết cho Firebase, OpenAI, ElevenLabs, Pinecone, Cloudinary và URL backend. Không đưa API key, secret hoặc credential thật vào repository.
+
+
+
+5. Chạy frontend và backend.
+
+
+
+   ```bash
+
+   cd src/melon-ai-backend
+
+   conda activate myenv
+
+   uvicorn main:app --host 127.0.0.1 --port 8001 --reload
+
+   ```
+
+
+
+   ```bash
+
+   cd src/web
+
+   npm run dev
+
+   ```
+
+
+
+## Thành viên thực hiện
+
+
+
+**Đồ án học phần CSC10011 – Công nghệ phần mềm cho Hệ thống Trí tuệ nhân tạo**
+
+
+
+**Nhóm 2**
+
+
+
+| MSSV     | Họ và tên          | Vai trò                              |
+| -------- | ------------------ | ------------------------------------ |
+| 23122007 | Nguyễn Tấn Hùng    | System Architect / Backend Developer |
+| 23122031 | Nguyễn Huy Hoàng   | Project Manager                      |
+| 23122037 | Nguyễn Đăng Khôi   | Business Analyst / Backend Developer |
+| 23122042 | Trần Tạ Quang Minh | AI/ML Engineer                       |
+| 23122043 | Nguyễn Bá Nam      | Frontend Developer                   |
+| 23122056 | Lâm Hoàng Vũ       | QA Engineer                          |
+
+
+
+
+
+
+## Ghi chú
+
+
+
+Đây là đồ án được phát triển phục vụ mục đích học tập trong học phần CSC10011.
