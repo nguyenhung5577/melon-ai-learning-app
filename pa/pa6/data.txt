@@ -1,0 +1,2 @@
+Benchmark Dataset: https://github.com/nguyenhung5577/melon-ai-learning-app/tree/main/docs/evaluation/dataset_benchmark
+Đề thi lớp 4 và 5: https://drive.google.com/drive/folders/1TrZpCD4qC_MtJu5pC0d5tFKCVITR1ppF?usp=sharing

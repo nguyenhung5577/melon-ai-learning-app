@@ -1,0 +1,97 @@
+{
+  "questionSet": {
+    "id": "",
+    "title": "DE KIEM TRA TOAN LOP 5",
+    "grade": 5,
+    "subject": "math",
+    "language": "vi",
+    "sourceFiles": [
+      "parser_test_source.pdf"
+    ]
+  },
+  "questions": [
+    {
+      "id": "parser-test-source-pdf-1-1",
+      "questionSetId": "",
+      "grade": 5,
+      "subject": "math",
+      "section": "",
+      "questionNumber": 1,
+      "type": "multiple_choice",
+      "stem": "Một hình chữ nhật có chiều dài 12 cm, chiều rộng 8 cm. Chu vi của hình chữ nhật đó là:",
+      "choices": [
+        {
+          "key": "A",
+          "text": "96 cm"
+        },
+        {
+          "key": "B",
+          "text": "40 cm"
+        },
+        {
+          "key": "C",
+          "text": "20 cm"
+        },
+        {
+          "key": "D",
+          "text": "80 cm"
+        }
+      ],
+      "subQuestions": [],
+      "answer": "B",
+      "answerText": "40 cm",
+      "answerSource": "provided",
+      "explanation": "Chu vi hình chữ nhật = (12 + 8) x 2 = 40 cm.",
+      "imageUrls": [
+        "parser_test_source.pdf"
+      ],
+      "visualDescription": "",
+      "rawText": "Cau 1: Mot hinh chu nhat co chieu dai 12 cm, chieu rong 8 cm. Chu vi cua hinh chu nhat do la: A. 96 cm B. 40 cm C. 20 cm D. 80 cm Dap an dung: B",
+      "confidence": 1.0
+    },
+    {
+      "id": "parser-test-source-pdf-1-2",
+      "questionSetId": "",
+      "grade": 5,
+      "subject": "math",
+      "section": "",
+      "questionNumber": 2,
+      "type": "short_answer",
+      "stem": "Tìm x biết: x x 1,5 = 7,5",
+      "choices": [],
+      "subQuestions": [],
+      "answer": "5",
+      "answerText": "x = 5",
+      "answerSource": "provided",
+      "explanation": "x = 7,5 : 1,5 = 5.",
+      "imageUrls": [
+        "parser_test_source.pdf"
+      ],
+      "visualDescription": "",
+      "rawText": "Cau 2: Tim x biet: x x 1,5 = 7,5 Dap so: x = 5",
+      "confidence": 1.0
+    },
+    {
+      "id": "parser-test-source-pdf-1-3",
+      "questionSetId": "",
+      "grade": 5,
+      "subject": "math",
+      "section": "",
+      "questionNumber": 3,
+      "type": "short_answer",
+      "stem": "Cho hình tròn ở hình bên dưới có bán kính r = 5 cm. Tính diện tích hình tròn đó.",
+      "choices": [],
+      "subQuestions": [],
+      "answer": "78,5 cm2",
+      "answerText": "78,5 cm2",
+      "answerSource": "provided",
+      "explanation": "Diện tích hình tròn = 3,14 x 5 x 5 = 78,5 cm2.",
+      "imageUrls": [
+        "parser_test_source.pdf"
+      ],
+      "visualDescription": "",
+      "rawText": "Cau 3: Cho hinh tron o hinh ben duoi co ban kinh r = 5 cm. Tinh dien tich hinh tron do. Dap an: 78,5 cm2",
+      "confidence": 1.0
+    }
+  ]
+}
